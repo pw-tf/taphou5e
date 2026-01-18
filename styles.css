@@ -76,6 +76,292 @@
     padding: 0;
 }
 
+/* ========================================
+    Styles for Index.html (Login Page)
+======================================== */
+
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+        
+        .login-header {
+            padding: var(--space-xl) var(--space-md) var(--space-lg);
+            text-align: center;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .login-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: var(--space-xs);
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .login-header p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-family: 'DM Sans', sans-serif;
+        }
+        
+        .login-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-md);
+        }
+        
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .login-tabs {
+            display: flex;
+            margin-bottom: var(--space-lg);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .login-tab {
+            flex: 1;
+            padding: var(--space-md);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border-bottom: 2px solid transparent;
+        }
+        
+        .login-tab:hover {
+            color: var(--text-primary);
+        }
+        
+        .login-tab.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+        
+        .login-form {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .login-form.active {
+            display: block;
+        }
+        
+        .role-selector {
+            display: flex;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-lg);
+        }
+        
+        .role-option {
+            flex: 1;
+            padding: var(--space-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            text-align: center;
+        }
+        
+        .role-option:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .role-option.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+        
+        .role-option.dm {
+            border-color: var(--warning);
+        }
+        
+        .role-option.dm.active {
+            background: var(--warning);
+        }
+        
+        .pin-inputs {
+            display: flex;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+        
+        .pin-input {
+            flex: 1;
+            height: 56px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 24px;
+            font-weight: 600;
+            text-align: center;
+            transition: all var(--transition-fast);
+            min-width: 0;
+            min-height: 0;
+        }
+        
+        .pin-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .pin-input.error {
+            border-color: var(--danger);
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin: var(--space-lg) 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .remember-checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: var(--radius-sm);
+            border: 2px solid var(--border-default);
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        
+        .remember-checkbox.checked {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+        
+        .remember-checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .form-error {
+            padding: var(--space-md);
+            background: var(--danger-bg);
+            border: 1px solid var(--danger);
+            border-radius: var(--radius-md);
+            color: var(--danger);
+            font-size: 14px;
+            margin-bottom: var(--space-md);
+            display: none;
+        }
+        
+        .form-error.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .game-world-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: var(--space-md);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+        }
+        
+        .game-world-item {
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .game-world-item:hover {
+            background: var(--bg-hover);
+        }
+        
+        .game-world-item:last-child {
+            border-bottom: none;
+        }
+        
+        .game-world-name {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .game-world-description {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .create-hint {
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 13px;
+            margin-top: var(--space-md);
+        }
+        
+        .create-hint a {
+            color: var(--accent-primary);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .create-hint a:hover {
+            text-decoration: underline;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .login-footer {
+            padding: var(--space-lg);
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 12px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+/* ========================================
+    Styles for Character.html
+======================================== */
+
 html {
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
@@ -92,6 +378,12 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
+
+.header-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
 
 /* ========================================
    Utility Classes
@@ -142,6 +434,16 @@ body {
     margin-top: var(--space-md);
     color: var(--text-secondary);
     font-size: 14px;
+}
+
+.loader-small {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-subtle);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
 }
 
 /* ========================================

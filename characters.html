@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a0b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>D&D Character Sheets</title>
+    <!-- Remove manifest.json reference to avoid CORS error -->
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">   
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Loading State -->
+        <div id="loading" class="loading-screen">
+            <div class="loader"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Home Page -->
+        <div id="home-page" class="page hidden">
+            <header class="header">
+                <div class="header-content">
+                    <h1 class="logo">D&D Sheets</h1>
+                    <button id="refresh-btn" class="icon-btn" title="Refresh">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                        </svg>
+                    </button>
+                    <button id="logout-btn" class="icon-btn" title="Logout">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16 17 21 12 16 7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                        </button>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div id="party-roster" class="party-roster">
+                    <!-- Character cards will be inserted here -->
+                </div>
+
+                <div id="empty-state" class="empty-state hidden">
+                    <div class="empty-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </div>
+                    <h2>No Characters Yet</h2>
+                    <p>Create your first character to begin your adventure.</p>
+                </div>
+            </main>
+
+            <button id="create-btn" class="fab" title="Create Character">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Create Character Page -->
+        <div id="create-page" class="page hidden">
+            <header class="header">
+                <div class="header-content">
+                    <button id="create-back-btn" class="icon-btn" title="Back">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5"/>
+                            <path d="M12 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <h1>Create Character</h1>
+                    <div style="width: 36px;"></div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <form id="create-form" class="create-form">
+                    <section class="form-section">
+                        <h2 class="section-title">Basic Information</h2>
+                        
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label for="char-name">Character Name *</label>
+                                <input type="text" id="char-name" required placeholder="Enter character name">
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label for="player-name">Player Name *</label>
+                                <input type="text" id="player-name" required placeholder="Enter player name">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="char-race">Race</label>
+                                <select id="char-race">
+                                    <option value="Human">Human</option>
+                                    <option value="Elf">Elf</option>
+                                    <option value="Dwarf">Dwarf</option>
+                                    <option value="Halfling">Halfling</option>
+                                    <option value="Dragonborn">Dragonborn</option>
+                                    <option value="Gnome">Gnome</option>
+                                    <option value="Half-Elf">Half-Elf</option>
+                                    <option value="Half-Orc">Half-Orc</option>
+                                    <option value="Tiefling">Tiefling</option>
+                                    <option value="Aasimar">Aasimar</option>
+                                    <option value="Goliath">Goliath</option>
+                                    <option value="Tabaxi">Tabaxi</option>
+                                    <option value="Kenku">Kenku</option>
+                                    <option value="Tortle">Tortle</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="char-class">Class</label>
+                                <select id="char-class">
+                                    <option value="Fighter">Fighter</option>
+                                    <option value="Wizard">Wizard</option>
+                                    <option value="Rogue">Rogue</option>
+                                    <option value="Cleric">Cleric</option>
+                                    <option value="Barbarian">Barbarian</option>
+                                    <option value="Bard">Bard</option>
+                                    <option value="Druid">Druid</option>
+                                    <option value="Monk">Monk</option>
+                                    <option value="Paladin">Paladin</option>
+                                    <option value="Ranger">Ranger</option>
+                                    <option value="Sorcerer">Sorcerer</option>
+                                    <option value="Warlock">Warlock</option>
+                                    <option value="Artificer">Artificer</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="char-subclass">Subclass</label>
+                                <input type="text" id="char-subclass" placeholder="e.g., Champion">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="char-level">Level</label>
+                                <input type="number" id="char-level" min="1" max="20" value="1">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="char-background">Background</label>
+                                <select id="char-background">
+                                    <option value="Acolyte">Acolyte</option>
+                                    <option value="Charlatan">Charlatan</option>
+                                    <option value="Criminal">Criminal</option>
+                                    <option value="Entertainer">Entertainer</option>
+                                    <option value="Folk Hero">Folk Hero</option>
+                                    <option value="Guild Artisan">Guild Artisan</option>
+                                    <option value="Hermit">Hermit</option>
+                                    <option value="Noble">Noble</option>
+                                    <option value="Outlander">Outlander</option>
+                                    <option value="Sage">Sage</option>
+                                    <option value="Sailor">Sailor</option>
+                                    <option value="Soldier" selected>Soldier</option>
+                                    <option value="Urchin">Urchin</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="char-alignment">Alignment</label>
+                                <select id="char-alignment">
+                                    <option value="Lawful Good">Lawful Good</option>
+                                    <option value="Neutral Good">Neutral Good</option>
+                                    <option value="Chaotic Good">Chaotic Good</option>
+                                    <option value="Lawful Neutral">Lawful Neutral</option>
+                                    <option value="True Neutral" selected>True Neutral</option>
+                                    <option value="Chaotic Neutral">Chaotic Neutral</option>
+                                    <option value="Lawful Evil">Lawful Evil</option>
+                                    <option value="Neutral Evil">Neutral Evil</option>
+                                    <option value="Chaotic Evil">Chaotic Evil</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section">
+                        <div class="section-header">
+                            <h2 class="section-title">Ability Scores</h2>
+                            <button type="button" id="roll-abilities-btn" class="btn-secondary btn-small">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="2" width="20" height="20" rx="2"/>
+                                    <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                                    <circle cx="16" cy="8" r="1.5" fill="currentColor"/>
+                                    <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+                                    <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+                                    <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                                </svg>
+                                Roll 4d6
+                            </button>
+                        </div>
+
+                        <div class="ability-scores-grid">
+                            <div class="ability-input">
+                                <label for="score-str">STR</label>
+                                <input type="number" id="score-str" min="1" max="30" value="10">
+                                <span class="ability-mod" id="mod-str">+0</span>
+                            </div>
+                            <div class="ability-input">
+                                <label for="score-dex">DEX</label>
+                                <input type="number" id="score-dex" min="1" max="30" value="10">
+                                <span class="ability-mod" id="mod-dex">+0</span>
+                            </div>
+                            <div class="ability-input">
+                                <label for="score-con">CON</label>
+                                <input type="number" id="score-con" min="1" max="30" value="10">
+                                <span class="ability-mod" id="mod-con">+0</span>
+                            </div>
+                            <div class="ability-input">
+                                <label for="score-int">INT</label>
+                                <input type="number" id="score-int" min="1" max="30" value="10">
+                                <span class="ability-mod" id="mod-int">+0</span>
+                            </div>
+                            <div class="ability-input">
+                                <label for="score-wis">WIS</label>
+                                <input type="number" id="score-wis" min="1" max="30" value="10">
+                                <span class="ability-mod" id="mod-wis">+0</span>
+                            </div>
+                            <div class="ability-input">
+                                <label for="score-cha">CHA</label>
+                                <input type="number" id="score-cha" min="1" max="30" value="10">
+                                <span class="ability-mod" id="mod-cha">+0</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section">
+                        <h2 class="section-title">Combat Stats</h2>
+                        
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="char-ac">Armor Class</label>
+                                <input type="number" id="char-ac" min="1" value="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="char-speed">Speed (ft)</label>
+                                <input type="number" id="char-speed" min="0" step="5" value="30">
+                            </div>
+                            <div class="form-group">
+                                <label for="char-hp">Max HP</label>
+                                <input type="number" id="char-hp" min="1" value="10">
+                                <span class="helper-text" id="hp-suggestion">Suggested: 10</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="form-actions">
+                        <button type="button" id="cancel-create-btn" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Create Character</button>
+                    </div>
+                </form>
+            </main>
+        </div>
+
+        <!-- Character Detail Page -->
+        <div id="character-page" class="page hidden">
+            <header class="header">
+                <div class="header-content">
+                    <button id="char-back-btn" class="icon-btn" title="Back">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5"/>
+                            <path d="M12 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    <div class="char-header-info">
+                        <h1 id="char-header-name">Character Name</h1>
+                        <p id="char-header-subtitle">Level 1 Human Fighter</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="logout-btn" class="icon-btn" title="Logout">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16 17 21 12 16 7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                        </button>
+                        <button id="delete-char-btn" class="icon-btn danger" title="Delete Character">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 6h18"/>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-content with-tabs">
+                <!-- Tab Contents -->
+                <div id="tab-stats" class="tab-content active">
+                    <!-- Stats content will be populated by JS -->
+                </div>
+
+                <div id="tab-skills" class="tab-content">
+                    <!-- Skills content will be populated by JS -->
+                </div>
+
+                <div id="tab-actions" class="tab-content">
+                    <!-- Actions content will be populated by JS -->
+                </div>
+
+                <div id="tab-inventory" class="tab-content">
+                    <!-- Inventory content will be populated by JS -->
+                </div>
+
+                <div id="tab-notes" class="tab-content">
+                    <!-- Notes content will be populated by JS -->
+                </div>
+            </main>
+
+            <nav class="tab-bar">
+                <button class="tab-btn active" data-tab="stats">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20V10"/>
+                        <path d="M18 20V4"/>
+                        <path d="M6 20v-4"/>
+                    </svg>
+                    <span>Stats</span>
+                </button>
+                <button class="tab-btn" data-tab="skills">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                    <span>Skills</span>
+                </button>
+                <button class="tab-btn" data-tab="actions">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
+                        <path d="M13 19l6-6"/>
+                        <path d="M16 16l4 4"/>
+                        <path d="M19 21l2-2"/>
+                    </svg>
+                    <span>Actions</span>
+                </button>
+                <button class="tab-btn" data-tab="inventory">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <path d="M16 10a4 4 0 0 1-8 0"/>
+                    </svg>
+                    <span>Inventory</span>
+                </button>
+                <button class="tab-btn" data-tab="notes">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    <span>Notes</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div id="delete-modal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <h2>Delete Character?</h2>
+                <p>This action cannot be undone. Are you sure you want to delete <strong id="delete-char-name"></strong>?</p>
+                <div class="modal-actions">
+                    <button id="cancel-delete-btn" class="btn-secondary">Cancel</button>
+                    <button id="confirm-delete-btn" class="btn-danger">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Item Modal -->
+        <div id="add-item-modal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <h2 id="add-modal-title">Add Item</h2>
+                <form id="add-item-form">
+                    <div id="add-modal-fields">
+                        <!-- Fields will be populated dynamically -->
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" id="cancel-add-btn" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+</body>
+</html>

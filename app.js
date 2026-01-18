@@ -6,6 +6,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+
 // ========================================
 // D&D 5e API Configuration
 // ========================================
@@ -50,6 +51,102 @@ const getModifier = score => Math.floor((score - 10) / 2);
 const formatMod = mod => mod >= 0 ? `+${mod}` : `${mod}`;
 const getProfBonus = level => Math.ceil(level / 4) + 1;
 const escapeHtml = t => { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; };
+
+// ========================================
+// Session Management
+// ========================================
+let currentSession = null;
+
+async function validateSession() {
+    console.log('Validating session...');
+    
+    // Check for session in localStorage or sessionStorage
+    let session = JSON.parse(localStorage.getItem('dnd-session') || sessionStorage.getItem('dnd-session') || 'null');
+    
+    if (!session) {
+        console.log('No session found, redirecting to login...');
+        // No session, redirect to login
+        window.location.href = 'index.html';
+        return false;
+    }
+    
+    console.log('Session found:', session);
+    
+    // Check if session is less than 7 days old
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    if (Date.now() - session.timestamp > oneWeek) {
+        console.log('Session expired, clearing...');
+        // Clear expired session
+        clearSession();
+        window.location.href = 'index.html';
+        return false;
+    }
+    
+    // Verify game world still exists
+    try {
+        const { data: gameWorld, error } = await db
+            .from('game_worlds')
+            .select('*')
+            .eq('id', session.gameWorldId)
+            .eq('is_active', true)
+            .single();
+        
+        if (error || !gameWorld) {
+            console.error('Game world not found or error:', error);
+            // Game world not found, clear session and redirect
+            clearSession();
+            window.location.href = 'index.html';
+            return false;
+        }
+        
+        console.log('Game world found:', gameWorld.name);
+        
+        currentSession = {
+            ...session,
+            gameWorld
+        };
+        
+        return true;
+    } catch (error) {
+        console.error('Error validating session:', error);
+        clearSession();
+        window.location.href = 'index.html';
+        return false;
+    }
+}
+
+function clearSession() {
+    console.log('Clearing session...');
+    localStorage.removeItem('dnd-session');
+    sessionStorage.removeItem('dnd-session');
+    currentSession = null;
+}
+
+// Update loadCharacters to filter by game world
+async function loadCharacters() {
+    if (!currentSession) {
+        console.error('No session when loading characters');
+        return;
+    }
+    
+    console.log('Loading characters for game world:', currentSession.gameWorldId);
+    
+    const { data, error } = await db
+        .from('characters')
+        .select(`*, ability_scores (*), skills (*)`)
+        .eq('game_world_id', currentSession.gameWorldId)
+        .order('updated_at', { ascending: false });
+    
+    if (error) { 
+        console.error('Error loading characters:', error); 
+        return; 
+    }
+    
+    characters = data || [];
+    console.log(`Loaded ${characters.length} characters`);
+    renderRoster();
+}
+
 
 // Get ability score with consistent key access
 function getAbilityScore(abilityScores, shortKey) {
@@ -300,6 +397,14 @@ function updateHPHint() {
 
 async function handleCreate(e) {
     e.preventDefault();
+    
+    // Add game world validation
+    if (!currentSession) {
+        alert('Session expired. Please login again.');
+        window.location.href = 'index.html';
+        return;
+    }
+    
     const name = $('#char-name').value.trim();
     const playerName = $('#player-name').value.trim();
     const race = $('#char-race').value;
@@ -318,6 +423,7 @@ async function handleCreate(e) {
     const hd = HIT_DICE[cls] || 8;
 
     const { data: char, error } = await db.from('characters').insert({
+        game_world_id: currentSession.gameWorldId, // Add this line
         name, player_name: playerName, race, class: cls, subclass, level, experience_points: 0, background, alignment,
         armor_class: ac, initiative_bonus: dexMod, speed, hit_point_maximum: hp, current_hit_points: hp,
         temporary_hit_points: 0, hit_dice_total: `${level}d${hd}`, hit_dice_remaining: level,
@@ -1278,28 +1384,58 @@ function initTabs() {
 // ========================================
 // Initialize App
 // ========================================
+// ========================================
+// Initialize App
+// ========================================
 async function init() {
+    // Check session first
+    const hasValidSession = await validateSession();
+    if (!hasValidSession) {
+        console.log('No valid session found, redirecting to login...');
+        return; // validateSession will handle the redirect
+    }
+    
+    console.log('Session validated, initializing app...');
+    
+    // Initialize components
     initCreatePage();
     initTabs();
-
-    $('#create-btn').addEventListener('click', () => showPage('create-page'));
-    $('#refresh-btn').addEventListener('click', loadCharacters);
-    $('#char-back-btn').addEventListener('click', () => { 
+    
+    // Set up event listeners - use optional chaining to avoid null errors
+    $('#create-btn')?.addEventListener('click', () => showPage('create-page'));
+    $('#refresh-btn')?.addEventListener('click', loadCharacters);
+    $('#char-back-btn')?.addEventListener('click', () => { 
         db.removeAllChannels(); 
         currentCharacter = null; 
         loadCharacters(); 
         showPage('home-page'); 
     });
-    $('#delete-char-btn').addEventListener('click', openDeleteModal);
-    $('#cancel-delete-btn').addEventListener('click', closeDeleteModal);
-    $('#confirm-delete-btn').addEventListener('click', handleDelete);
-    $('#add-item-form').addEventListener('submit', handleAddSubmit);
-    $('#cancel-add-btn').addEventListener('click', closeAddModal);
+    
+    // Logout button
+    const logoutBtn = $('#logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            clearSession();
+            window.location.href = 'index.html';
+        });
+    } else {
+        console.warn('Logout button not found in DOM');
+    }
+    
+    // Delete character modal buttons
+    $('#delete-char-btn')?.addEventListener('click', openDeleteModal);
+    $('#cancel-delete-btn')?.addEventListener('click', closeDeleteModal);
+    $('#confirm-delete-btn')?.addEventListener('click', handleDelete);
+    
+    // Add item modal
+    $('#add-item-form')?.addEventListener('submit', handleAddSubmit);
+    $('#cancel-add-btn')?.addEventListener('click', closeAddModal);
     
     // Fix modal backdrop click handlers
     $('#delete-modal .modal-backdrop')?.addEventListener('click', closeDeleteModal);
     $('#add-item-modal .modal-backdrop')?.addEventListener('click', closeAddModal);
-
+    
+    // Load characters and hide loading
     await loadCharacters();
     hideLoading();
     
@@ -1315,6 +1451,30 @@ async function init() {
     } else {
         showPage('home-page');
     }
+    
+    // Update header with game world info
+    updateHeaderWithGameWorld();
 }
 
+// Add this function to update the header with game world info
+function updateHeaderWithGameWorld() {
+    if (currentSession && currentSession.gameWorldName) {
+        const header = $('#home-page .header-content h1.logo');
+        if (header) {
+            header.textContent = `${currentSession.gameWorldName}`;
+        }
+        
+        // Add role indicator
+        const roleIndicator = document.createElement('span');
+        roleIndicator.className = 'role-indicator';
+        roleIndicator.textContent = currentSession.role === 'dm' ? ' (DM)' : ' (Player)';
+        roleIndicator.style.fontSize = '12px';
+        roleIndicator.style.color = currentSession.role === 'dm' ? 'var(--warning)' : 'var(--accent-primary)';
+        roleIndicator.style.marginLeft = '4px';
+        
+        if (header) {
+            header.appendChild(roleIndicator);
+        }
+    }
+}
 document.addEventListener('DOMContentLoaded', init);
