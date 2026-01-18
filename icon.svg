@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0a0a0b" rx="64"/>
+  <g transform="translate(96, 96)">
+    <!-- D20 shape -->
+    <polygon points="160,20 280,80 280,240 160,300 40,240 40,80" fill="none" stroke="#3b82f6" stroke-width="8"/>
+    <polygon points="160,20 280,80 160,160 40,80" fill="none" stroke="#3b82f6" stroke-width="4" opacity="0.5"/>
+    <line x1="160" y1="160" x2="160" y2="300" stroke="#3b82f6" stroke-width="4" opacity="0.5"/>
+    <line x1="40" y1="240" x2="160" y2="160" stroke="#3b82f6" stroke-width="4" opacity="0.5"/>
+    <line x1="280" y1="240" x2="160" y2="160" stroke="#3b82f6" stroke-width="4" opacity="0.5"/>
+    <!-- 20 text -->
+    <text x="160" y="180" font-family="Inter, sans-serif" font-size="72" font-weight="700" fill="#fafafa" text-anchor="middle">20</text>
+  </g>
+</svg>
