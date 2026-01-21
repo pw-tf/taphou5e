@@ -1,229 +1,167 @@
--- D&D 5e Character Sheet Database Schema
--- Run this in the Supabase SQL Editor
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Characters table (main table)
-CREATE TABLE characters (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    name TEXT NOT NULL,
-    player_name TEXT NOT NULL,
-    race TEXT NOT NULL,
-    class TEXT NOT NULL,
-    subclass TEXT,
-    level INTEGER DEFAULT 1 CHECK (level >= 1 AND level <= 20),
-    experience_points INTEGER DEFAULT 0,
-    background TEXT,
-    alignment TEXT,
-    armor_class INTEGER DEFAULT 10,
-    initiative_bonus INTEGER DEFAULT 0,
-    speed INTEGER DEFAULT 30,
-    hit_point_maximum INTEGER DEFAULT 1,
-    current_hit_points INTEGER DEFAULT 1,
-    temporary_hit_points INTEGER DEFAULT 0,
-    hit_dice_total TEXT,
-    hit_dice_remaining INTEGER DEFAULT 1,
-    death_save_successes INTEGER DEFAULT 0 CHECK (death_save_successes >= 0 AND death_save_successes <= 3),
-    death_save_failures INTEGER DEFAULT 0 CHECK (death_save_failures >= 0 AND death_save_failures <= 3),
-    proficiency_bonus INTEGER DEFAULT 2,
-    inspiration BOOLEAN DEFAULT FALSE,
-    active_conditions TEXT[] DEFAULT '{}',
-    avatar_url TEXT,
-    notes TEXT
+CREATE TABLE public.ability_scores (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL UNIQUE,
+  strength integer DEFAULT 10 CHECK (strength >= 1 AND strength <= 30),
+  dexterity integer DEFAULT 10 CHECK (dexterity >= 1 AND dexterity <= 30),
+  constitution integer DEFAULT 10 CHECK (constitution >= 1 AND constitution <= 30),
+  intelligence integer DEFAULT 10 CHECK (intelligence >= 1 AND intelligence <= 30),
+  wisdom integer DEFAULT 10 CHECK (wisdom >= 1 AND wisdom <= 30),
+  charisma integer DEFAULT 10 CHECK (charisma >= 1 AND charisma <= 30),
+  CONSTRAINT ability_scores_pkey PRIMARY KEY (id),
+  CONSTRAINT ability_scores_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Ability Scores table
-CREATE TABLE ability_scores (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    strength INTEGER DEFAULT 10 CHECK (strength >= 1 AND strength <= 30),
-    dexterity INTEGER DEFAULT 10 CHECK (dexterity >= 1 AND dexterity <= 30),
-    constitution INTEGER DEFAULT 10 CHECK (constitution >= 1 AND constitution <= 30),
-    intelligence INTEGER DEFAULT 10 CHECK (intelligence >= 1 AND intelligence <= 30),
-    wisdom INTEGER DEFAULT 10 CHECK (wisdom >= 1 AND wisdom <= 30),
-    charisma INTEGER DEFAULT 10 CHECK (charisma >= 1 AND charisma <= 30),
-    UNIQUE(character_id)
+CREATE TABLE public.character_details (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL UNIQUE,
+  age text,
+  height text,
+  weight text,
+  eyes text,
+  skin text,
+  hair text,
+  personality_traits text,
+  ideals text,
+  bonds text,
+  flaws text,
+  backstory text,
+  allies_organizations text,
+  additional_features text,
+  treasure text,
+  CONSTRAINT character_details_pkey PRIMARY KEY (id),
+  CONSTRAINT character_details_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Skills table
-CREATE TABLE skills (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    skill_name TEXT NOT NULL,
-    proficient BOOLEAN DEFAULT FALSE,
-    expertise BOOLEAN DEFAULT FALSE,
-    UNIQUE(character_id, skill_name)
+CREATE TABLE public.characters (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  name text NOT NULL,
+  player_name text NOT NULL,
+  race text NOT NULL,
+  class text NOT NULL,
+  subclass text,
+  level integer DEFAULT 1 CHECK (level >= 1 AND level <= 20),
+  experience_points integer DEFAULT 0,
+  background text,
+  alignment text,
+  armor_class integer DEFAULT 10,
+  initiative_bonus integer DEFAULT 0,
+  speed integer DEFAULT 30,
+  hit_point_maximum integer DEFAULT 1,
+  current_hit_points integer DEFAULT 1,
+  temporary_hit_points integer DEFAULT 0,
+  hit_dice_total text,
+  hit_dice_remaining integer DEFAULT 1,
+  death_save_successes integer DEFAULT 0 CHECK (death_save_successes >= 0 AND death_save_successes <= 3),
+  death_save_failures integer DEFAULT 0 CHECK (death_save_failures >= 0 AND death_save_failures <= 3),
+  proficiency_bonus integer DEFAULT 2,
+  inspiration boolean DEFAULT false,
+  active_conditions ARRAY DEFAULT '{}'::text[],
+  avatar_url text,
+  notes text,
+  game_world_id uuid,
+  CONSTRAINT characters_pkey PRIMARY KEY (id),
+  CONSTRAINT characters_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id)
 );
-
--- Saving Throws table
-CREATE TABLE saving_throws (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    ability TEXT NOT NULL CHECK (ability IN ('str', 'dex', 'con', 'int', 'wis', 'cha')),
-    proficient BOOLEAN DEFAULT FALSE,
-    UNIQUE(character_id, ability)
+CREATE TABLE public.currency (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL UNIQUE,
+  copper integer DEFAULT 0,
+  silver integer DEFAULT 0,
+  electrum integer DEFAULT 0,
+  gold integer DEFAULT 0,
+  platinum integer DEFAULT 0,
+  CONSTRAINT currency_pkey PRIMARY KEY (id),
+  CONSTRAINT currency_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Inventory Items table
-CREATE TABLE inventory_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    quantity INTEGER DEFAULT 1,
-    weight DECIMAL,
-    equipped BOOLEAN DEFAULT FALSE,
-    attuned BOOLEAN DEFAULT FALSE,
-    item_type TEXT DEFAULT 'Gear'
+CREATE TABLE public.features_traits (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  source text,
+  uses_total integer,
+  uses_remaining integer,
+  CONSTRAINT features_traits_pkey PRIMARY KEY (id),
+  CONSTRAINT features_traits_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Weapons table
-CREATE TABLE weapons (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    attack_bonus INTEGER DEFAULT 0,
-    damage TEXT NOT NULL,
-    damage_type TEXT,
-    properties TEXT,
-    equipped BOOLEAN DEFAULT FALSE
+CREATE TABLE public.game_worlds (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  name text NOT NULL UNIQUE,
+  dm_pin_hash text NOT NULL,
+  player_pin_hash text NOT NULL,
+  is_active boolean DEFAULT true,
+  description text,
+  CONSTRAINT game_worlds_pkey PRIMARY KEY (id)
 );
-
--- Spells table
-CREATE TABLE spells (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    level INTEGER DEFAULT 0 CHECK (level >= 0 AND level <= 9),
-    school TEXT,
-    casting_time TEXT,
-    range TEXT,
-    components TEXT,
-    duration TEXT,
-    description TEXT,
-    prepared BOOLEAN DEFAULT FALSE,
-    api_index TEXT
+CREATE TABLE public.inventory_items (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  quantity integer DEFAULT 1,
+  weight numeric,
+  equipped boolean DEFAULT false,
+  attuned boolean DEFAULT false,
+  item_type text DEFAULT 'Gear'::text,
+  CONSTRAINT inventory_items_pkey PRIMARY KEY (id),
+  CONSTRAINT inventory_items_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Spell Slots table
-CREATE TABLE spell_slots (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    slot_level INTEGER NOT NULL CHECK (slot_level >= 1 AND slot_level <= 9),
-    total INTEGER DEFAULT 0,
-    used INTEGER DEFAULT 0,
-    UNIQUE(character_id, slot_level)
+CREATE TABLE public.saving_throws (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  ability text NOT NULL CHECK (ability = ANY (ARRAY['str'::text, 'dex'::text, 'con'::text, 'int'::text, 'wis'::text, 'cha'::text])),
+  proficient boolean DEFAULT false,
+  CONSTRAINT saving_throws_pkey PRIMARY KEY (id),
+  CONSTRAINT saving_throws_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Features and Traits table
-CREATE TABLE features_traits (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    source TEXT,
-    uses_total INTEGER,
-    uses_remaining INTEGER
+CREATE TABLE public.skills (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  skill_name text NOT NULL,
+  proficient boolean DEFAULT false,
+  expertise boolean DEFAULT false,
+  CONSTRAINT skills_pkey PRIMARY KEY (id),
+  CONSTRAINT skills_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Currency table
-CREATE TABLE currency (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    copper INTEGER DEFAULT 0,
-    silver INTEGER DEFAULT 0,
-    electrum INTEGER DEFAULT 0,
-    gold INTEGER DEFAULT 0,
-    platinum INTEGER DEFAULT 0,
-    UNIQUE(character_id)
+CREATE TABLE public.spell_slots (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  slot_level integer NOT NULL CHECK (slot_level >= 1 AND slot_level <= 9),
+  total integer DEFAULT 0,
+  used integer DEFAULT 0,
+  CONSTRAINT spell_slots_pkey PRIMARY KEY (id),
+  CONSTRAINT spell_slots_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Character Details table
-CREATE TABLE character_details (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-    age TEXT,
-    height TEXT,
-    weight TEXT,
-    eyes TEXT,
-    skin TEXT,
-    hair TEXT,
-    personality_traits TEXT,
-    ideals TEXT,
-    bonds TEXT,
-    flaws TEXT,
-    backstory TEXT,
-    allies_organizations TEXT,
-    additional_features TEXT,
-    treasure TEXT,
-    UNIQUE(character_id)
+CREATE TABLE public.spells (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  name text NOT NULL,
+  level integer DEFAULT 0 CHECK (level >= 0 AND level <= 9),
+  school text,
+  casting_time text,
+  range text,
+  components text,
+  duration text,
+  description text,
+  prepared boolean DEFAULT false,
+  api_index text,
+  CONSTRAINT spells_pkey PRIMARY KEY (id),
+  CONSTRAINT spells_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
-
--- Create updated_at trigger function
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Add trigger to characters table
-CREATE TRIGGER update_characters_updated_at
-    BEFORE UPDATE ON characters
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Enable Row Level Security (RLS) - but allow all access for this friend group app
-ALTER TABLE characters ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ability_scores ENABLE ROW LEVEL SECURITY;
-ALTER TABLE skills ENABLE ROW LEVEL SECURITY;
-ALTER TABLE saving_throws ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE weapons ENABLE ROW LEVEL SECURITY;
-ALTER TABLE spells ENABLE ROW LEVEL SECURITY;
-ALTER TABLE spell_slots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE features_traits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE currency ENABLE ROW LEVEL SECURITY;
-ALTER TABLE character_details ENABLE ROW LEVEL SECURITY;
-
--- Create policies to allow all operations for anon users (since this is a friends-only app)
-CREATE POLICY "Allow all access to characters" ON characters FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to ability_scores" ON ability_scores FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to skills" ON skills FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to saving_throws" ON saving_throws FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to inventory_items" ON inventory_items FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to weapons" ON weapons FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to spells" ON spells FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to spell_slots" ON spell_slots FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to features_traits" ON features_traits FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to currency" ON currency FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to character_details" ON character_details FOR ALL USING (true) WITH CHECK (true);
-
--- Enable realtime for live updates (DM and players can see changes instantly)
-ALTER PUBLICATION supabase_realtime ADD TABLE characters;
-ALTER PUBLICATION supabase_realtime ADD TABLE ability_scores;
-ALTER PUBLICATION supabase_realtime ADD TABLE skills;
-ALTER PUBLICATION supabase_realtime ADD TABLE saving_throws;
-ALTER PUBLICATION supabase_realtime ADD TABLE inventory_items;
-ALTER PUBLICATION supabase_realtime ADD TABLE weapons;
-ALTER PUBLICATION supabase_realtime ADD TABLE spells;
-ALTER PUBLICATION supabase_realtime ADD TABLE spell_slots;
-ALTER PUBLICATION supabase_realtime ADD TABLE features_traits;
-ALTER PUBLICATION supabase_realtime ADD TABLE currency;
-ALTER PUBLICATION supabase_realtime ADD TABLE character_details;
-
--- Create indexes for better query performance
-CREATE INDEX idx_ability_scores_character_id ON ability_scores(character_id);
-CREATE INDEX idx_skills_character_id ON skills(character_id);
-CREATE INDEX idx_saving_throws_character_id ON saving_throws(character_id);
-CREATE INDEX idx_inventory_items_character_id ON inventory_items(character_id);
-CREATE INDEX idx_weapons_character_id ON weapons(character_id);
-CREATE INDEX idx_spells_character_id ON spells(character_id);
-CREATE INDEX idx_spell_slots_character_id ON spell_slots(character_id);
-CREATE INDEX idx_features_traits_character_id ON features_traits(character_id);
-CREATE INDEX idx_currency_character_id ON currency(character_id);
-CREATE INDEX idx_character_details_character_id ON character_details(character_id);
+CREATE TABLE public.weapons (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  character_id uuid NOT NULL,
+  name text NOT NULL,
+  attack_bonus integer DEFAULT 0,
+  damage text NOT NULL,
+  damage_type text,
+  properties text,
+  equipped boolean DEFAULT false,
+  CONSTRAINT weapons_pkey PRIMARY KEY (id),
+  CONSTRAINT weapons_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
+);

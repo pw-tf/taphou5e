@@ -46,7 +46,21 @@ const SPECIAL_ATTACKS = [
         damage: '1+STR',
         damage_type: 'Bludgeoning',
         properties: 'Melee',
-        description: 'Instead of using a weapon to make a melee weapon attack, you can use an unarmed strike: a punch, kick, head-butt, or similar forceful blow (none of which count as weapons). On a hit, an unarmed strike deals bludgeoning damage equal to 1 + your Strength modifier. You are proficient with your unarmed strikes.'
+        description: 'Instead of using a weapon to make a melee weapon attack, you can use an unarmed strike: a punch, kick, head-butt, or similar forceful blow (none of which count as weapons). On a hit, an unarmed strike deals bludgeoning damage equal to 1 + your Strength modifier. You are proficient with your unarmed strikes.',
+        special_options: [
+            {
+                name: 'Damage',
+                description: 'Make an attack roll against the target. Your bonus to the roll equals your Strength modifier plus your Proficiency Bonus. On a hit, the target takes Bludgeoning damage equal to 1 + your Strength modifier.'
+            },
+            {
+                name: 'Grapple',
+                description: 'The target must succeed on a Strength or Dexterity saving throw (it chooses which), or it has the Grappled condition. The DC for the saving throw and any escape attempts equals 8 + your Strength modifier + Proficiency Bonus. This grapple is possible only if the target is no more than one size larger than you and if you have a hand free to grab it.\n\nGrappled Condition: Speed is 0. Disadvantage on attack rolls against any target other than the grappler. The grappler can drag or carry you when moving (costs 1 extra foot per foot moved).'
+            },
+            {
+                name: 'Shove',
+                description: 'The target must succeed on a Strength or Dexterity saving throw (it chooses which), or you either push the target 5 feet away or cause it to have the Prone condition. The DC for the saving throw equals 8 + your Strength modifier + Proficiency Bonus. This shove is possible only if the target is no more than one size larger than you.'
+            }
+        ]
     },
     {
         name: 'Improvised Weapon',
@@ -54,6 +68,20 @@ const SPECIAL_ATTACKS = [
         damage_type: 'Bludgeoning',
         properties: 'Melee or Ranged (20/60)',
         description: 'An improvised weapon includes any object you can wield in one or two hands, such as broken glass, a table leg, a frying pan, a wagon wheel, or a dead goblin.'
+    }
+];
+
+// Common bonus actions available to all characters
+const COMMON_BONUS_ACTIONS = [
+    {
+        name: 'Two-Weapon Fighting',
+        description: 'When you take the Attack action and attack with a light melee weapon that you\'re holding in one hand, you can use a bonus action to attack with a different light melee weapon that you\'re holding in the other hand. You don\'t add your ability modifier to the damage of the bonus attack, unless that modifier is negative.',
+        source: 'Combat'
+    },
+    {
+        name: 'Offhand Attack',
+        description: 'If you are wielding two light melee weapons, you can make an attack with your off-hand weapon as a bonus action after taking the Attack action. You don\'t add your ability modifier to the damage unless it\'s negative (or you have the Two-Weapon Fighting style).',
+        source: 'Combat'
     }
 ];
 
@@ -393,23 +421,11 @@ function formatFeatureFromApi(item, endpoint) {
     
     // Auto-detect source based on endpoint and data
     if (endpoint === 'features') {
-        // Class features
-        if (item.class) {
-            const className = item.class.name || item.class;
-            const level = item.level || '';
-            result.source = level ? `${className} ${level}` : className;
-        } else {
-            result.source = 'Class';
-        }
+        // Class features - just show "Class" in blue
+        result.source = 'Class';
     } else if (endpoint === 'traits') {
-        // Racial traits
-        if (item.races && item.races.length > 0) {
-            result.source = item.races.map(r => r.name).join(', ');
-        } else if (item.subraces && item.subraces.length > 0) {
-            result.source = item.subraces.map(r => r.name).join(', ');
-        } else {
-            result.source = 'Race';
-        }
+        // Racial traits - just show "Race"
+        result.source = 'Race';
     } else if (endpoint === 'feats') {
         result.source = 'Feat';
         // Add prerequisites if available
@@ -842,6 +858,10 @@ function renderStatsTab() {
                 <button class="hp-btn heal" onclick="adjustHP(1)">+</button>
                 <button class="btn-secondary btn-small" onclick="applyHPDelta()">Apply</button>
             </div>
+            <div class="rest-buttons">
+                <button class="btn-rest short" onclick="takeShortRest()" title="Short Rest">Short Rest</button>
+                <button class="btn-rest long" onclick="takeLongRest()" title="Long Rest">Long Rest</button>
+            </div>
             <div class="hp-extras">
                 <div class="temp-hp-section">
                     <label>Temp HP</label>
@@ -978,6 +998,76 @@ window.toggleCondition = async function(condition) {
     await db.from('characters').update({ active_conditions: updated }).eq('id', currentCharacter.id);
 };
 
+// Rest functions - reset feature usage tracking
+window.takeShortRest = async function() {
+    // Reset features that recharge on short rest
+    const features = currentCharacter.features_traits || [];
+    const updatedFeatures = features.map(f => {
+        if (f.uses_per_rest === 'short' || f.uses_per_rest === 'short_or_long') {
+            return { ...f, uses_remaining: f.uses_total || 1 };
+        }
+        return f;
+    });
+    
+    // Optimistic update
+    currentCharacter.features_traits = updatedFeatures;
+    renderCharacterPage();
+    
+    // Update each feature in the database
+    for (const f of updatedFeatures) {
+        if (f.uses_per_rest === 'short' || f.uses_per_rest === 'short_or_long') {
+            await db.from('features_traits').update({ uses_remaining: f.uses_total || 1 }).eq('id', f.id);
+        }
+    }
+};
+
+window.takeLongRest = async function() {
+    const c = currentCharacter;
+    
+    // Reset HP to maximum
+    const newHP = c.hit_point_maximum;
+    
+    // Reset features that recharge on short or long rest
+    const features = c.features_traits || [];
+    const updatedFeatures = features.map(f => {
+        if (f.uses_per_rest) {
+            return { ...f, uses_remaining: f.uses_total || 1 };
+        }
+        return f;
+    });
+    
+    // Reset spell slots
+    const slots = c.spell_slots || [];
+    const updatedSlots = slots.map(s => ({ ...s, used: 0 }));
+    
+    // Reset death saves
+    const updates = {
+        current_hit_points: newHP,
+        temporary_hit_points: 0,
+        death_save_successes: 0,
+        death_save_failures: 0
+    };
+    
+    // Optimistic update
+    Object.assign(currentCharacter, updates);
+    currentCharacter.features_traits = updatedFeatures;
+    currentCharacter.spell_slots = updatedSlots;
+    renderCharacterPage();
+    
+    // Database updates
+    await db.from('characters').update(updates).eq('id', c.id);
+    
+    for (const f of updatedFeatures) {
+        if (f.uses_per_rest) {
+            await db.from('features_traits').update({ uses_remaining: f.uses_total || 1 }).eq('id', f.id);
+        }
+    }
+    
+    for (const s of updatedSlots) {
+        await db.from('spell_slots').update({ used: 0 }).eq('id', s.id);
+    }
+};
+
 // ========================================
 // Level Editor
 // ========================================
@@ -1060,17 +1150,30 @@ function renderSkillsTab() {
     const c = currentCharacter;
     const abs = c.ability_scores || {};
     const profBonus = getProfBonus(c.level);
+    
+    // Calculate all skill modifiers to find top 2
+    const skillMods = Object.entries(SKILLS).map(([name, ab]) => {
+        const skill = c.skills?.find(s => s.skill_name === name);
+        const mod = getModifier(getAbilityScore(abs, ab)) + (skill?.proficient ? profBonus : 0);
+        return { name, mod };
+    });
+    
+    // Sort by modifier descending and get top 2 skill names
+    const sortedSkills = [...skillMods].sort((a, b) => b.mod - a.mod);
+    const topSkills = new Set([sortedSkills[0]?.name, sortedSkills[1]?.name]);
 
     $('#tab-skills').innerHTML = `
         <div class="skills-list">
             ${Object.entries(SKILLS).map(([name, ab]) => {
                 const skill = c.skills?.find(s => s.skill_name === name);
-                const mod = getModifier(getAbilityScore(abs, ab)) + (skill?.proficient ? profBonus : 0) + (skill?.expertise ? profBonus : 0);
-                return `<div class="skill-row ${skill?.proficient ? 'proficient' : ''} ${skill?.expertise ? 'expertise' : ''}" onclick="cycleSkillProficiency('${skill?.id}', ${skill?.proficient || false}, ${skill?.expertise || false})">
+                const mod = getModifier(getAbilityScore(abs, ab)) + (skill?.proficient ? profBonus : 0);
+                const isTopSkill = topSkills.has(name);
+                return `<div class="skill-row ${skill?.proficient ? 'proficient' : ''}" onclick="toggleSkillProficiency('${skill?.id}', ${skill?.proficient || false})">
                     <div class="skill-info">
-                        <div class="skill-prof-markers"><span class="skill-prof-marker"></span><span class="skill-prof-marker"></span></div>
+                        <div class="skill-prof-markers"><span class="skill-prof-marker"></span></div>
                         <span class="skill-name">${name}</span>
                         <span class="skill-ability">${ab.toUpperCase()}</span>
+                        ${isTopSkill ? '<span class="top-skill-indicator"></span>' : ''}
                     </div>
                     <span class="skill-modifier">${formatMod(mod)}</span>
                 </div>`;
@@ -1079,27 +1182,19 @@ function renderSkillsTab() {
     `;
 }
 
-window.cycleSkillProficiency = async function(id, prof, exp) {
-    // Determine new values
-    let newProf, newExp;
-    if (!prof) {
-        newProf = true; newExp = false;
-    } else if (!exp) {
-        newProf = true; newExp = true;
-    } else {
-        newProf = false; newExp = false;
-    }
+window.toggleSkillProficiency = async function(id, prof) {
+    // Simple toggle
+    const newProf = !prof;
     
     // Optimistic update
     const skill = currentCharacter.skills?.find(s => s.id === id);
     if (skill) {
         skill.proficient = newProf;
-        skill.expertise = newExp;
         renderCharacterPage();
     }
     
     // Database update
-    await db.from('skills').update({ proficient: newProf, expertise: newExp }).eq('id', id);
+    await db.from('skills').update({ proficient: newProf }).eq('id', id);
 };
 
 // ========================================
@@ -1110,24 +1205,57 @@ function renderActionsTab() {
     const weapons = c.weapons || [];
     const spells = c.spells || [];
     const slots = c.spell_slots || [];
+    const features = c.features_traits || [];
+    
+    // Filter features that are bonus actions (those with is_bonus_action flag or "bonus action" in description)
+    const bonusActionFeatures = features.filter(f => 
+        f.is_bonus_action || 
+        (f.description && f.description.toLowerCase().includes('bonus action'))
+    );
 
     const groupedSpells = spells.reduce((acc, s) => { (acc[s.level] = acc[s.level] || []).push(s); return acc; }, {});
 
     $('#tab-actions').innerHTML = `
         <div class="actions-section">
             <div class="section-header-row">
-                <span class="section-label">Weapons</span>
+                <span class="section-label">Attacks</span>
                 <button class="add-btn" onclick="openAddModal('weapon')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
             </div>
             <div class="weapons-list">
-                ${weapons.length ? weapons.map(w => `<div class="weapon-card clickable" onclick="showWeaponDetail('${w.id}')">
+                ${weapons.length ? weapons.map(w => {
+                    // Check if this weapon has usage tracking
+                    const hasUsage = w.uses_total && w.uses_total > 0;
+                    const usesRemaining = w.uses_remaining ?? w.uses_total ?? 0;
+                    return `<div class="weapon-card clickable" onclick="showWeaponDetail('${w.id}')">
                     <div class="weapon-info"><h3>${escapeHtml(w.name)}</h3><p>${w.damage_type || ''} ${w.properties || ''}</p></div>
                     <div class="weapon-stats">
                         <div class="weapon-stat"><span class="value">${formatMod(w.attack_bonus)}</span><span class="label">Hit</span></div>
                         <div class="weapon-stat"><span class="value">${w.damage}</span><span class="label">Dmg</span></div>
                     </div>
                     <button class="weapon-delete" onclick="event.stopPropagation(); deleteWeapon('${w.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
-                </div>`).join('') : '<div class="empty-list">No weapons added</div>'}
+                </div>`;}).join('') : '<div class="empty-list">No attacks added</div>'}
+            </div>
+        </div>
+
+        <div class="actions-section">
+            <div class="section-header-row">
+                <span class="section-label">Bonus Actions</span>
+                <button class="add-btn" onclick="openAddModal('bonusaction')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
+            </div>
+            <div class="bonus-actions-list">
+                ${bonusActionFeatures.length ? bonusActionFeatures.map(f => {
+                    const hasUsage = f.uses_total && f.uses_total > 0;
+                    const usesRemaining = f.uses_remaining ?? f.uses_total ?? 0;
+                    return `<div class="action-card clickable" onclick="showBonusActionDetail('${f.id}')">
+                        <div class="action-info">
+                            <h3>${escapeHtml(f.name)}</h3>
+                            <p>${f.source ? `<span class="action-source">${escapeHtml(f.source)}</span>` : ''}${f.uses_per_rest ? `<span class="action-rest-type">${f.uses_per_rest === 'short' ? 'Short Rest' : 'Long Rest'}</span>` : ''}</p>
+                        </div>
+                        ${hasUsage ? `<div class="action-uses">
+                            ${Array(f.uses_total).fill(0).map((_, i) => `<div class="action-use-marker ${i < usesRemaining ? '' : 'used'}" onclick="event.stopPropagation(); toggleFeatureUse('${f.id}', ${i}, ${usesRemaining}, ${f.uses_total})"></div>`).join('')}
+                        </div>` : ''}
+                    </div>`;
+                }).join('') : '<div class="empty-list">No bonus actions. Add features that use bonus actions from the Notes tab.</div>'}
             </div>
         </div>
 
@@ -1426,6 +1554,29 @@ window.showWeaponDetail = function(id) {
     const weapon = currentCharacter.weapons?.find(w => w.id === id);
     if (!weapon) return;
     
+    // Check if this is a special weapon like Unarmed Strike with special options
+    const specialAttack = SPECIAL_ATTACKS.find(s => s.name === weapon.name);
+    const abs = currentCharacter.ability_scores || {};
+    const strMod = getModifier(getAbilityScore(abs, 'str'));
+    const profBonus = getProfBonus(currentCharacter.level);
+    const grappleDC = 8 + strMod + profBonus;
+    
+    let specialOptionsHtml = '';
+    if (specialAttack && specialAttack.special_options) {
+        specialOptionsHtml = `
+            <div class="detail-section">
+                <div class="detail-section-label">Options</div>
+                ${specialAttack.special_options.map(opt => `
+                    <div class="special-option">
+                        <div class="special-option-header">${opt.name}</div>
+                        <div class="special-option-desc">${opt.description.replace(/\n/g, '<br>')}</div>
+                        ${opt.name === 'Grapple' || opt.name === 'Shove' ? `<div class="special-option-dc"><strong>DC:</strong> ${grappleDC}</div>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
     const content = `
         <div class="detail-grid">
             <div class="detail-row"><strong>Attack Bonus:</strong> ${formatMod(weapon.attack_bonus)}</div>
@@ -1433,9 +1584,50 @@ window.showWeaponDetail = function(id) {
             ${weapon.damage_type ? `<div class="detail-row"><strong>Damage Type:</strong> ${weapon.damage_type}</div>` : ''}
             ${weapon.properties ? `<div class="detail-row"><strong>Properties:</strong> ${weapon.properties}</div>` : ''}
         </div>
+        ${specialOptionsHtml}
     `;
     
     showDetailModal(weapon.name, content);
+};
+
+window.showBonusActionDetail = function(id) {
+    const feature = currentCharacter.features_traits?.find(f => f.id === id);
+    if (!feature) return;
+    
+    let usageHtml = '';
+    if (feature.uses_total && feature.uses_total > 0) {
+        const usesRemaining = feature.uses_remaining ?? feature.uses_total;
+        usageHtml = `
+            <div class="detail-usage">
+                <strong>Uses:</strong> ${usesRemaining}/${feature.uses_total}
+                ${feature.uses_per_rest ? `<span class="usage-rest-type">(Recharges on ${feature.uses_per_rest === 'short' ? 'Short or Long' : 'Long'} Rest)</span>` : ''}
+            </div>
+        `;
+    }
+    
+    const content = `
+        ${feature.source ? `<div class="detail-source">Source: ${escapeHtml(feature.source)}</div>` : ''}
+        ${usageHtml}
+        ${feature.description ? `<div class="detail-description">${escapeHtml(feature.description).replace(/\n/g, '<br>')}</div>` : '<p class="empty-list">No description available.</p>'}
+    `;
+    
+    showDetailModal(feature.name, content);
+};
+
+window.toggleFeatureUse = async function(id, idx, used, total) {
+    // Similar to spell slot toggle - clicking fills/unfills
+    const newUsed = idx < used ? idx : Math.min(total, idx + 1);
+    const newRemaining = total - newUsed;
+    
+    // Optimistic update
+    const feature = currentCharacter.features_traits?.find(f => f.id === id);
+    if (feature) {
+        feature.uses_remaining = newRemaining;
+        renderCharacterPage();
+    }
+    
+    // Database update
+    await db.from('features_traits').update({ uses_remaining: newRemaining }).eq('id', id);
 };
 
 window.showItemDetail = function(id) {
@@ -1528,6 +1720,18 @@ window.openAddModal = function(type) {
                 { name: 'source', label: 'Source', type: 'text', placeholder: 'Auto-detected or enter manually' },
                 { name: 'description', label: 'Description', type: 'textarea' }
             ]
+        },
+        bonusaction: { 
+            title: 'Add Bonus Action', 
+            apiEndpoints: ['features', 'traits', 'feats'],
+            specialItems: COMMON_BONUS_ACTIONS,
+            fields: [
+                { name: 'name', label: 'Name', type: 'search', required: true, placeholder: 'Search features or add custom...' },
+                { name: 'source', label: 'Source', type: 'text', placeholder: 'Class, Race, Feat, etc.' },
+                { name: 'uses_total', label: 'Uses (0 = unlimited)', type: 'number', value: 0 },
+                { name: 'uses_per_rest', label: 'Recharges On', type: 'select', options: [['', 'N/A'], ['short', 'Short Rest'], ['long', 'Long Rest']] },
+                { name: 'description', label: 'Description', type: 'textarea' }
+            ]
         }
     };
 
@@ -1548,13 +1752,19 @@ window.openAddModal = function(type) {
             return `<div class="form-group"><label>${f.label}</label><textarea name="${f.name}" class="notes-textarea" style="min-height:80px;" placeholder="${f.placeholder || ''}"></textarea></div>`;
         }
         if (f.type === 'select') {
-            return `<div class="form-group"><label>${f.label}</label><select name="${f.name}">${f.options.map(o => `<option value="${o}">${o}</option>`).join('')}</select></div>`;
+            // Handle options that can be either strings or [value, label] arrays
+            const optionsHtml = f.options.map(o => {
+                if (Array.isArray(o)) {
+                    return `<option value="${o[0]}">${o[1]}</option>`;
+                }
+                return `<option value="${o}">${o}</option>`;
+            }).join('');
+            return `<div class="form-group"><label>${f.label}</label><select name="${f.name}">${optionsHtml}</select></div>`;
         }
         return `<div class="form-group"><label>${f.label}${f.required ? ' *' : ''}</label><input type="${f.type}" name="${f.name}" ${f.required ? 'required' : ''} ${f.value !== undefined ? `value="${f.value}"` : ''} ${f.placeholder ? `placeholder="${f.placeholder}"` : ''}></div>`;
     }).join('');
 
-    // Set up API search functionality
-    const searchInput = fields.querySelector('.api-search-input');
+const searchInput = fields.querySelector('.api-search-input');
     const searchResults = fields.querySelector('.api-search-results');
     
     if (searchInput && searchResults) {
@@ -1593,9 +1803,9 @@ window.openAddModal = function(type) {
                     if (r._isSpecial) {
                         badge = '<span class="search-badge special">Special</span>';
                     } else if (r._endpoint === 'features') {
-                        badge = '<span class="search-badge feature">Class Feature</span>';
+                        badge = '<span class="search-badge feature">Class</span>';
                     } else if (r._endpoint === 'traits') {
-                        badge = '<span class="search-badge trait">Racial Trait</span>';
+                        badge = '<span class="search-badge trait">Race</span>';
                     } else if (r._endpoint === 'feats') {
                         badge = '<span class="search-badge feat">Feat</span>';
                     }
@@ -1667,8 +1877,6 @@ function populateFormFromSpecial(type, specialItem, fieldsContainer) {
         const profBonus = currentCharacter ? getProfBonus(currentCharacter.level) : 2;
         
         let damage = specialItem.damage || '';
-        // Replace STR placeholder with the actual modifier value
-        // Handle the format properly - if it's "1+STR" and strMod is +1, result should be "1+1" not "1++1"
         if (damage.includes('STR')) {
             if (strMod >= 0) {
                 damage = damage.replace('+STR', `+${strMod}`).replace('STR', `+${strMod}`);
@@ -1681,6 +1889,9 @@ function populateFormFromSpecial(type, specialItem, fieldsContainer) {
         if (form.querySelector('[name="damage"]')) form.querySelector('[name="damage"]').value = damage;
         if (form.querySelector('[name="damage_type"]')) form.querySelector('[name="damage_type"]').value = specialItem.damage_type || '';
         if (form.querySelector('[name="properties"]')) form.querySelector('[name="properties"]').value = specialItem.properties || '';
+    } else if (type === 'bonusaction') {
+        if (form.querySelector('[name="source"]')) form.querySelector('[name="source"]').value = specialItem.source || '';
+        if (form.querySelector('[name="description"]')) form.querySelector('[name="description"]').value = specialItem.description || '';
     }
 }
 
@@ -1709,7 +1920,10 @@ function populateFormFromApi(type, details, fieldsContainer, endpoint) {
         if (form.querySelector('[name="weight"]')) form.querySelector('[name="weight"]').value = formatted.weight || '';
         if (form.querySelector('[name="description"]')) form.querySelector('[name="description"]').value = formatted.description;
     } else if (type === 'feature') {
-        // Use the endpoint to auto-detect source
+        const formatted = formatFeatureFromApi(details, endpoint);
+        if (form.querySelector('[name="source"]')) form.querySelector('[name="source"]').value = formatted.source;
+        if (form.querySelector('[name="description"]')) form.querySelector('[name="description"]').value = formatted.description;
+    } else if (type === 'bonusaction') {
         const formatted = formatFeatureFromApi(details, endpoint);
         if (form.querySelector('[name="source"]')) form.querySelector('[name="source"]').value = formatted.source;
         if (form.querySelector('[name="description"]')) form.querySelector('[name="description"]').value = formatted.description;
@@ -1730,29 +1944,42 @@ async function handleAddSubmit(e) {
     const data = Object.fromEntries(new FormData(form));
     data.character_id = currentCharacter.id;
 
-    const tables = { weapon: 'weapons', spell: 'spells', item: 'inventory_items', feature: 'features_traits' };
-    const dataKeys = { weapon: 'weapons', spell: 'spells', item: 'inventory_items', feature: 'features_traits' };
+    const tables = { weapon: 'weapons', spell: 'spells', item: 'inventory_items', feature: 'features_traits', bonusaction: 'features_traits' };
+    const dataKeys = { weapon: 'weapons', spell: 'spells', item: 'inventory_items', feature: 'features_traits', bonusaction: 'features_traits' };
     
-    // Save the modal type before closing (closeAddModal sets it to null)
     const modalType = addModalType;
     const dataKey = dataKeys[modalType];
     const table = tables[modalType];
     
-    // Handle numeric fields
-    if (data.quantity) data.quantity = parseInt(data.quantity) || 1;
+    // Handle numeric fields - ensure empty strings become proper defaults
+    if (modalType === 'item') {
+        data.quantity = parseInt(data.quantity) || 1;
+        // Handle weight - empty string should become null, not cause a DB error
+        data.weight = data.weight && data.weight !== '' ? parseFloat(data.weight) : null;
+    }
     if (data.level !== undefined) data.level = parseInt(data.level) || 0;
     if (data.attack_bonus !== undefined) data.attack_bonus = parseInt(data.attack_bonus) || 0;
-    if (data.weight) data.weight = parseFloat(data.weight) || null;
     
-    // Store API index if we selected from API
+    if (modalType === 'weapon') {
+        data.attack_bonus = parseInt(data.attack_bonus) || 0;
+    }
+    
+    // For bonus actions, handle the special fields
+    if (modalType === 'bonusaction') {
+        data.is_bonus_action = true;
+        data.uses_total = parseInt(data.uses_total) || 0;
+        data.uses_remaining = data.uses_total;
+        if (!data.uses_per_rest || data.uses_per_rest === '') {
+            data.uses_per_rest = null;
+        }
+    }
+    
     if (selectedApiItem && modalType === 'spell') {
         data.api_index = selectedApiItem.index;
     }
 
-    // Close modal immediately for better UX
     closeAddModal();
     
-    // Optimistic update - add temp item with placeholder ID
     const tempId = 'temp_' + Date.now();
     const tempItem = { ...data, id: tempId };
     
@@ -1762,19 +1989,16 @@ async function handleAddSubmit(e) {
     currentCharacter[dataKey].push(tempItem);
     renderCharacterPage();
 
-    // Database insert
     const { data: insertedData, error } = await db.from(table).insert(data).select().single();
     
     if (error) {
         console.error('Error adding item:', error);
-        // Remove temp item on error
         currentCharacter[dataKey] = currentCharacter[dataKey].filter(item => item.id !== tempId);
         renderCharacterPage();
         alert('Failed to add item');
         return;
     }
     
-    // Replace temp item with real item from database
     if (insertedData) {
         const index = currentCharacter[dataKey].findIndex(item => item.id === tempId);
         if (index !== -1) {
@@ -1820,24 +2044,18 @@ function initTabs() {
 // ========================================
 // Initialize App
 // ========================================
-// ========================================
-// Initialize App
-// ========================================
 async function init() {
-    // Check session first
     const hasValidSession = await validateSession();
     if (!hasValidSession) {
         console.log('No valid session found, redirecting to login...');
-        return; // validateSession will handle the redirect
+        return;
     }
     
     console.log('Session validated, initializing app...');
     
-    // Initialize components
     initCreatePage();
     initTabs();
     
-    // Set up event listeners - use optional chaining to avoid null errors
     $('#create-btn')?.addEventListener('click', () => showPage('create-page'));
     $('#refresh-btn')?.addEventListener('click', loadCharacters);
     $('#char-back-btn')?.addEventListener('click', () => { 
@@ -1852,53 +2070,40 @@ async function init() {
         currentCharacter = null; 
         loadCharacters(); 
         showPage('home-page');
-        
-        // Restart roster realtime when going back to home
         setupRosterRealtime();
     });
     
-    // Logout button
     const logoutBtn = $('#logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => {
             clearSession();
             window.location.href = 'index.html';
         });
-    } else {
-        console.warn('Logout button not found in DOM');
     }
     
-    // Delete character modal buttons
     $('#delete-char-btn')?.addEventListener('click', openDeleteModal);
     $('#cancel-delete-btn')?.addEventListener('click', closeDeleteModal);
     $('#confirm-delete-btn')?.addEventListener('click', handleDelete);
     
-    // Add item modal
     $('#add-item-form')?.addEventListener('submit', handleAddSubmit);
     $('#cancel-add-btn')?.addEventListener('click', closeAddModal);
     
-    // Level modal
     $('#level-form')?.addEventListener('submit', handleLevelUpdate);
     $('#cancel-level-btn')?.addEventListener('click', closeLevelModal);
     
-    // Fix modal backdrop click handlers
     $('#delete-modal .modal-backdrop')?.addEventListener('click', closeDeleteModal);
     $('#add-item-modal .modal-backdrop')?.addEventListener('click', closeAddModal);
     $('#level-modal .modal-backdrop')?.addEventListener('click', closeLevelModal);
     
-    // Load characters and hide loading
     await loadCharacters();
     hideLoading();
     
-    // Set up roster realtime updates
     setupRosterRealtime();
     
-    // Restore page state from localStorage
     const savedPage = localStorage.getItem('dnd-current-page');
     const savedCharacterId = localStorage.getItem('dnd-current-character-id');
     
     if (savedPage === 'character-page' && savedCharacterId) {
-        // Try to restore the character page
         await openCharacter(savedCharacterId);
     } else if (savedPage === 'create-page') {
         showPage('create-page');
@@ -1906,11 +2111,9 @@ async function init() {
         showPage('home-page');
     }
     
-    // Update header with game world info
     updateHeaderWithGameWorld();
 }
 
-// Add this function to update the header with game world info
 function updateHeaderWithGameWorld() {
     if (currentSession && currentSession.gameWorldName) {
         const header = $('#home-page .header-content h1.logo');
@@ -1918,7 +2121,6 @@ function updateHeaderWithGameWorld() {
             header.textContent = `${currentSession.gameWorldName}`;
         }
         
-        // Add role indicator
         const roleIndicator = document.createElement('span');
         roleIndicator.className = 'role-indicator';
         roleIndicator.textContent = currentSession.role === 'dm' ? ' (DM)' : ' (Player)';
@@ -1931,4 +2133,5 @@ function updateHeaderWithGameWorld() {
         }
     }
 }
+
 document.addEventListener('DOMContentLoaded', init);

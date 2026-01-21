@@ -1123,13 +1123,13 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-xs) var(--space-sm);
     background: var(--bg-elevated);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast);
-    min-width: 64px;
+    min-width: 40px; 
 }
 
 .level-display:hover {
@@ -1138,19 +1138,19 @@ body {
 }
 
 .level-value {
-    font-size: 24px;
+    font-size: 15px;
     font-weight: 700;
     font-family: var(--font-mono);
     line-height: 1;
 }
 
 .level-label {
-    font-size: 10px;
+    font-size: 7px;
     font-weight: 600;
     color: var(--text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .hp-current {
@@ -2477,4 +2477,196 @@ body {
     background: rgba(139, 92, 246, 0.1);
     color: #8b5cf6;
     border: 1px solid #8b5cf6;
+}
+
+/* ========================================
+   Top Skill Indicator (White Dot)
+======================================== */
+.top-skill-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: white;
+    margin-left: var(--space-xs);
+    flex-shrink: 0;
+}
+
+/* ========================================
+   Rest Buttons
+======================================== */
+.rest-buttons {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.btn-rest {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-rest:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.btn-rest.short {
+    border-color: var(--warning);
+}
+
+.btn-rest.short:hover {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.btn-rest.long {
+    border-color: var(--accent-primary);
+}
+
+.btn-rest.long:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent-primary);
+}
+
+/* ========================================
+   Bonus Actions Section
+======================================== */
+.bonus-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.action-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+.action-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.action-info h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.action-info p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.action-source {
+    color: var(--accent-primary);
+}
+
+.action-rest-type {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+.action-uses {
+    display: flex;
+    gap: 4px;
+    margin-left: var(--space-md);
+}
+
+.action-use-marker {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--accent-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--accent-primary);
+}
+
+.action-use-marker.used {
+    background: transparent;
+}
+
+/* ========================================
+   Special Options (Unarmed Strike, etc.)
+======================================== */
+.detail-section {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.detail-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-sm);
+}
+
+.special-option {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+}
+
+.special-option:last-child {
+    margin-bottom: 0;
+}
+
+.special-option-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.special-option-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.special-option-dc {
+    margin-top: var(--space-xs);
+    font-size: 12px;
+    color: var(--warning);
+}
+
+/* ========================================
+   Detail Modal Usage Display
+======================================== */
+.detail-usage {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+    font-size: 14px;
+}
+
+.usage-rest-type {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    margin-left: var(--space-sm);
 }
