@@ -1665,9 +1665,11 @@ function renderToolsTab() {
                     <input type="text" id="tools-search-input" placeholder="Search spells, items, monsters..." autocomplete="off">
                 </div>
                 <div class="tools-category-filters">
-                    ${TOOLS_CATEGORIES.map(cat => `
-                        <button class="tools-filter-btn ${toolsCurrentCategory === cat.key ? 'active' : ''}" onclick="setToolsCategory('${cat.key}')">${cat.label}</button>
-                    `).join('')}
+                    <select id="tools-category-select" class="tools-category-select" onchange="setToolsCategory(this.value)">
+                        ${TOOLS_CATEGORIES.map(cat => `
+                            <option value="${cat.key}" ${toolsCurrentCategory === cat.key ? 'selected' : ''}>${cat.label}</option>
+                        `).join('')}
+                    </select>
                 </div>
             </div>
             <div id="tools-results-container">
@@ -1798,10 +1800,6 @@ window.clearToolsSearch = function() {
 
 window.setToolsCategory = function(key) {
     toolsCurrentCategory = key;
-    // Update filter button active states
-    $$('.tools-filter-btn').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = [...$$('.tools-filter-btn')].find(btn => btn.textContent.trim() === TOOLS_CATEGORIES.find(c => c.key === key)?.label);
-    if (activeBtn) activeBtn.classList.add('active');
 
     const query = $('#tools-search-input')?.value?.trim() || '';
     if (query.length >= 2) {
