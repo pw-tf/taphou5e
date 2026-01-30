@@ -905,6 +905,7 @@ function renderCharacterPage() {
     renderActionsTab();
     renderInventoryTab();
     renderNotesTab();
+    renderToolsTab();
 }
 
 // ========================================
@@ -1606,6 +1607,680 @@ window.updateCharacterNotes = async val => {
     // Note: Don't re-render to avoid losing input focus
     await db.from('characters').update({ notes: val }).eq('id', currentCharacter.id); 
 };
+
+// ========================================
+// Tools Tab - Search D&D 5e API
+// ========================================
+let toolsSearchController = null;
+let toolsSearchCache = {};
+let toolsCurrentCategory = 'all';
+let toolsDetailHistory = null; // stores last search state when viewing detail
+
+const TOOLS_CATEGORIES = [
+    { key: 'all', label: 'All', endpoints: ['spells', 'equipment', 'monsters', 'features', 'conditions', 'magic-items'] },
+    { key: 'spells', label: 'Spells', endpoints: ['spells'] },
+    { key: 'equipment', label: 'Equipment', endpoints: ['equipment'] },
+    { key: 'magic-items', label: 'Magic Items', endpoints: ['magic-items'] },
+    { key: 'monsters', label: 'Monsters', endpoints: ['monsters'] },
+    { key: 'features', label: 'Features', endpoints: ['features'] },
+    { key: 'conditions', label: 'Conditions', endpoints: ['conditions'] }
+];
+
+function getCategoryBadge(endpoint) {
+    const map = {
+        'spells': 'spell',
+        'equipment': 'item',
+        'magic-items': 'item',
+        'monsters': 'monster',
+        'features': 'feature',
+        'conditions': 'condition'
+    };
+    return map[endpoint] || 'item';
+}
+
+function getCategoryLabel(endpoint) {
+    const map = {
+        'spells': 'Spell',
+        'equipment': 'Equipment',
+        'magic-items': 'Magic Item',
+        'monsters': 'Monster',
+        'features': 'Feature',
+        'conditions': 'Condition'
+    };
+    return map[endpoint] || 'Item';
+}
+
+function renderToolsTab() {
+    // Don't re-render if already initialized (preserves search state)
+    if ($('#tools-search-input')) return;
+
+    $('#tab-tools').innerHTML = `
+        <div class="tools-tab">
+            <div class="tools-search-container">
+                <div class="tools-search-bar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="tools-search-input" placeholder="Search spells, items, monsters..." autocomplete="off">
+                </div>
+                <div class="tools-category-filters">
+                    ${TOOLS_CATEGORIES.map(cat => `
+                        <button class="tools-filter-btn ${toolsCurrentCategory === cat.key ? 'active' : ''}" onclick="setToolsCategory('${cat.key}')">${cat.label}</button>
+                    `).join('')}
+                </div>
+            </div>
+            <div id="tools-results-container">
+                <div class="tools-empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <h3>Search the D&D 5e Library</h3>
+                    <p>Look up spells, equipment, magic items, monsters, features, and conditions.</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Attach search listener
+    const input = $('#tools-search-input');
+    if (input) {
+        input.addEventListener('input', debounce(function() {
+            performToolsSearch(this.value.trim());
+        }, 300));
+    }
+}
+
+async function performToolsSearch(query) {
+    const container = $('#tools-results-container');
+    if (!container) return;
+
+    if (!query || query.length < 2) {
+        container.innerHTML = `
+            <div class="tools-empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <h3>Search the D&D 5e Library</h3>
+                <p>Look up spells, equipment, magic items, monsters, features, and conditions.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `<div class="tools-loading"><div class="loader"></div></div>`;
+
+    // Cancel previous request
+    if (toolsSearchController) {
+        toolsSearchController.abort();
+    }
+    toolsSearchController = new AbortController();
+
+    const category = TOOLS_CATEGORIES.find(c => c.key === toolsCurrentCategory) || TOOLS_CATEGORIES[0];
+    const endpoints = category.endpoints;
+
+    try {
+        const allResults = [];
+
+        for (const endpoint of endpoints) {
+            const cacheKey = `tools:${endpoint}:${query.toLowerCase()}`;
+            if (toolsSearchCache[cacheKey]) {
+                allResults.push(...toolsSearchCache[cacheKey]);
+                continue;
+            }
+
+            try {
+                const response = await fetch(`${DND_API_BASE}/${endpoint}?name=${encodeURIComponent(query)}`, {
+                    signal: toolsSearchController.signal
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const results = (data.results || []).map(r => ({ ...r, _endpoint: endpoint }));
+                    toolsSearchCache[cacheKey] = results;
+                    allResults.push(...results);
+                }
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+            }
+        }
+
+        allResults.sort((a, b) => a.name.localeCompare(b.name));
+
+        if (allResults.length === 0) {
+            container.innerHTML = `
+                <div class="tools-empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <h3>No Results Found</h3>
+                    <p>Try a different search term or category.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="tools-results">
+                ${allResults.map(r => {
+                    const badge = getCategoryBadge(r._endpoint);
+                    const label = getCategoryLabel(r._endpoint);
+                    return `<div class="tools-result-card" onclick="showToolsDetail('${r.url || r.index}', '${r._endpoint}')">
+                        <div class="tools-result-header">
+                            <span class="tools-result-name">${escapeHtml(r.name)}</span>
+                            <span class="tools-result-badge ${badge}">${label}</span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        `;
+    } catch (e) {
+        if (e.name === 'AbortError') return;
+        container.innerHTML = `
+            <div class="tools-empty-state">
+                <h3>Search Error</h3>
+                <p>Something went wrong. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+window.clearToolsSearch = function() {
+    const input = $('#tools-search-input');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    performToolsSearch('');
+};
+
+window.setToolsCategory = function(key) {
+    toolsCurrentCategory = key;
+    // Update filter button active states
+    $$('.tools-filter-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = [...$$('.tools-filter-btn')].find(btn => btn.textContent.trim() === TOOLS_CATEGORIES.find(c => c.key === key)?.label);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    const query = $('#tools-search-input')?.value?.trim() || '';
+    if (query.length >= 2) {
+        performToolsSearch(query);
+    }
+};
+
+window.showToolsDetail = async function(urlOrIndex, endpoint) {
+    const container = $('#tools-results-container');
+    if (!container) return;
+
+    // Save search state so we can go back
+    toolsDetailHistory = {
+        query: $('#tools-search-input')?.value || '',
+        category: toolsCurrentCategory
+    };
+
+    container.innerHTML = `<div class="tools-loading"><div class="loader"></div></div>`;
+
+    // Hide search container when viewing detail
+    const searchContainer = $('.tools-search-container');
+    if (searchContainer) searchContainer.style.display = 'none';
+
+    try {
+        const url = urlOrIndex.startsWith('/api') ? urlOrIndex : `/api/${endpoint}/${urlOrIndex}`;
+        const response = await fetch(`https://www.dnd5eapi.co${url}`);
+        if (!response.ok) {
+            container.innerHTML = `<div class="tools-empty-state"><h3>Failed to load details</h3><p>Please try again.</p></div>`;
+            return;
+        }
+        const data = await response.json();
+
+        container.innerHTML = renderToolsDetailView(data, endpoint);
+    } catch (e) {
+        container.innerHTML = `<div class="tools-empty-state"><h3>Failed to load details</h3><p>Please try again.</p></div>`;
+    }
+};
+
+window.toolsDetailBack = function() {
+    const searchContainer = $('.tools-search-container');
+    if (searchContainer) searchContainer.style.display = '';
+
+    if (toolsDetailHistory) {
+        const query = toolsDetailHistory.query;
+        toolsCurrentCategory = toolsDetailHistory.category;
+        toolsDetailHistory = null;
+
+        // Re-render the tab to restore filters
+        renderToolsTab();
+        const input = $('#tools-search-input');
+        if (input && query) {
+            input.value = query;
+            performToolsSearch(query);
+        }
+    } else {
+        performToolsSearch('');
+    }
+};
+
+function renderToolsDetailView(data, endpoint) {
+    switch (endpoint) {
+        case 'spells': return renderSpellDetail(data);
+        case 'equipment': return renderEquipmentDetail(data);
+        case 'magic-items': return renderMagicItemDetail(data);
+        case 'monsters': return renderMonsterDetail(data);
+        case 'features': return renderFeatureDetailView(data);
+        case 'conditions': return renderConditionDetail(data);
+        default: return renderGenericDetail(data);
+    }
+}
+
+function renderSpellDetail(spell) {
+    const components = spell.components?.join(', ') || 'None';
+    const material = spell.material || '';
+    const desc = Array.isArray(spell.desc) ? spell.desc.join('\n\n') : (spell.desc || 'No description.');
+    const higherLevel = Array.isArray(spell.higher_level) ? spell.higher_level.join('\n\n') : (spell.higher_level || '');
+    const classes = spell.classes?.map(c => c.name).join(', ') || '';
+    const subclasses = spell.subclasses?.map(s => s.name).join(', ') || '';
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(spell.name)}</div>
+            <div class="tools-detail-type">${spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`} ${spell.school?.name || ''} ${spell.ritual ? '(Ritual)' : ''}</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-props">
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Casting Time</div>
+                        <div class="tools-detail-prop-value">${spell.casting_time || '—'}</div>
+                    </div>
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Range</div>
+                        <div class="tools-detail-prop-value">${spell.range || '—'}</div>
+                    </div>
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Components</div>
+                        <div class="tools-detail-prop-value">${components}</div>
+                    </div>
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Duration</div>
+                        <div class="tools-detail-prop-value">${spell.concentration ? 'Conc. ' : ''}${spell.duration || '—'}</div>
+                    </div>
+                </div>
+            </div>
+
+            ${material ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Material</div>
+                <div class="tools-detail-description">${escapeHtml(material)}</div>
+            </div>` : ''}
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Description</div>
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>
+
+            ${higherLevel ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">At Higher Levels</div>
+                <div class="tools-detail-description">${escapeHtml(higherLevel).replace(/\n/g, '<br>')}</div>
+            </div>` : ''}
+
+            ${classes ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Classes</div>
+                <div class="tools-detail-tags">${spell.classes.map(c => `<span class="tools-detail-tag">${c.name}</span>`).join('')}</div>
+            </div>` : ''}
+
+            ${subclasses ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Subclasses</div>
+                <div class="tools-detail-tags">${spell.subclasses.map(s => `<span class="tools-detail-tag">${s.name}</span>`).join('')}</div>
+            </div>` : ''}
+        </div>
+    `;
+}
+
+function renderEquipmentDetail(item) {
+    const desc = Array.isArray(item.desc) ? item.desc.join('\n\n') : (item.desc || '');
+    const props = item.properties?.map(p => p.name) || [];
+    const isWeapon = item.equipment_category?.index === 'weapon';
+    const isArmor = item.equipment_category?.index === 'armor';
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(item.name)}</div>
+            <div class="tools-detail-type">${item.equipment_category?.name || 'Equipment'}${item.weapon_category ? ` — ${item.weapon_category}` : ''}${item.armor_category ? ` — ${item.armor_category}` : ''}</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-props">
+                    ${item.cost ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Cost</div>
+                        <div class="tools-detail-prop-value">${item.cost.quantity} ${item.cost.unit}</div>
+                    </div>` : ''}
+                    ${item.weight ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Weight</div>
+                        <div class="tools-detail-prop-value">${item.weight} lb</div>
+                    </div>` : ''}
+                    ${isWeapon && item.damage ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Damage</div>
+                        <div class="tools-detail-prop-value">${item.damage.damage_dice} ${item.damage.damage_type?.name || ''}</div>
+                    </div>` : ''}
+                    ${isWeapon && item.range ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Range</div>
+                        <div class="tools-detail-prop-value">${item.range.normal}${item.range.long ? `/${item.range.long}` : ''} ft</div>
+                    </div>` : ''}
+                    ${isArmor && item.armor_class ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">AC</div>
+                        <div class="tools-detail-prop-value">${item.armor_class.base}${item.armor_class.dex_bonus ? ' + DEX' : ''}${item.armor_class.max_bonus ? ` (max ${item.armor_class.max_bonus})` : ''}</div>
+                    </div>` : ''}
+                    ${isArmor && item.str_minimum ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">STR Required</div>
+                        <div class="tools-detail-prop-value">${item.str_minimum}</div>
+                    </div>` : ''}
+                    ${isArmor && item.stealth_disadvantage ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Stealth</div>
+                        <div class="tools-detail-prop-value">Disadvantage</div>
+                    </div>` : ''}
+                    ${isWeapon && item.two_handed_damage ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Two-Handed</div>
+                        <div class="tools-detail-prop-value">${item.two_handed_damage.damage_dice} ${item.two_handed_damage.damage_type?.name || ''}</div>
+                    </div>` : ''}
+                </div>
+            </div>
+
+            ${props.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Properties</div>
+                <div class="tools-detail-tags">${props.map(p => `<span class="tools-detail-tag">${p}</span>`).join('')}</div>
+            </div>` : ''}
+
+            ${desc ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Description</div>
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>` : ''}
+        </div>
+    `;
+}
+
+function renderMagicItemDetail(item) {
+    const desc = Array.isArray(item.desc) ? item.desc.join('\n\n') : (item.desc || '');
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(item.name)}</div>
+            <div class="tools-detail-type">Magic Item${item.rarity?.name ? ` — ${item.rarity.name}` : ''}${item.equipment_category?.name ? ` (${item.equipment_category.name})` : ''}</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-props">
+                    ${item.rarity?.name ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Rarity</div>
+                        <div class="tools-detail-prop-value">${item.rarity.name}</div>
+                    </div>` : ''}
+                    ${item.variant !== undefined ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Variant</div>
+                        <div class="tools-detail-prop-value">${item.variant ? 'Yes' : 'No'}</div>
+                    </div>` : ''}
+                </div>
+            </div>
+
+            ${desc ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Description</div>
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>` : ''}
+        </div>
+    `;
+}
+
+function renderMonsterDetail(monster) {
+    const desc = Array.isArray(monster.desc) ? monster.desc.join('\n\n') : (monster.desc || '');
+
+    // Build speed string
+    const speedParts = [];
+    if (monster.speed) {
+        for (const [type, val] of Object.entries(monster.speed)) {
+            speedParts.push(`${type}: ${val}`);
+        }
+    }
+
+    // Proficiencies
+    const saves = (monster.proficiencies || []).filter(p => p.proficiency?.name?.startsWith('Saving Throw'));
+    const skills = (monster.proficiencies || []).filter(p => p.proficiency?.name?.startsWith('Skill'));
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(monster.name)}</div>
+            <div class="tools-detail-type">${monster.size || ''} ${monster.type || ''}${monster.subtype ? ` (${monster.subtype})` : ''}, ${monster.alignment || 'unaligned'}</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-props">
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">AC</div>
+                        <div class="tools-detail-prop-value">${Array.isArray(monster.armor_class) ? monster.armor_class.map(ac => `${ac.value}${ac.type !== 'natural' && ac.type !== 'dex' ? ` (${ac.type})` : ''}`).join(', ') : monster.armor_class || '—'}</div>
+                    </div>
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">HP</div>
+                        <div class="tools-detail-prop-value">${monster.hit_points || '—'} ${monster.hit_points_roll ? `(${monster.hit_points_roll})` : ''}</div>
+                    </div>
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">CR</div>
+                        <div class="tools-detail-prop-value">${monster.challenge_rating ?? '—'} (${monster.xp?.toLocaleString() || '—'} XP)</div>
+                    </div>
+                    <div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Speed</div>
+                        <div class="tools-detail-prop-value">${speedParts.join(', ') || '—'}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Ability Scores</div>
+                <div class="tools-detail-props" style="grid-template-columns: repeat(3, 1fr);">
+                    ${['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].map(ab => {
+                        const score = monster[ab] || 10;
+                        const mod = Math.floor((score - 10) / 2);
+                        return `<div class="tools-detail-prop">
+                            <div class="tools-detail-prop-label">${ab.substring(0, 3).toUpperCase()}</div>
+                            <div class="tools-detail-prop-value">${score} (${mod >= 0 ? '+' : ''}${mod})</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>
+
+            ${saves.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Saving Throws</div>
+                <div class="tools-detail-tags">${saves.map(s => `<span class="tools-detail-tag">${s.proficiency.name.replace('Saving Throw: ', '')} +${s.value}</span>`).join('')}</div>
+            </div>` : ''}
+
+            ${skills.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Skills</div>
+                <div class="tools-detail-tags">${skills.map(s => `<span class="tools-detail-tag">${s.proficiency.name.replace('Skill: ', '')} +${s.value}</span>`).join('')}</div>
+            </div>` : ''}
+
+            ${monster.damage_vulnerabilities?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Damage Vulnerabilities</div>
+                <div class="tools-detail-description">${monster.damage_vulnerabilities.join(', ')}</div>
+            </div>` : ''}
+
+            ${monster.damage_resistances?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Damage Resistances</div>
+                <div class="tools-detail-description">${monster.damage_resistances.join(', ')}</div>
+            </div>` : ''}
+
+            ${monster.damage_immunities?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Damage Immunities</div>
+                <div class="tools-detail-description">${monster.damage_immunities.join(', ')}</div>
+            </div>` : ''}
+
+            ${monster.condition_immunities?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Condition Immunities</div>
+                <div class="tools-detail-tags">${monster.condition_immunities.map(c => `<span class="tools-detail-tag">${c.name}</span>`).join('')}</div>
+            </div>` : ''}
+
+            ${monster.senses ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Senses</div>
+                <div class="tools-detail-description">${Object.entries(monster.senses).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ')}</div>
+            </div>` : ''}
+
+            ${monster.languages ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Languages</div>
+                <div class="tools-detail-description">${monster.languages || '—'}</div>
+            </div>` : ''}
+
+            ${monster.special_abilities?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Special Abilities</div>
+                ${monster.special_abilities.map(a => `
+                    <div style="margin-bottom: var(--space-md);">
+                        <strong style="color: var(--text-primary);">${escapeHtml(a.name)}.</strong>
+                        <span class="tools-detail-description">${escapeHtml(a.desc || '')}</span>
+                    </div>
+                `).join('')}
+            </div>` : ''}
+
+            ${monster.actions?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Actions</div>
+                ${monster.actions.map(a => `
+                    <div style="margin-bottom: var(--space-md);">
+                        <strong style="color: var(--text-primary);">${escapeHtml(a.name)}.</strong>
+                        <span class="tools-detail-description">${escapeHtml(a.desc || '')}</span>
+                    </div>
+                `).join('')}
+            </div>` : ''}
+
+            ${monster.legendary_actions?.length ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Legendary Actions</div>
+                ${monster.legendary_actions.map(a => `
+                    <div style="margin-bottom: var(--space-md);">
+                        <strong style="color: var(--text-primary);">${escapeHtml(a.name)}.</strong>
+                        <span class="tools-detail-description">${escapeHtml(a.desc || '')}</span>
+                    </div>
+                `).join('')}
+            </div>` : ''}
+
+            ${desc ? `
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Description</div>
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>` : ''}
+        </div>
+    `;
+}
+
+function renderFeatureDetailView(feature) {
+    const desc = Array.isArray(feature.desc) ? feature.desc.join('\n\n') : (feature.desc || 'No description.');
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(feature.name)}</div>
+            <div class="tools-detail-type">Feature${feature.class?.name ? ` — ${feature.class.name}` : ''}${feature.level ? ` (Level ${feature.level})` : ''}</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-props">
+                    ${feature.class?.name ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Class</div>
+                        <div class="tools-detail-prop-value">${feature.class.name}</div>
+                    </div>` : ''}
+                    ${feature.subclass?.name ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Subclass</div>
+                        <div class="tools-detail-prop-value">${feature.subclass.name}</div>
+                    </div>` : ''}
+                    ${feature.level ? `<div class="tools-detail-prop">
+                        <div class="tools-detail-prop-label">Level</div>
+                        <div class="tools-detail-prop-value">${feature.level}</div>
+                    </div>` : ''}
+                </div>
+            </div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Description</div>
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderConditionDetail(condition) {
+    const desc = Array.isArray(condition.desc) ? condition.desc.join('\n\n') : (condition.desc || 'No description.');
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(condition.name)}</div>
+            <div class="tools-detail-type">Condition</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-section-title">Effects</div>
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderGenericDetail(data) {
+    const desc = Array.isArray(data.desc) ? data.desc.join('\n\n') : (data.desc || 'No description available.');
+
+    return `
+        <div class="tools-detail-view">
+            <button class="tools-detail-back" onclick="toolsDetailBack()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+                Back to results
+            </button>
+            <div class="tools-detail-title">${escapeHtml(data.name || 'Unknown')}</div>
+
+            <div class="tools-detail-section">
+                <div class="tools-detail-description">${escapeHtml(desc).replace(/\n/g, '<br>')}</div>
+            </div>
+        </div>
+    `;
+}
 
 // ========================================
 // Detail Modal - View item/spell/weapon/feature details
