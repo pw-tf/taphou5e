@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1f2937">
+    <title>D&D 5e Monster Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        /* ========================================
+           Monster Tracker Specific Styles
+           (extends dnd-players/styles.css)
+        ======================================== */
+
+        /* Page container */
+        .mt-container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: var(--space-md);
+        }
+
+        /* Settings panel */
+        #settingsPanel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+            margin-bottom: var(--space-md);
+        }
+
+        #settingsPanel .settings-inner {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        /* Mode toggle */
+        .mode-toggle,
+        .compact-toggle {
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            user-select: none;
+            font-family: var(--font-sans);
+        }
+
+        .mode-toggle .simple-label,
+        .compact-toggle .full-label {
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .mode-toggle .advanced-label,
+        .compact-toggle .compact-label {
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+
+        .mode-toggle.advanced .simple-label,
+        .compact-toggle.compact .full-label {
+            opacity: 0.5;
+        }
+
+        .mode-toggle.advanced .advanced-label,
+        .compact-toggle.compact .compact-label {
+            opacity: 1;
+        }
+
+        .mode-toggle:hover .simple-label,
+        .mode-toggle:hover .advanced-label,
+        .compact-toggle:hover .full-label,
+        .compact-toggle:hover .compact-label {
+            opacity: 0.8;
+        }
+
+        /* Changelog box */
+        #changelogBox {
+            font-family: 'DM Sans', sans-serif;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-top: var(--space-sm);
+        }
+
+        #changelogBox p {
+            margin-bottom: var(--space-xs);
+        }
+
+        #changelogBox ol {
+            margin-left: var(--space-md);
+            margin-bottom: var(--space-sm);
+        }
+
+        #changelogBox li {
+            margin-bottom: 2px;
+        }
+
+        #toggleChangelog {
+            background: none;
+            border: none;
+            color: var(--accent-primary);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 0;
+            font-family: var(--font-sans);
+        }
+
+        #toggleChangelog:hover {
+            text-decoration: underline;
+        }
+
+        /* Add Monster Form Container */
+        .mt-add-form {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            box-shadow: var(--shadow-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .mt-add-form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mt-add-form-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Playfair Display', serif;
+        }
+
+        .mt-add-form-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: var(--space-xs);
+            transition: color var(--transition-fast);
+        }
+
+        .mt-add-form-close:hover {
+            color: var(--text-primary);
+        }
+
+        .mt-add-form-close svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .mt-add-form-body {
+            margin-top: var(--space-md);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .mt-form-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+
+        .mt-form-row-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        @media (min-width: 640px) {
+            .mt-form-row-wrap {
+                flex-direction: row;
+            }
+        }
+
+        .mt-form-row label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .mt-form-row label span {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Generic form inputs (monster tracker specific) */
+        .mt-input {
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            transition: all var(--transition-fast);
+        }
+
+        .mt-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .mt-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .mt-input-full {
+            width: 100%;
+        }
+
+        .mt-input-small {
+            width: 96px;
+        }
+
+        .mt-input-color {
+            width: 40px;
+            height: 36px;
+            padding: 2px;
+            cursor: pointer;
+        }
+
+        .mt-select {
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .mt-select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .mt-checkbox {
+            margin-right: var(--space-sm);
+        }
+
+        .mt-relative {
+            position: relative;
+            flex: 1;
+        }
+
+        .mt-add-btn-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--space-sm);
+        }
+
+        /* Individual inputs for multiple monsters */
+        .mt-individual-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
+        .mt-individual-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        @media (min-width: 640px) {
+            .mt-individual-row {
+                flex-direction: row;
+            }
+        }
+
+        .mt-individual-label {
+            width: 128px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Monster suggestions dropdown */
+        #monsterSuggestions {
+            position: absolute;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            z-index: 10;
+            box-shadow: var(--shadow-lg);
+        }
+
+        #monsterSuggestions div {
+            padding: var(--space-sm) var(--space-md);
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: background var(--transition-fast);
+        }
+
+        #monsterSuggestions div:hover {
+            background-color: var(--bg-hover);
+            color: var(--accent-primary);
+        }
+
+        /* Monster list */
+        .mt-monster-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        /* Monster card */
+        .mt-monster-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            transition: all var(--transition-fast);
+        }
+
+        .mt-monster-card.dead {
+            opacity: 0.5;
+            filter: grayscale(1);
+        }
+
+        .mt-monster-card.player-border {
+            border: 2px solid var(--accent-primary);
+        }
+
+        .mt-monster-card.npc-border {
+            border: 2px solid var(--warning);
+        }
+
+        .mt-monster-card.custom-border {
+            border: 2px solid var(--custom-border-color, transparent);
+        }
+
+        .mt-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        /* Monster header */
+        .monster-header {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            position: relative;
+        }
+
+        @media (min-width: 640px) {
+            .monster-header {
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+
+        .monster-name-container {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .monster-name {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Playfair Display', serif;
+            cursor: pointer;
+            transition: color var(--transition-fast);
+        }
+
+        .monster-name:hover {
+            color: var(--accent-primary);
+        }
+
+        .details-icon {
+            width: 16px;
+            height: 16px;
+            margin-left: 4px;
+            vertical-align: middle;
+            cursor: pointer;
+            opacity: 0.5;
+            color: var(--text-secondary);
+            transition: all var(--transition-fast);
+        }
+
+        .details-icon:hover {
+            opacity: 1;
+            color: var(--accent-primary);
+        }
+
+        .ac-initiative {
+            display: flex;
+            flex-direction: row;
+            gap: var(--space-sm);
+        }
+
+        .ac-display,
+        .initiative-display {
+            cursor: pointer;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 2px 8px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-family: var(--font-mono);
+            transition: background-color var(--transition-fast);
+        }
+
+        .ac-display:hover,
+        .initiative-display:hover {
+            background-color: var(--bg-hover);
+        }
+
+        /* Remove button */
+        .remove-button {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            padding: var(--space-xs);
+            transition: color var(--transition-fast);
+        }
+
+        .remove-button:hover {
+            color: #b91c1c;
+        }
+
+        .remove-button svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* HP controls row */
+        .mt-hp-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+
+        .mt-hp-btn-minus {
+            padding: 8px 12px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+
+        .mt-hp-btn-minus:hover {
+            background: #dc2626;
+        }
+
+        .mt-hp-btn-plus {
+            padding: 8px 12px;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+
+        .mt-hp-btn-plus:hover {
+            background: #16a34a;
+        }
+
+        /* HP display badge */
+        .hp-display {
+            cursor: pointer;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 2px 8px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-family: var(--font-mono);
+            transition: background-color var(--transition-fast);
+            position: relative;
+        }
+
+        .hp-display:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .hp-display input {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            padding: 1px 4px;
+            width: 64px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+        }
+
+        /* Health bar */
+        .health-bar {
+            display: flex;
+            height: 20px;
+            background-color: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .health-segment {
+            flex: 1;
+            background-color: var(--success);
+            border-right: 1px solid var(--bg-tertiary);
+        }
+
+        .health-segment:last-child {
+            border-right: none;
+        }
+
+        .empty-segment {
+            background-color: var(--bg-tertiary);
+        }
+
+        /* Status & notes row */
+        .mt-status-row {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+            align-items: flex-start;
+        }
+
+        @media (min-width: 640px) {
+            .mt-status-row {
+                flex-direction: row;
+            }
+        }
+
+        .mt-status {
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .mt-status.healthy { color: var(--success); }
+        .mt-status.injured { color: var(--warning); }
+        .mt-status.bloodied { color: var(--warning); }
+        .mt-status.critical { color: var(--danger); }
+        .mt-status.dead { color: var(--text-muted); }
+
+        .mt-notes-field {
+            flex: 1;
+        }
+
+        /* Notes textarea (overrides dnd-players .notes-textarea for monster-tracker context) */
+        .mt-notes-textarea {
+            resize: vertical;
+            min-height: 40px;
+            max-height: 100px;
+            width: 100%;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .mt-notes-textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .mt-notes-textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* HP Popup */
+        .hp-popup {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--bg-secondary);
+            padding: var(--space-md);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-default);
+            z-index: 50;
+            width: 240px;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .hp-popup .hp-input {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: 4px 8px;
+            width: 60px;
+            text-align: center;
+            margin: 4px auto;
+            display: block;
+            font-size: 13px;
+            font-family: var(--font-mono);
+        }
+
+        .hp-popup .hp-buttons {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .hp-popup .hp-buttons button {
+            padding: 6px 8px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color var(--transition-fast);
+            border: none;
+            font-family: var(--font-sans);
+        }
+
+        .hp-popup .hp-buttons .decrement {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .hp-popup .hp-buttons .decrement:hover {
+            background-color: #b91c1c;
+        }
+
+        .hp-popup .hp-buttons .increment {
+            background-color: var(--success);
+            color: white;
+        }
+
+        .hp-popup .hp-buttons .increment:hover {
+            background-color: #16a34a;
+        }
+
+        .hp-popup .hp-buttons .set {
+            background-color: var(--accent-primary);
+            color: white;
+        }
+
+        .hp-popup .hp-buttons .set:hover {
+            background-color: var(--accent-primary-hover);
+        }
+
+        /* Monster Details Popup */
+        .details-popup {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: var(--bg-secondary);
+            padding: var(--space-md);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-default);
+            z-index: 50;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .details-popup .details-content {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .details-popup .details-content h4 {
+            font-weight: 600;
+            margin-top: var(--space-sm);
+            margin-bottom: var(--space-xs);
+            color: var(--text-primary);
+            font-family: 'Playfair Display', serif;
+        }
+
+        .details-popup .details-content p {
+            margin-bottom: var(--space-xs);
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .details-popup .details-content ul {
+            list-style-type: disc;
+            margin-left: var(--space-md);
+            margin-bottom: var(--space-xs);
+        }
+
+        .details-popup .details-content li {
+            margin-bottom: 2px;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .details-popup .details-content .dice {
+            text-decoration: underline;
+            color: var(--accent-primary);
+        }
+
+        /* Encounter groups */
+        .encounter-group {
+            margin-bottom: var(--space-md);
+            background-color: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .encounter-group h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            font-family: 'Playfair Display', serif;
+        }
+
+        .encounter-group.ungrouped h2 {
+            display: none;
+        }
+
+        .encounter-group.collapsed .encounter-monsters {
+            display: none;
+        }
+
+        .encounter-monsters {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .encounter-toggle-icon {
+            width: 20px;
+            height: 20px;
+            transition: transform var(--transition-fast);
+        }
+
+        .encounter-group.collapsed .encounter-toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        /* Floating add button - reuse dnd-players fab pattern */
+        .floating-add-button {
+            position: fixed;
+            bottom: var(--space-lg);
+            right: var(--space-lg);
+            background-color: var(--accent-primary);
+            color: white;
+            width: 56px;
+            height: 56px;
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-lg);
+            cursor: pointer;
+            z-index: 30;
+            transition: all var(--transition-fast);
+            border: none;
+        }
+
+        .floating-add-button:hover {
+            background-color: var(--accent-primary-hover);
+            transform: scale(1.05);
+        }
+
+        .floating-add-button svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        /* Modal overlays */
+        .mt-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .mt-modal-box {
+            background-color: var(--bg-secondary);
+            padding: var(--space-xl);
+            border-radius: var(--radius-lg);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-default);
+        }
+
+        .mt-modal-box h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: var(--space-md);
+            font-family: 'Playfair Display', serif;
+            color: var(--text-primary);
+        }
+
+        .mt-modal-box .mode-option {
+            margin-bottom: var(--space-md);
+            text-align: left;
+        }
+
+        .mt-modal-box .mode-option label {
+            display: block;
+            margin-bottom: var(--space-sm);
+            cursor: pointer;
+            font-family: 'Playfair Display', serif;
+            color: var(--text-primary);
+            font-size: 16px;
+        }
+
+        .mt-modal-box .mode-option input[type="radio"] {
+            margin-right: var(--space-sm);
+        }
+
+        .mt-modal-box .mode-option p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .mt-modal-box .never-show {
+            margin-top: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            text-align: left;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .mt-modal-box .never-show label {
+            cursor: pointer;
+        }
+
+        .mt-modal-box .never-show input[type="checkbox"] {
+            margin-right: var(--space-sm);
+        }
+
+        /* Seed code textarea */
+        #seedCodeTextarea {
+            width: 100%;
+            height: 150px;
+            padding: var(--space-md);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-md);
+            resize: vertical;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        #seedCodeTextarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .mt-modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
+        }
+
+        /* Message content box */
+        .mt-message-box {
+            background-color: var(--bg-secondary);
+            padding: var(--space-xl);
+            border-radius: var(--radius-lg);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-default);
+        }
+
+        .mt-message-box h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            font-family: 'Playfair Display', serif;
+            color: var(--text-primary);
+        }
+
+        .mt-message-box p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-lg);
+            line-height: 1.5;
+        }
+
+        /* Loading spinner - reuse dnd-players loader pattern */
+        .mt-loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .spinner {
+            border: 4px solid var(--border-subtle);
+            border-top: 4px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Inline edit inputs */
+        .mt-inline-input {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            padding: 2px 4px;
+            width: 64px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+        }
+
+        .mt-inline-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        /* Version footer */
+        .ver {
+            opacity: 0.3;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: var(--space-lg) 0;
+        }
+
+        /* Compact mode overrides */
+        body.compact .mt-container {
+            max-width: 700px;
+            padding: var(--space-xs);
+        }
+
+        body.compact .header-title {
+            font-size: 18px;
+        }
+
+        body.compact .monster-name {
+            font-size: 14px;
+        }
+
+        body.compact .mt-monster-card {
+            padding: var(--space-sm);
+        }
+
+        body.compact .mt-add-form {
+            padding: var(--space-sm);
+        }
+
+        body.compact .encounter-group {
+            padding: var(--space-sm);
+            margin-bottom: var(--space-sm);
+        }
+
+        body.compact .mt-monster-list {
+            gap: var(--space-sm);
+        }
+
+        body.compact .encounter-monsters {
+            gap: var(--space-sm);
+        }
+
+        body.compact .health-bar {
+            height: 10px;
+        }
+
+        body.compact .mt-notes-textarea {
+            min-height: 20px;
+            max-height: 48px;
+            font-size: 12px;
+            padding: 2px;
+        }
+
+        body.compact .settings-button svg,
+        body.compact .remove-button svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        body.compact .initiative-display,
+        body.compact .ac-display,
+        body.compact .hp-display {
+            padding: 1px 4px;
+            font-size: 12px;
+        }
+
+        body.compact .mt-input,
+        body.compact .mt-select {
+            padding: 2px 4px;
+            font-size: 12px;
+        }
+
+        body.compact .mt-input-small {
+            width: 56px;
+        }
+
+        body.compact .mt-status {
+            font-size: 12px;
+        }
+
+        /* Character Picker */
+        .mt-char-picker {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            box-shadow: var(--shadow-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .mt-char-picker h2 {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Playfair Display', serif;
+            color: var(--text-primary);
+            margin-bottom: var(--space-sm);
+        }
+
+        .mt-char-picker-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+
+        .mt-char-picker-row select {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .mt-char-picker-status {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: var(--space-xs);
+            margin-bottom: 0;
+        }
+
+        .mt-char-picker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mt-char-picker-header h2 {
+            margin-bottom: 0;
+        }
+
+        /* Add Selector Popup */
+        .mt-add-selector {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            z-index: 50;
+        }
+
+        .mt-add-selector-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            transition: background var(--transition-fast);
+        }
+
+        .mt-add-selector-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .mt-add-selector-item + .mt-add-selector-item {
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .mt-add-selector-item svg {
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="modeSelectionPopup" class="mt-modal-overlay hidden">
+        <div class="mt-modal-box">
+            <h2>Choose Your Mode</h2>
+            <div class="mode-option">
+                <label for="simpleModeRadio">
+                    <input type="radio" id="simpleModeRadio" name="startMode" value="simple" checked>
+                    Simple Mode
+                </label>
+                <p><u>Focus on the essentials:</u> Monster Name, HP, AC, and Initiative. Quick and easy tracking for combat.</p>
+            </div>
+            <div class="mode-option">
+                <label for="advancedModeRadio">
+                    <input type="radio" id="advancedModeRadio" name="startMode" value="advanced">
+                    Advanced Mode
+                </label>
+                <p><u>More in-depth features:</u> Add Players/NPCs, customize border colors, add notes, and group monsters by encounter.</p>
+               <br><p><i>Note: This setting can be changed at any time in the settings menu!</i></p>
+            </div>
+            <div class="never-show">
+                <label for="neverShowAgainCheckbox">
+                    <input type="checkbox" id="neverShowAgainCheckbox">
+                    Never show this again
+                </label>
+            </div>
+            <button id="getStartedButton" class="btn-primary" style="width: 100%;">Get Started</button>
+        </div>
+    </div>
+
+    <div id="seedCodeModal" class="mt-modal-overlay hidden" style="display: none;">
+        <div class="mt-modal-box">
+            <h2 id="seedCodeModalTitle"></h2>
+            <textarea id="seedCodeTextarea" readonly></textarea>
+            <div class="mt-modal-buttons">
+                <button id="copySeedCodeButton" class="btn-secondary hidden">Copy Code</button>
+                <button id="loadSeedCodeButton" class="btn-primary hidden">Load Encounter</button>
+                <button id="closeSeedCodeModalButton" class="btn-danger">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Message Box Modal -->
+    <div id="messageBoxModal" class="mt-modal-overlay hidden">
+        <div class="mt-message-box">
+            <h2 id="messageBoxTitle"></h2>
+            <p id="messageBoxContent"></p>
+            <button id="messageBoxCloseButton" class="btn-primary">OK</button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="mt-loading-overlay hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <header class="header">
+        <div class="header-content">
+            <button id="mt-menu-btn" class="icon-btn" title="Menu">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <h1 class="header-title">Monster Tracker</h1>
+            <button id="settingsButton" class="icon-btn" title="Settings">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.3-.06.62-.06.94s.02.64.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="mt-container">
+        <div id="settingsPanel" class="hidden">
+            <div class="settings-inner">
+                <span id="modeToggle" class="mode-toggle">
+                    <span class="simple-label">Simple</span> | <span class="advanced-label">Advanced</span>
+                </span>
+                <span id="compactToggle" class="compact-toggle">
+                    <span class="full-label">Full</span> | <span class="compact-label">Compact</span>
+                </span>
+                <button id="saveEncounterButton" class="btn-primary btn-small">Save Encounter</button>
+                <button id="loadEncounterButton" class="btn-primary btn-small">Load Encounter</button>
+            </div>
+            <button id="toggleChangelog">View Changelog</button>
+            <div id="changelogBox" class="hidden">
+                <p><strong>v1.4 Changes:</strong></p>
+                <ol>
+                    <li><span style="text-decoration: underline;">Major Changes:</span>
+                        <ol style="list-style-type: lower-alpha;">
+                            <li>Added the ability to save/load encounters in the settings menu.</li>
+                        </ol>
+                    </li>
+                </ol>
+                <p><strong>v1.3 Changes:</strong></p>
+                <ol>
+                    <li><span style="text-decoration: underline;">Major Changes:</span>
+                        <ol style="list-style-type: lower-alpha;">
+                            <li>Added encounter grouping feature in Advanced mode.</li>
+                            <li>Encounter groups are still visible in both Simple and Advanced modes after switching.</li>
+                            <li>Ungrouped monsters are displayed separately.</li>
+                        </ol>
+                    </li>
+                    <li><span style="text-decoration: underline;">Minor Changes:</span>
+                        <ol style="list-style-type: lower-alpha;">
+                            <li>Added a "Get Started" popup which explains the difference in modes.</li>
+                        </ol>
+                    </li>
+                </ol>
+                <p><strong>v1.2 Changes:</strong></p>
+                <ol>
+                    <li><span style="text-decoration: underline;">Major Changes:</span>
+                        <ol style="list-style-type: lower-alpha;">
+                            <li>Added HP modifier popup when clicking on monster's HP.</li>
+                            <li>Added monster details (modifiers, saving throws, immunities, etc) when clicking on the monster name.</li>
+                        </ol>
+                    </li>
+                </ol>
+                <p><strong>v1.1 Changes:</strong></p>
+                <ol>
+                    <li><span style="text-decoration: underline;">Major Changes:</span>
+                        <ol style="list-style-type: lower-roman;">
+                            <li>Introduced Simple/Advanced toggle:
+                                <ol style="list-style-type: lower-roman;">
+                                    <li>Enables/disables visibility of "Type" (Monster/Player/NPC) with customizable border color options for monster blocks.</li>
+                                    <li>Custom border colors override default Player (blue) and NPC (brown) highlights in Advanced mode.</li>
+                                    <li>Toggles visibility of a notes section for each monster.</li>
+                                </ol>
+                            </li>
+                            <li>Added Full/Compact toggle to adjust display size for improved desktop viewing.</li>
+                            <li>Enabled editing of AC, Initiative, and Health after a monster is added.</li>
+                        </ol>
+                    </li>
+                    <li><span style="text-decoration: underline;">Minor Changes:</span>
+                        <ol style="list-style-type: lower-alpha;">
+                            <li>Added a cogwheel icon to toggle visibility of settings.</li>
+                            <li>Implemented general performance improvements.</li>
+                            <li>Updated changelog to reflect all v1.1 changes.</li>
+                        </ol>
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <div id="addMonsterFormContainer" class="mt-add-form" style="display: none;">
+            <div class="mt-add-form-header">
+                <h2>Add Monsters</h2>
+                <button id="toggleAddForm" class="mt-add-form-close">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="addMonsterForm" class="mt-add-form-body">
+                <label id="encounterContainer" class="advanced-field" style="display: flex; align-items: center;">
+                    <input type="text" id="encounterName" placeholder="Encounter Name/Number" class="mt-input mt-input-full">
+                </label>
+                <div class="mt-form-row">
+                    <label style="display: flex; align-items: center;">
+                        <input type="checkbox" id="autoInitiative" checked class="mt-checkbox">
+                        <span>Auto Initiative</span>
+                    </label>
+                    <label id="entityTypeContainer" class="advanced-field" style="display: flex; align-items: center; gap: 8px;">
+                        <span>Type:</span>
+                        <select id="entityType" class="mt-select">
+                            <option value="monster" selected>Monster</option>
+                            <option value="player">Player</option>
+                            <option value="npc">NPC</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="mt-form-row-wrap" style="position: relative;">
+                    <div class="mt-relative">
+                        <input type="text" id="monsterName" placeholder="Monster Name (e.g., Goblin)"
+                            class="mt-input mt-input-full" oninput="fetchMonsterSuggestions()">
+                        <div id="monsterSuggestions" class="hidden"></div>
+                    </div>
+                    <input type="number" id="monsterCount" placeholder="No. #" min="1" value=""
+                        class="mt-input mt-input-small" oninput="updateIndividualInputs()">
+                    <input type="number" id="monsterHP" placeholder="HP" min="1"
+                        class="mt-input mt-input-small" data-single-hp>
+                    <input type="number" id="monsterInitiative" placeholder="INIT"
+                        class="mt-input mt-input-small hidden" data-single-initiative>
+                    <label id="borderColorContainer" class="advanced-field" style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: var(--text-secondary); font-size: 14px;">Color:</span>
+                        <input type="color" id="borderColor" value="#000000" class="mt-input mt-input-color">
+                    </label>
+                </div>
+                <div id="individualInputs" class="mt-individual-inputs hidden"></div>
+                <div class="mt-add-btn-row">
+                    <button onclick="addMonsters()" class="btn-primary">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="characterPickerContainer" class="mt-char-picker hidden" style="display: none;">
+            <div class="mt-char-picker-header">
+                <h2>Add Character</h2>
+                <button id="toggleCharPicker" class="mt-add-form-close">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="mt-char-picker-row">
+                <select id="characterSelect" class="mt-select">
+                    <option value="">Select a character...</option>
+                </select>
+                <input type="number" id="characterInitiative" placeholder="INIT" class="mt-input mt-input-small">
+                <input type="text" id="characterEncounter" placeholder="Encounter" class="mt-input" style="max-width:150px">
+                <button onclick="addCharacterToTracker()" class="btn-primary">Add</button>
+            </div>
+            <p id="characterPickerStatus" class="mt-char-picker-status"></p>
+        </div>
+
+        <div id="addSelector" class="mt-add-selector" style="display: none;">
+            <div class="mt-add-selector-item" id="addSelectorMonster">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                    <circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/>
+                    <path d="M8 16s1.5 2 4 2 4-2 4-2"/>
+                </svg>
+                Add Monster
+            </div>
+            <div class="mt-add-selector-item" id="addSelectorCharacter">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+                Add Character
+            </div>
+        </div>
+
+        <button id="floatingAddButton" class="floating-add-button" style="display: none;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+        </button>
+
+        <div id="monsterList" class="mt-monster-list"></div>
+    </div>
+
+    <script>
+        let monsters = [];
+        // monsterData caches monster details fetched from the D&D 5e API
+        let monsterData = {};
+        let currentMonsterId = null;
+        let collapsedEncounters = new Set();
+
+        // Supabase integration for character tracking
+        const MT_SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
+        const MT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
+        let mtDb = null;
+        let mtSession = null;
+        let gameWorldCharacters = [];
+
+        function initSupabase() {
+            try {
+                if (typeof window.supabase === 'undefined') return;
+                mtDb = window.supabase.createClient(MT_SUPABASE_URL, MT_SUPABASE_ANON_KEY);
+                const raw = localStorage.getItem('dnd-session') || sessionStorage.getItem('dnd-session');
+                if (raw) {
+                    mtSession = JSON.parse(raw);
+                }
+            } catch (e) {
+                console.error('Failed to init Supabase for monster tracker:', e);
+            }
+        }
+
+        async function loadGameWorldCharacters() {
+            const picker = document.getElementById('characterPickerContainer');
+            const select = document.getElementById('characterSelect');
+            const status = document.getElementById('characterPickerStatus');
+
+            if (!mtDb || !mtSession || !mtSession.gameWorldId) {
+                picker.classList.add('hidden');
+                return;
+            }
+
+            picker.classList.remove('hidden');
+
+            try {
+                const { data, error } = await mtDb
+                    .from('characters')
+                    .select('id, name, player_name, race, class, level, armor_class, initiative_bonus, hit_point_maximum, current_hit_points, temporary_hit_points')
+                    .eq('game_world_id', mtSession.gameWorldId);
+
+                if (error) {
+                    status.textContent = 'Failed to load characters.';
+                    console.error('Error loading characters:', error);
+                    return;
+                }
+
+                gameWorldCharacters = data || [];
+
+                // Filter out characters already in the tracker
+                const addedIds = monsters.filter(m => m.characterId).map(m => m.characterId);
+                const available = gameWorldCharacters.filter(c => !addedIds.includes(c.id));
+
+                select.innerHTML = '<option value="">Select a character...</option>';
+                available.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `${c.name} (${c.player_name}) — Lv${c.level} ${c.class}`;
+                    select.appendChild(opt);
+                });
+
+                status.textContent = available.length === 0 ? 'All characters already added.' : '';
+            } catch (e) {
+                status.textContent = 'Error loading characters.';
+                console.error(e);
+            }
+        }
+
+        function addCharacterToTracker() {
+            const select = document.getElementById('characterSelect');
+            const charId = select.value;
+            if (!charId) {
+                showMessageBox('Error', 'Please select a character.');
+                return;
+            }
+
+            if (monsters.some(m => m.characterId === charId)) {
+                showMessageBox('Error', 'This character is already in the tracker.');
+                return;
+            }
+
+            const char = gameWorldCharacters.find(c => c.id === charId);
+            if (!char) return;
+
+            const initInput = document.getElementById('characterInitiative');
+            const initiative = parseInt(initInput.value) || 0;
+            const encounterInput = document.getElementById('characterEncounter');
+            const encounter = encounterInput.value.trim() || null;
+
+            const monster = {
+                id: Date.now() + Math.random(),
+                name: char.name,
+                maxHP: char.hit_point_maximum,
+                currentHP: char.current_hit_points,
+                initiative: initiative,
+                ac: char.armor_class || 10,
+                entityType: 'player',
+                notes: '',
+                borderColor: null,
+                apiUrl: null,
+                encounter: encounter,
+                characterId: char.id
+            };
+
+            monsters.push(monster);
+            saveEncounterState();
+            renderMonsters();
+
+            // Reset form
+            select.value = '';
+            initInput.value = '';
+            encounterInput.value = '';
+
+            // Refresh dropdown
+            loadGameWorldCharacters();
+        }
+
+        // localStorage persistence
+        function saveEncounterState() {
+            try {
+                localStorage.setItem('mt_encounter_state', JSON.stringify(monsters));
+            } catch (e) {
+                console.error('Failed to save encounter state:', e);
+            }
+        }
+
+        async function loadEncounterState() {
+            try {
+                const raw = localStorage.getItem('mt_encounter_state');
+                if (!raw) return false;
+
+                const saved = JSON.parse(raw);
+                if (!Array.isArray(saved) || saved.length === 0) return false;
+
+                monsters = saved;
+
+                // Re-fetch fresh HP/AC for any characters from Supabase
+                const charIds = monsters.filter(m => m.characterId).map(m => m.characterId);
+                if (charIds.length > 0 && mtDb) {
+                    const { data, error } = await mtDb
+                        .from('characters')
+                        .select('id, current_hit_points, hit_point_maximum, armor_class')
+                        .in('id', charIds);
+
+                    if (!error && data) {
+                        data.forEach(fresh => {
+                            const m = monsters.find(mon => mon.characterId === fresh.id);
+                            if (m) {
+                                m.currentHP = fresh.current_hit_points;
+                                m.maxHP = fresh.hit_point_maximum;
+                                m.ac = fresh.armor_class || m.ac;
+                            }
+                        });
+                    }
+                }
+
+                renderMonsters();
+                return true;
+            } catch (e) {
+                console.error('Failed to load encounter state:', e);
+                return false;
+            }
+        }
+
+        // Sync character HP to Supabase (fire-and-forget)
+        function syncCharacterHP(monster) {
+            if (monster.characterId && mtDb) {
+                mtDb.from('characters')
+                    .update({ current_hit_points: monster.currentHP })
+                    .eq('id', monster.characterId)
+                    .then(({ error }) => {
+                        if (error) console.error('HP sync failed:', error);
+                    });
+            }
+        }
+
+        const modeToggle = document.getElementById('modeToggle');
+        // Initial mode will be set by the pop-up or local storage
+        let currentModeIsAdvanced = false;
+
+        // Event listener for simple/advanced mode toggle
+        modeToggle.addEventListener('click', () => {
+            const isAdvanced = !modeToggle.classList.contains('advanced');
+            modeToggle.classList.toggle('advanced', isAdvanced);
+            localStorage.setItem('advancedMode', isAdvanced);
+            currentModeIsAdvanced = isAdvanced; // Update current mode state
+            toggleAdvancedFields(isAdvanced);
+            renderMonsters();
+        });
+
+        const compactToggle = document.getElementById('compactToggle');
+        const prefersCompact = localStorage.getItem('compactMode') === 'true';
+
+        // Apply compact mode preference on load
+        if (prefersCompact) {
+            document.body.classList.add('compact');
+            compactToggle.classList.add('compact');
+        }
+
+        // Event listener for compact mode toggle
+        compactToggle.addEventListener('click', () => {
+            const isCompact = !compactToggle.classList.contains('compact');
+            compactToggle.classList.toggle('compact', isCompact);
+            document.body.classList.toggle('compact', isCompact);
+            localStorage.setItem('compactMode', isCompact);
+        });
+
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsPanel = document.getElementById('settingsPanel');
+
+        // Toggle settings panel visibility
+        settingsButton.addEventListener('click', () => {
+            settingsPanel.classList.toggle('hidden');
+        });
+
+        // Close settings panel, HP popup, and details popup if clicked outside
+        document.addEventListener('click', (event) => {
+            if (!settingsPanel.contains(event.target) && !settingsButton.contains(event.target)) {
+                settingsPanel.classList.add('hidden');
+            }
+            const openHPPopup = document.querySelector('.hp-popup[style*="block"]');
+            if (openHPPopup && !openHPPopup.contains(event.target) && !event.target.closest('.hp-display')) {
+                closeHPPopup();
+            }
+            const openDetailsPopup = document.querySelector('.details-popup[style*="block"]');
+            if (openDetailsPopup && !openDetailsPopup.contains(event.target) && !event.target.closest('.monster-name') && !event.target.closest('.details-icon')) {
+                closeDetailsPopup();
+            }
+            // Close seed code modal if clicked outside
+            const seedCodeModal = document.getElementById('seedCodeModal');
+            if (!seedCodeModal.classList.contains('hidden') && !seedCodeModal.querySelector('.mt-modal-box').contains(event.target) && !event.target.closest('#saveEncounterButton') && !event.target.closest('#loadEncounterButton')) {
+                seedCodeModal.classList.add('hidden');
+                seedCodeModal.style.display = 'none'; // Explicitly hide
+            }
+            // Close message box modal if clicked outside
+            const messageBoxModal = document.getElementById('messageBoxModal');
+            if (!messageBoxModal.classList.contains('hidden') && !messageBoxModal.querySelector('.mt-message-box').contains(event.target)) {
+                hideMessageBox();
+            }
+        });
+
+        const toggleButton = document.getElementById('toggleChangelog');
+        const changelogBox = document.getElementById('changelogBox');
+
+        // Toggle changelog visibility
+        toggleButton.addEventListener('click', () => {
+            const isVisible = !changelogBox.classList.contains('hidden');
+            changelogBox.classList.toggle('hidden');
+            toggleButton.textContent = isVisible ? 'View Changelog' : 'Hide Changelog';
+        });
+
+        // Show/hide advanced fields based on mode
+        function toggleAdvancedFields(isAdvanced) {
+            const advancedFields = document.querySelectorAll('.advanced-field');
+            advancedFields.forEach(field => field.classList.toggle('hidden', !isAdvanced));
+            const notesFields = document.querySelectorAll('.notes-field');
+            notesFields.forEach(field => field.classList.toggle('hidden', !isAdvanced));
+        }
+
+        const autoInitiativeCheckbox = document.getElementById('autoInitiative');
+        const singleInitiativeInput = document.querySelector('[data-single-initiative]');
+
+        // Toggle visibility of manual initiative input
+        autoInitiativeCheckbox.addEventListener('change', () => {
+            const isAuto = autoInitiativeCheckbox.checked;
+            singleInitiativeInput.classList.toggle('hidden', isAuto);
+            updateIndividualInputs();
+        });
+
+        // Fetch monster suggestions from D&D 5e API
+        async function fetchMonsterSuggestions() {
+            const query = document.getElementById('monsterName').value.trim();
+            if (query.length < 2) {
+                document.getElementById('monsterSuggestions').classList.add('hidden');
+                return;
+            }
+
+            try {
+                const response = await axios.get('https://www.dnd5eapi.co/api/monsters');
+                const monstersList = response.data.results;
+                const filteredMonsters = monstersList.filter(m => m.name.toLowerCase().includes(query.toLowerCase()));
+
+                const suggestionsDiv = document.getElementById('monsterSuggestions');
+                suggestionsDiv.innerHTML = '';
+                suggestionsDiv.classList.remove('hidden');
+
+                for (const monster of filteredMonsters) {
+                    const div = document.createElement('div');
+                    div.textContent = monster.name;
+                    div.onclick = async () => {
+                        document.getElementById('monsterName').value = monster.name;
+                        suggestionsDiv.classList.add('hidden');
+                        // Fetch full monster details and cache them
+                        const monsterResponse = await axios.get(`https://www.dnd5eapi.co${monster.url}`);
+                        const monsterDetails = monsterResponse.data;
+                        document.getElementById('monsterHP').value = monsterDetails.hit_points || '';
+                        monsterData[monster.name.toLowerCase()] = { details: monsterDetails, url: monster.url };
+                    };
+                    suggestionsDiv.appendChild(div);
+                }
+
+                if (filteredMonsters.length === 0) {
+                    suggestionsDiv.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Error fetching monsters:', error);
+            }
+        }
+
+        // Toggle add monster form visibility
+        document.getElementById('toggleAddForm').addEventListener('click', () => {
+            const formContainer = document.getElementById('addMonsterFormContainer');
+            const floatingButton = document.getElementById('floatingAddButton');
+            formContainer.style.display = 'none';
+            floatingButton.style.display = 'flex';
+        });
+
+        // Calculate random HP based on hit dice
+        function calculateRandomHP(monsterDetails) {
+            if (!monsterDetails || !monsterDetails.hit_dice) {
+                return Math.max(1, Math.floor(Math.random() * 10) + 1); // Default if hit_dice is missing
+            }
+
+            // Parse hit dice (e.g., "2d8 + 4")
+            const parts = monsterDetails.hit_dice.match(/(\d+)d(\d+)\s*([+-]\s*\d+)?/);
+            if (!parts) {
+                return monsterDetails.hit_points || Math.max(1, Math.floor(Math.random() * 10) + 1);
+            }
+
+            const numDice = parseInt(parts[1]);
+            const dieSize = parseInt(parts[2]);
+            const bonus = parts[3] ? parseInt(parts[3].replace(/\s/g, '')) : 0;
+
+            let totalHP = 0;
+            for (let i = 0; i < numDice; i++) {
+                totalHP += Math.floor(Math.random() * dieSize) + 1;
+            }
+            totalHP += bonus;
+
+            // Add Constitution modifier if available and not already factored into bonus
+            const conMod = monsterDetails.constitution ? Math.floor((monsterDetails.constitution - 10) / 2) : 0;
+            if (monsterDetails.hit_points_roll) { // Check if hit_points_roll exists
+                // If hit_points_roll exists, assume con mod is already in there.
+            } else {
+                totalHP += (conMod * numDice); // Apply Con mod per hit die
+            }
+
+            return Math.max(1, totalHP);
+        }
+
+
+        // Roll initiative with Dexterity modifier
+        function rollInitiative(monsterDetails) {
+            const dexMod = monsterDetails && monsterDetails.dexterity
+                ? Math.floor((monsterDetails.dexterity - 10) / 2)
+                : 0;
+            return Math.floor(Math.random() * 20) + 1 + dexMod;
+        }
+
+        // Update individual HP/Initiative inputs based on monster count
+        function updateIndividualInputs() {
+            const count = parseInt(document.getElementById('monsterCount').value) || 1;
+            const singleHPInput = document.querySelector('[data-single-hp]');
+            const singleInitiativeInput = document.querySelector('[data-single-initiative]');
+            const individualInputs = document.getElementById('individualInputs');
+            const name = document.getElementById('monsterName').value.trim() || 'Monster';
+            const monsterDetails = monsterData[name.toLowerCase()]?.details;
+            const defaultHP = calculateRandomHP(monsterDetails);
+            const isAutoInitiative = autoInitiativeCheckbox.checked;
+
+            if (count > 1) {
+                singleHPInput.classList.add('hidden');
+                singleInitiativeInput.classList.add('hidden');
+                individualInputs.classList.remove('hidden');
+                individualInputs.innerHTML = Array.from({ length: count }, (_, i) => {
+                    const randomHP = calculateRandomHP(monsterDetails);
+                    return `
+                        <div class="mt-individual-row">
+                            <label class="mt-individual-label">${name} ${i + 1}:</label>
+                            <input type="number" min="1" value="${randomHP}" class="mt-input mt-input-small individual-hp" placeholder="HP" required>
+                            <input type="number" class="${isAutoInitiative ? 'hidden' : ''} mt-input mt-input-small individual-initiative" placeholder="INIT" required>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                singleHPInput.classList.remove('hidden');
+                singleInitiativeInput.classList.toggle('hidden', isAutoInitiative);
+                singleHPInput.value = defaultHP;
+                individualInputs.classList.add('hidden');
+                individualInputs.innerHTML = '';
+            }
+        }
+
+        // Add monsters to the tracker
+        function addMonsters() {
+            const name = document.getElementById('monsterName').value.trim();
+            const count = parseInt(document.getElementById('monsterCount').value) || 1;
+            const isAutoInitiative = autoInitiativeCheckbox.checked;
+            const isAdvanced = currentModeIsAdvanced;
+            const entityType = isAdvanced ? document.getElementById('entityType').value : 'monster';
+            const borderColor = isAdvanced ? document.getElementById('borderColor').value : null; // Use null if default
+            const encounterName = isAdvanced ? document.getElementById('encounterName').value.trim() : '';
+
+            if (!name) {
+                showMessageBox('Error', 'Please enter a valid monster name.');
+                return;
+            }
+
+            let hpValues = [];
+            let initiativeValues = [];
+            const monsterDetails = monsterData[name.toLowerCase()]?.details;
+
+            if (count === 1) {
+                const maxHP = parseInt(document.getElementById('monsterHP').value) || calculateRandomHP(monsterDetails);
+                const initiative = isAutoInitiative
+                    ? rollInitiative(monsterDetails)
+                    : parseInt(document.getElementById('monsterInitiative').value) || 0;
+                if (maxHP <= 0) {
+                    showMessageBox('Error', 'Please enter a valid HP value.');
+                    return;
+                }
+                hpValues.push(maxHP);
+                initiativeValues.push(initiative);
+            } else {
+                const hpInputs = document.querySelectorAll('.individual-hp');
+                const initiativeInputs = document.querySelectorAll('.individual-initiative');
+                hpValues = Array.from(hpInputs).map(input => parseInt(input.value) || 1);
+                initiativeValues = isAutoInitiative
+                    ? Array(count).fill().map(() => rollInitiative(monsterDetails))
+                    : Array.from(initiativeInputs).map(input => parseInt(input.value) || 0);
+                if (hpValues.some(hp => hp <= 0)) {
+                    showMessageBox('Error', 'Please enter valid HP values for all monsters.');
+                    return;
+                }
+            }
+
+            for (let i = 0; i < count; i++) {
+                const monster = {
+                    id: Date.now() + i, // Unique ID
+                    name: `${name}${count > 1 ? ` ${i + 1}` : ''}`,
+                    maxHP: hpValues[i],
+                    currentHP: hpValues[i],
+                    initiative: initiativeValues[i],
+                    ac: monsterDetails?.armor_class?.[0]?.value || 10, // Default AC to 10
+                    entityType: entityType,
+                    notes: '',
+                    borderColor: borderColor !== '#000000' ? borderColor : null, // Store null if default black
+                    apiUrl: monsterData[name.toLowerCase()]?.url || null, // Store API URL if available
+                    encounter: encounterName || null
+                };
+                monsters.push(monster);
+            }
+
+            // Clear form fields
+            document.getElementById('monsterName').value = '';
+            document.getElementById('monsterHP').value = '';
+            document.getElementById('monsterInitiative').value = '';
+            document.getElementById('monsterCount').value = '';
+            document.getElementById('entityType').value = 'monster';
+            document.getElementById('borderColor').value = '#000000';
+            document.getElementById('encounterName').value = '';
+            document.getElementById('individualInputs').innerHTML = '';
+            document.querySelector('[data-single-hp]').classList.remove('hidden');
+            document.querySelector('[data-single-initiative]').classList.toggle('hidden', isAutoInitiative);
+            document.getElementById('individualInputs').classList.add('hidden');
+            document.getElementById('monsterSuggestions').classList.add('hidden');
+            saveEncounterState();
+            renderMonsters();
+        }
+
+        // Adjust HP by a given amount
+        function adjustHP(id, amount) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                monster.currentHP = Math.max(0, Math.min(monster.maxHP, monster.currentHP + amount));
+                syncCharacterHP(monster);
+                saveEncounterState();
+                renderMonsters();
+            }
+        }
+
+        // Adjust HP from the popup
+        function adjustPopupHP(id, amount) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                monster.currentHP = Math.max(0, Math.min(monster.maxHP, monster.currentHP + amount));
+                syncCharacterHP(monster);
+                saveEncounterState();
+                renderMonsters();
+            }
+        }
+
+        // Set HP from the popup input
+        function setPopupHP(id) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const input = document.getElementById(`hpInput-${id}`);
+                const newHP = parseInt(input.value) || 0;
+                monster.currentHP = Math.max(0, Math.min(monster.maxHP, newHP));
+                syncCharacterHP(monster);
+                saveEncounterState();
+                closeHPPopup();
+                renderMonsters();
+            }
+        }
+
+        // Open the HP adjustment popup
+        function openHPPopup(id) {
+            closeHPPopup();
+            closeDetailsPopup();
+            currentMonsterId = id;
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const hpDisplay = document.querySelector(`[data-monster-id="${id}"] .hp-display`);
+                hpDisplay.innerHTML = `
+                    ${monster.currentHP}/${monster.maxHP} HP
+                    <div id="hpPopup-${id}" class="hp-popup">
+                        <input type="number" id="hpInput-${id}" class="hp-input" min="0" placeholder="0">
+                        <div class="hp-buttons">
+                            <button class="decrement" onclick="adjustPopupHP(${id}, -parseInt(document.getElementById('hpInput-${id}').value) || 0)">-X</button>
+                            <button class="decrement" onclick="adjustPopupHP(${id}, -10)">-10</button>
+                            <button class="decrement" onclick="adjustPopupHP(${id}, -5)">-5</button>
+                            <button class="set" onclick="setPopupHP(${id})">SET</button>
+                            <button class="increment" onclick="adjustPopupHP(${id}, 5)">+5</button>
+                            <button class="increment" onclick="adjustPopupHP(${id}, 10)">+10</button>
+                            <button class="increment" onclick="adjustPopupHP(${id}, parseInt(document.getElementById('hpInput-${id}').value) || 0)">+X</button>
+                        </div>
+                    </div>
+                `;
+                const popup = document.getElementById(`hpPopup-${id}`);
+                popup.style.display = 'block';
+                document.getElementById(`hpInput-${id}`).focus();
+            }
+        }
+
+        // Close the HP adjustment popup
+        function closeHPPopup() {
+            const openPopup = document.querySelector('.hp-popup[style*="block"]');
+            if (openPopup) {
+                const id = openPopup.id.replace('hpPopup-', '');
+                const monster = monsters.find(m => m.id === parseInt(id));
+                if (monster) {
+                    const hpDisplay = document.querySelector(`[data-monster-id="${id}"] .hp-display`);
+                    hpDisplay.innerHTML = `${monster.currentHP}/${monster.maxHP} HP`;
+                }
+            }
+            currentMonsterId = null;
+        }
+
+        // Open monster details popup
+        async function openDetailsPopup(id) {
+            closeHPPopup();
+            closeDetailsPopup();
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const name = monster.name.replace(/\s*\d+$/, '').toLowerCase();
+                let monsterDetails = monsterData[name]?.details;
+                if (!monsterDetails && monster.apiUrl) {
+                    // Fetch details if not already cached
+                    monsterDetails = await fetchMonsterDetails(monster.apiUrl);
+                }
+                if (!monsterDetails) {
+                    console.error(`No details found for monster: ${name}`);
+                    const monsterHeader = document.querySelector(`[data-monster-id="${id}"] .monster-name-container`);
+                    const detailsPopupDiv = document.createElement('div');
+                    detailsPopupDiv.id = `detailsPopup-${id}`;
+                    detailsPopupDiv.className = 'details-popup';
+                    detailsPopupDiv.innerHTML = `
+                        <div class="details-content">
+                            <p>No details available for this monster.</p>
+                        </div>
+                    `;
+                    monsterHeader.appendChild(detailsPopupDiv);
+                    detailsPopupDiv.style.display = 'block';
+                    return;
+                }
+                const monsterHeader = document.querySelector(`[data-monster-id="${id}"] .monster-name-container`);
+                const detailsContent = formatMonsterDetails(monsterDetails);
+                const detailsPopupDiv = document.createElement('div');
+                detailsPopupDiv.id = `detailsPopup-${id}`;
+                detailsPopupDiv.className = 'details-popup';
+                detailsPopupDiv.innerHTML = `
+                    <div class="details-content">
+                        ${detailsContent}
+                    </div>
+                `;
+                monsterHeader.appendChild(detailsPopupDiv);
+                detailsPopupDiv.style.display = 'block';
+            }
+        }
+
+        // Fetch monster details from D&D 5e API and cache them
+        async function fetchMonsterDetails(url) {
+            try {
+                if (!url) return null;
+                const response = await axios.get(`https://www.dnd5eapi.co${url}`);
+                const monsterDetails = response.data;
+                if (!monsterDetails || !monsterDetails.name) {
+                    console.error(`Invalid API response for URL: ${url}`);
+                    return null;
+                }
+                const name = monsterDetails.name.toLowerCase();
+                monsterData[name] = { details: monsterDetails, url: url };
+                return monsterDetails;
+            } catch (error) {
+                console.error('Error fetching monster details:', error);
+                return null;
+            }
+        }
+
+        // Format monster details for display in the popup
+        function formatMonsterDetails(details) {
+            if (!details || !details.name) {
+                return '<p>No details available.</p>';
+            }
+
+            const modifiers = [
+                { name: 'Strength', value: details.strength },
+                { name: 'Dexterity', value: details.dexterity },
+                { name: 'Constitution', value: details.constitution },
+                { name: 'Intelligence', value: details.intelligence },
+                { name: 'Wisdom', value: details.wisdom },
+                { name: 'Charisma', value: details.charisma }
+            ].map(stat => {
+                const mod = Math.floor((stat.value - 10) / 2);
+                return `<li>${stat.name}: ${mod >= 0 ? '+' : ''}${mod}</li>`;
+            }).join('');
+
+            const savingThrows = details.proficiencies?.filter(p => p.proficiency.name.includes('Saving Throw')).map(p => {
+                const stat = p.proficiency.name.replace('Saving Throw: ', '');
+                return `${stat}: ${p.value >= 0 ? '+' : ''}${p.value}`;
+            }).join(', ') || 'None';
+
+            const vulnerabilities = details.damage_vulnerabilities?.length > 0
+                ? details.damage_vulnerabilities.join(', ')
+                : 'None';
+
+            const resistances = details.damage_resistances?.length > 0
+                ? details.damage_resistances.join(', ')
+                : 'None';
+
+            const immunities = details.damage_immunities?.length > 0
+                ? details.damage_immunities.join(', ')
+                : 'None';
+
+            const conditionImmunities = details.condition_immunities?.length > 0
+                ? details.condition_immunities.map(c => c.name).join(', ')
+                : 'None';
+
+            const actions = details.actions?.map(action => {
+                let desc = `<strong>${action.name}</strong>`;
+                if (action.attack_bonus) {
+                    desc += ` (Attack Bonus: +${action.attack_bonus})`;
+                }
+                if (action.damage && action.damage.length > 0) {
+                    const damage = action.damage.map(d => {
+                        let damageText = `<span class="dice">${d.damage_dice}</span>`;
+                        if (d.damage_type && d.damage_type.name) {
+                            damageText += ` ${d.damage_type.name}`;
+                        }
+                        return damageText;
+                    }).join(', ');
+                    desc += `: ${damage}`;
+                }
+                desc += `<p>${action.desc}</p>`; // Full description
+                return `<li>${desc}</li>`;
+            }).join('') || '<p>None</p>';
+
+            const specialAbilities = details.special_abilities?.map(ability => {
+                return `<li><strong>${ability.name}</strong>: ${ability.desc}</li>`;
+            }).join('') || '<p>None</p>';
+
+            return `
+                <h4>Hit Dice</h4>
+                <p>${details.hit_dice || 'Unknown'}</p>
+                <h4>Ability Modifiers</h4>
+                <ul>${modifiers}</ul>
+                <h4>Saving Throws</h4>
+                <p>${savingThrows}</p>
+                <h4>Damage Vulnerabilities</h4>
+                <p>${vulnerabilities}</p>
+                <h4>Damage Resistances</h4>
+                <p>${resistances}</p>
+                <h4>Damage Immunities</h4>
+                <p>${immunities}</p>
+                <h4>Condition Immunities</h4>
+                <p>${conditionImmunities}</p>
+                <h4>Actions</h4>
+                <ul>${actions}</ul>
+                <h4>Special Abilities</h4>
+                <ul>${specialAbilities}</ul>
+            `;
+        }
+
+        // Close monster details popup
+        function closeDetailsPopup() {
+            const openPopup = document.querySelector('.details-popup[style*="block"]');
+            if (openPopup) {
+                openPopup.remove();
+            }
+        }
+
+        // Edit initiative inline
+        function editInitiative(id) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const card = document.querySelector(`[data-monster-id="${id}"]`);
+                const initiativeDisplay = card.querySelector('.initiative-display');
+
+                initiativeDisplay.innerHTML = `
+                    <input
+                        type="number"
+                        id="editInitiative-${id}"
+                        value="${monster.initiative}"
+                        class="mt-inline-input"
+                    >
+                `;
+
+                const input = document.getElementById(`editInitiative-${id}`);
+
+                input.addEventListener('focus', () => {
+                    setTimeout(() => {
+                        try {
+                            input.setSelectionRange(input.value.length, input.value.length);
+                        } catch {
+                            // Fallback for browsers that don't support setSelectionRange
+                            const val = input.value;
+                            input.value = '';
+                            input.value = val;
+                        }
+                    }, 0);
+                });
+
+                input.focus();
+
+                input.addEventListener('blur', () => saveInitiative(id));
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        saveInitiative(id);
+                    }
+                });
+            }
+        }
+
+        // Save edited initiative
+        function saveInitiative(id) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const input = document.getElementById(`editInitiative-${id}`);
+                if (input) {
+                    const newInitiative = parseInt(input.value) || 0;
+                    monster.initiative = newInitiative;
+                    saveEncounterState();
+                    renderMonsters();
+                }
+            }
+        }
+
+        // Edit AC inline
+        function editAC(id) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const card = document.querySelector(`[data-monster-id="${id}"]`);
+                const acDisplay = card.querySelector('.ac-display');
+
+                acDisplay.innerHTML = `
+                    <input
+                        type="number"
+                        id="editAC-${id}"
+                        value="${monster.ac}"
+                        min="1"
+                        class="mt-inline-input"
+                    >
+                `;
+
+                const input = document.getElementById(`editAC-${id}`);
+
+                input.addEventListener('focus', () => {
+                    setTimeout(() => {
+                        try {
+                            input.setSelectionRange(input.value.length, input.value.length);
+                        } catch {
+                            const val = input.value;
+                            input.value = '';
+                            input.value = val;
+                        }
+                    }, 0);
+                });
+
+                input.focus();
+
+                input.addEventListener('blur', () => saveAC(id));
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        saveAC(id);
+                    }
+                });
+            }
+        }
+
+        // Save edited AC
+        function saveAC(id) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const input = document.getElementById(`editAC-${id}`);
+                if (input) {
+                    const newAC = parseInt(input.value) || 10;
+                    monster.ac = Math.max(1, newAC);
+                    saveEncounterState();
+                    renderMonsters();
+                }
+            }
+        }
+
+        // Save notes for a monster
+        function saveNotes(id) {
+            const monster = monsters.find(m => m.id === id);
+            if (monster) {
+                const textarea = document.getElementById(`notes-${id}`);
+                if (textarea) {
+                    monster.notes = textarea.value;
+                    saveEncounterState();
+                    renderMonsters();
+                }
+            }
+        }
+
+        // Remove a monster
+        function removeMonster(id) {
+            monsters = monsters.filter(m => m.id !== id);
+            saveEncounterState();
+            loadGameWorldCharacters();
+            renderMonsters();
+        }
+
+        // Toggle encounter group collapse state
+        function toggleEncounter(encounter) {
+            if (collapsedEncounters.has(encounter)) {
+                collapsedEncounters.delete(encounter);
+            } else {
+                collapsedEncounters.add(encounter);
+            }
+            renderMonsters();
+        }
+
+        // Determine monster status based on HP
+        function getStatus(monster) {
+            const hpRatio = monster.currentHP / monster.maxHP;
+            if (monster.currentHP === 0) return 'Dead';
+            if (hpRatio <= 0.25) return 'Critical';
+            if (hpRatio <= 0.5) return 'Bloodied';
+            if (hpRatio <= 0.75) return 'Injured';
+            return 'Healthy';
+        }
+
+        // Render all monsters to the display
+        function renderMonsters() {
+            const list = document.getElementById('monsterList');
+            list.innerHTML = '';
+            const isAdvanced = currentModeIsAdvanced;
+
+            // Group monsters by encounter
+            const groupedMonsters = {};
+            monsters.forEach(monster => {
+                const encounter = monster.encounter || 'ungrouped';
+                if (!groupedMonsters[encounter]) {
+                    groupedMonsters[encounter] = [];
+                }
+                groupedMonsters[encounter].push(monster);
+            });
+
+            // Sort groups by encounter name, with ungrouped at the end
+            const sortedEncounters = Object.keys(groupedMonsters).sort((a, b) => {
+                if (a === 'ungrouped') return 1;
+                if (b === 'ungrouped') return -1;
+                return a.localeCompare(b);
+            });
+
+            sortedEncounters.forEach(encounter => {
+                // Sort monsters within each encounter by initiative
+                groupedMonsters[encounter].sort((a, b) => {
+                    const aIsDead = a.currentHP === 0;
+                    const bIsDead = b.currentHP === 0;
+                    if (aIsDead && !bIsDead) return 1;
+                    if (!aIsDead && bIsDead) return -1;
+                    return b.initiative - a.initiative;
+                });
+
+                // Create encounter group container
+                const encounterDiv = document.createElement('div');
+                encounterDiv.className = `encounter-group ${encounter === 'ungrouped' ? 'ungrouped' : ''} ${collapsedEncounters.has(encounter) ? 'collapsed' : ''}`;
+                const header = encounter === 'ungrouped' ? '' : `
+                    <h2 onclick="toggleEncounter('${encounter}')">
+                        <svg class="encounter-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                        ${encounter}
+                    </h2>
+                `;
+                encounterDiv.innerHTML = header;
+                const monsterListDiv = document.createElement('div');
+                monsterListDiv.className = 'encounter-monsters';
+
+                groupedMonsters[encounter].forEach(monster => {
+                    const hpRatio = monster.currentHP / monster.maxHP;
+                    const segmentColor = hpRatio <= 0.25 ? '#ff0000' : hpRatio <= 0.5 ? '#ffcc00' : '#22c55e';
+                    const segments = Array(monster.maxHP).fill().map((_, i) => `
+                        <div class="health-segment ${i < monster.currentHP ? '' : 'empty-segment'}" style="${i < monster.currentHP ? `background-color: ${segmentColor}` : ''}"></div>
+                    `).join('');
+
+                    const status = getStatus(monster);
+                    const statusClass = status.toLowerCase();
+
+                    const isDead = monster.currentHP === 0;
+                    const borderClass = monster.characterId ? 'player-border' :
+                        isAdvanced && !monster.borderColor ? (
+                            monster.entityType === 'player' ? 'player-border' :
+                            monster.entityType === 'npc' ? 'npc-border' : ''
+                        ) : (monster.borderColor ? 'custom-border' : '');
+                    const borderStyle = monster.borderColor ? `style="--custom-border-color: ${monster.borderColor}"` : '';
+                    const cardClasses = `mt-monster-card ${isDead ? 'dead' : ''} ${borderClass}`;
+
+                    monsterListDiv.innerHTML += `
+                        <div class="${cardClasses}" data-monster-id="${monster.id}" ${borderStyle}>
+                            <div class="mt-card-top">
+                                <div class="monster-header">
+                                    <div class="monster-name-container">
+                                        <h3 class="monster-name" onclick="openDetailsPopup(${monster.id})">${monster.name}</h3>
+                                        <svg class="details-icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" onclick="openDetailsPopup(${monster.id})">
+                                            <g id="Page-1" stroke="none" stroke-width="1" fill="currentColor" fill-rule="evenodd">
+                                                <g id="Dribbble-Light-Preview" transform="translate(-60.000000, -1919.000000)">
+                                                    <g id="icons" transform="translate(56.000000, 160.000000)">
+                                                        <path d="M11,1769 L17,1769 L17,1767 L11,1767 L11,1769 Z M11,1765 L17,1765 L17,1763 L11,1763 L11,1765 Z M20,1763 L20,1761 C21.103,1761 22,1761.898 22,1763 L20,1763 Z M18,1775 C18,1776.103 17.103,1777 16,1777 L16,1773 L10,1773 L10,1763 C10,1761.898 10.897,1761 12,1761 L18,1761 L18,1775 Z M14,1777 L8,1777 C6.897,1777 6,1776.103 6,1775 L14,1775 L14,1777 Z M20,1759 L12,1759 C9.791,1759 8,1760.791 8,1763 L8,1773 L4,1773 L4,1775 C4,1777.21 5.791,1779 8,1779 L16,1779 C18.209,1779 20,1777.21 20,1775 L20,1765 L24,1765 L24,1763 C24,1760.791 22.209,1759 20,1759 L20,1759 Z" id="script-[#1601]"></path>
+                                                    </g>
+                                                </g>
+                                            </g>
+                                        </svg>
+                                    </div>
+                                    <div class="ac-initiative">
+                                        <span class="ac-display" onclick="editAC(${monster.id})">AC: ${monster.ac}</span>
+                                        <span class="initiative-display" onclick="editInitiative(${monster.id})">Init: ${monster.initiative}</span>
+                                    </div>
+                                </div>
+                                <button onclick="removeMonster(${monster.id})" class="remove-button">
+                                    <svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="mt-hp-row">
+                                <button onclick="adjustHP(${monster.id}, -1)" class="mt-hp-btn-minus">-</button>
+                                <span class="hp-display" onclick="openHPPopup(${monster.id})">${monster.currentHP}/${monster.maxHP} HP</span>
+                                <button onclick="adjustHP(${monster.id}, 1)" class="mt-hp-btn-plus">+</button>
+                            </div>
+                            <div class="health-bar">${segments}</div>
+                            <div class="mt-status-row">
+                                <span class="mt-status ${statusClass}">${status}</span>
+                                <div class="mt-notes-field notes-field ${isAdvanced ? '' : 'hidden'}">
+                                    <textarea id="notes-${monster.id}" class="mt-notes-textarea" placeholder="Enter notes..." onblur="saveNotes(${monster.id})" onkeypress="if(event.key === 'Enter' && !event.shiftKey) saveNotes(${monster.id})">${monster.notes}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                encounterDiv.appendChild(monsterListDiv);
+                list.appendChild(encounterDiv);
+            });
+        }
+
+        const floatingAddButton = document.getElementById('floatingAddButton');
+        const addMonsterFormContainer = document.getElementById('addMonsterFormContainer');
+        const toggleAddFormButton = document.getElementById('toggleAddForm');
+        const modeSelectionPopup = document.getElementById('modeSelectionPopup');
+        const getStartedButton = document.getElementById('getStartedButton');
+        const neverShowAgainCheckbox = document.getElementById('neverShowAgainCheckbox');
+        const simpleModeRadio = document.getElementById('simpleModeRadio');
+        const advancedModeRadio = document.getElementById('advancedModeRadio');
+
+        // Elements for seed code modal
+        const seedCodeModal = document.getElementById('seedCodeModal');
+        const seedCodeModalTitle = document.getElementById('seedCodeModalTitle');
+        const seedCodeTextarea = document.getElementById('seedCodeTextarea');
+        const copySeedCodeButton = document.getElementById('copySeedCodeButton');
+        const loadSeedCodeButton = document.getElementById('loadSeedCodeButton');
+        const closeSeedCodeModalButton = document.getElementById('closeSeedCodeModalButton');
+        const saveEncounterButton = document.getElementById('saveEncounterButton');
+        const loadEncounterButton = document.getElementById('loadEncounterButton');
+
+        // Elements for custom message box
+        const messageBoxModal = document.getElementById('messageBoxModal');
+        const messageBoxTitle = document.getElementById('messageBoxTitle');
+        const messageBoxContent = document.getElementById('messageBoxContent');
+        const messageBoxCloseButton = document.getElementById('messageBoxCloseButton');
+
+        // Elements for loading overlay
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // Function to display custom message box
+        function showMessageBox(title, message) {
+            messageBoxTitle.textContent = title;
+            messageBoxContent.textContent = message;
+            messageBoxModal.classList.remove('hidden');
+            messageBoxModal.style.display = 'flex';
+        }
+
+        // Function to hide custom message box
+        function hideMessageBox() {
+            messageBoxModal.classList.add('hidden');
+            messageBoxModal.style.display = 'none';
+        }
+
+        // Event listener for message box close button
+        messageBoxCloseButton.addEventListener('click', hideMessageBox);
+
+        // Function to show loading spinner
+        function showLoadingSpinner() {
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.style.display = 'flex';
+        }
+
+        // Function to hide loading spinner
+        function hideLoadingSpinner() {
+            loadingOverlay.classList.add('hidden');
+            loadingOverlay.style.display = 'none';
+        }
+
+        // Function to initialize the application based on selected mode
+        function initializeApp(mode) {
+            currentModeIsAdvanced = (mode === 'advanced');
+            localStorage.setItem('advancedMode', currentModeIsAdvanced);
+
+            // Update the settings panel toggle display
+            modeToggle.classList.toggle('advanced', currentModeIsAdvanced);
+            toggleAdvancedFields(currentModeIsAdvanced);
+
+            // Hide the pop-up and show the add monster form
+            modeSelectionPopup.classList.add('hidden');
+            // Explicitly set display to none to ensure it's hidden
+            modeSelectionPopup.style.display = 'none';
+
+            // If monsters already exist (restored from localStorage), show floating button
+            // Otherwise show the add monster form for a fresh start
+            if (monsters.length > 0) {
+                addMonsterFormContainer.style.display = 'none';
+                floatingAddButton.style.display = 'flex';
+            } else {
+                addMonsterFormContainer.style.display = 'block';
+                floatingAddButton.style.display = 'none';
+            }
+
+            renderMonsters(); // Render any existing monsters based on the selected mode
+        }
+
+        // Check local storage on page load
+        const savedMode = localStorage.getItem('advancedMode');
+        const neverShowAgain = localStorage.getItem('neverShowModeSelection') === 'true';
+
+        // Function to parse URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // Initial check for seed in URL on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize Supabase for character integration
+            initSupabase();
+
+            const seedFromUrl = getUrlParameter('seed');
+            if (seedFromUrl) {
+                showLoadingSpinner(); // Show spinner immediately if seed is present
+                // If a seed is present in the URL, try to load it immediately
+                await loadEncounterFromSeed(seedFromUrl);
+                hideLoadingSpinner(); // Hide spinner after loading
+                // After loading from URL, proceed with normal initialization to handle mode
+                if (neverShowAgain && savedMode !== null) {
+                    initializeApp(savedMode === 'true' ? 'advanced' : 'simple');
+                } else {
+                    modeSelectionPopup.classList.remove('hidden');
+                    modeSelectionPopup.style.display = 'flex';
+                    if (savedMode !== null) {
+                        if (savedMode === 'true') {
+                            advancedModeRadio.checked = true;
+                        } else {
+                            simpleModeRadio.checked = true;
+                        }
+                    }
+                }
+            } else {
+                // Try to restore encounter state from localStorage
+                const restored = await loadEncounterState();
+
+                // If no seed in URL, proceed with normal mode selection logic
+                if (neverShowAgain && savedMode !== null) {
+                    initializeApp(savedMode === 'true' ? 'advanced' : 'simple');
+                } else {
+                    modeSelectionPopup.classList.remove('hidden');
+                    modeSelectionPopup.style.display = 'flex';
+                    if (savedMode !== null) {
+                        if (savedMode === 'true') {
+                            advancedModeRadio.checked = true;
+                        } else {
+                            simpleModeRadio.checked = true;
+                        }
+                    }
+                }
+            }
+
+            // Load characters for the picker dropdown
+            await loadGameWorldCharacters();
+        });
+
+
+        // Event listener for "Get Started" button in mode selection popup
+        getStartedButton.addEventListener('click', () => {
+            const selectedMode = simpleModeRadio.checked ? 'simple' : 'advanced';
+
+            if (neverShowAgainCheckbox.checked) {
+                localStorage.setItem('neverShowModeSelection', 'true');
+            } else {
+                localStorage.removeItem('neverShowModeSelection');
+            }
+
+            initializeApp(selectedMode);
+        });
+
+        // Add selector popup
+        const addSelector = document.getElementById('addSelector');
+        const charPickerContainer = document.getElementById('characterPickerContainer');
+        let addSelectorOpen = false;
+
+        function closeAddSelector() {
+            addSelector.style.display = 'none';
+            addSelectorOpen = false;
+        }
+
+        function showFloatingButton() {
+            addMonsterFormContainer.style.display = 'none';
+            charPickerContainer.style.display = 'none';
+            floatingAddButton.style.display = 'flex';
+            closeAddSelector();
+        }
+
+        // Event listener for floating add button — toggle selector popup
+        floatingAddButton.addEventListener('click', () => {
+            if (addSelectorOpen) {
+                closeAddSelector();
+            } else {
+                // If no session (no characters to add), skip selector and open monster form directly
+                if (!mtSession || !mtSession.gameWorldId || charPickerContainer.classList.contains('hidden')) {
+                    addMonsterFormContainer.style.display = 'block';
+                    floatingAddButton.style.display = 'none';
+                    document.getElementById('addMonsterForm').style.display = 'block';
+                    return;
+                }
+                addSelector.style.display = 'block';
+                addSelectorOpen = true;
+            }
+        });
+
+        // Add Monster from selector
+        document.getElementById('addSelectorMonster').addEventListener('click', () => {
+            closeAddSelector();
+            addMonsterFormContainer.style.display = 'block';
+            floatingAddButton.style.display = 'none';
+            document.getElementById('addMonsterForm').style.display = 'block';
+        });
+
+        // Add Character from selector
+        document.getElementById('addSelectorCharacter').addEventListener('click', () => {
+            closeAddSelector();
+            charPickerContainer.style.display = 'block';
+            floatingAddButton.style.display = 'none';
+        });
+
+        // Close button on monster add form
+        toggleAddFormButton.addEventListener('click', () => {
+            showFloatingButton();
+        });
+
+        // Close button on character picker
+        document.getElementById('toggleCharPicker').addEventListener('click', () => {
+            showFloatingButton();
+        });
+
+        // Close selector when clicking outside
+        document.addEventListener('click', (e) => {
+            if (addSelectorOpen && !addSelector.contains(e.target) && e.target !== floatingAddButton && !floatingAddButton.contains(e.target)) {
+                closeAddSelector();
+            }
+        });
+
+
+        // Function to generate encounter seed code
+        function generateEncounterSeed() {
+            try {
+                // Prepare a simplified array of monster data for serialization
+                const serializableMonsters = monsters.map(m => ({
+                    id: m.id,
+                    name: m.name, // Store full name including numbers
+                    currentHP: m.currentHP,
+                    maxHP: m.maxHP,
+                    initiative: m.initiative,
+                    ac: m.ac,
+                    entityType: m.entityType,
+                    notes: m.notes,
+                    borderColor: m.borderColor,
+                    encounter: m.encounter,
+                    apiUrl: m.apiUrl, // Essential for re-fetching full data
+                    characterId: m.characterId || null
+                }));
+                const jsonString = JSON.stringify(serializableMonsters);
+                // Base64 encode the JSON string
+                return btoa(jsonString);
+            } catch (error) {
+                console.error("Error generating encounter seed:", error);
+                return "";
+            }
+        }
+
+        // Function to load encounter from seed code
+        async function loadEncounterFromSeed(seedCode) {
+            showLoadingSpinner(); // Show spinner at the start of manual load
+            try {
+                // Base64 decode and parse the JSON string
+                const decodedString = atob(seedCode);
+                const loadedMonstersData = JSON.parse(decodedString);
+
+                // Clear current monsters and populate with loaded ones
+                monsters = [];
+                const newMonsterDataCache = {}; // Temporary cache for this load operation
+
+                for (const loadedMonster of loadedMonstersData) {
+                    let monsterDetails = null;
+                    if (loadedMonster.apiUrl) {
+                        const baseName = loadedMonster.name.toLowerCase();
+                        if (!newMonsterDataCache[baseName]) {
+                            // Fetch full monster details and cache them for this session
+                            monsterDetails = await fetchMonsterDetails(loadedMonster.apiUrl);
+                        } else {
+                            monsterDetails = newMonsterDataCache[baseName].details;
+                        }
+                    }
+
+                    // Reconstruct monster object, ensuring unique IDs
+                    const newMonster = {
+                        id: Date.now() + Math.random(), // Assign new unique ID
+                        name: loadedMonster.name,
+                        maxHP: loadedMonster.maxHP,
+                        currentHP: loadedMonster.currentHP,
+                        initiative: loadedMonster.initiative,
+                        ac: monsterDetails?.armor_class?.[0]?.value || loadedMonster.ac || 10, // Use fetched AC or saved, default to 10
+                        entityType: loadedMonster.entityType,
+                        notes: loadedMonster.notes,
+                        borderColor: loadedMonster.borderColor,
+                        apiUrl: loadedMonster.apiUrl,
+                        encounter: loadedMonster.encounter,
+                        characterId: loadedMonster.characterId || null
+                    };
+                    monsters.push(newMonster);
+                }
+                saveEncounterState();
+                renderMonsters();
+                return true; // Indicate successful load
+            } catch (error) {
+                console.error("Error loading encounter from seed:", error);
+                showMessageBox('Error', 'Invalid seed code. Please check the code and try again.');
+                return false; // Indicate failed load
+            } finally {
+                hideLoadingSpinner(); // Always hide spinner
+            }
+        }
+
+        // Event listener for Save Encounter button
+        saveEncounterButton.addEventListener('click', () => {
+            const seed = generateEncounterSeed();
+            const currentUrl = window.location.origin + window.location.pathname;
+            const shareableUrl = `${currentUrl}?seed=${seed}`;
+
+            seedCodeModalTitle.textContent = "Share This Encounter URL";
+            seedCodeTextarea.value = shareableUrl;
+            seedCodeTextarea.readOnly = true;
+            copySeedCodeButton.classList.remove('hidden');
+            loadSeedCodeButton.classList.add('hidden'); // Hide load button
+            seedCodeModal.classList.remove('hidden');
+            seedCodeModal.style.display = 'flex'; // Explicitly show
+        });
+
+        // Event listener for Load Encounter button
+        loadEncounterButton.addEventListener('click', () => {
+            seedCodeModalTitle.textContent = "Paste Encounter URL to Load";
+            seedCodeTextarea.value = ''; // Clear previous code
+            seedCodeTextarea.readOnly = false;
+            copySeedCodeButton.classList.add('hidden'); // Hide copy button
+            loadSeedCodeButton.classList.remove('hidden'); // Show load button
+            seedCodeModal.classList.remove('hidden');
+            seedCodeModal.style.display = 'flex'; // Explicitly show
+            seedCodeTextarea.focus(); // Focus on textarea for pasting
+        });
+
+        // Event listener for Copy Seed Code button
+        copySeedCodeButton.addEventListener('click', () => {
+            seedCodeTextarea.select();
+            document.execCommand('copy');
+            showMessageBox('Copied!', 'Encounter URL copied to clipboard!');
+        });
+
+        // Event listener for Load button inside the modal
+        loadSeedCodeButton.addEventListener('click', async () => {
+            const url = seedCodeTextarea.value.trim();
+            if (url) {
+                try {
+                    const urlObj = new URL(url);
+                    const seed = urlObj.searchParams.get('seed');
+                    if (seed) {
+                        const success = await loadEncounterFromSeed(seed);
+                        if (success) {
+                            seedCodeModal.classList.add('hidden');
+                            seedCodeModal.style.display = 'none'; // Explicitly hide
+                            showMessageBox('Loaded!', 'Encounter loaded successfully from URL!');
+                        }
+                    } else {
+                        showMessageBox('Error', 'No seed found in the provided URL. Please ensure the URL contains a "?seed=" parameter.');
+                    }
+                } catch (e) {
+                    showMessageBox('Error', 'Invalid URL. Please enter a valid URL with an encounter seed.');
+                    console.error("URL parsing error:", e);
+                }
+            } else {
+                showMessageBox('Error', 'Please paste a URL to load.');
+            }
+        });
+
+        // Event listener for Close Seed Code Modal button
+        closeSeedCodeModalButton.addEventListener('click', () => {
+            seedCodeModal.classList.add('hidden');
+            seedCodeModal.style.display = 'none'; // Explicitly hide
+        });
+
+    </script>
+    <script src="sidemenu.js"></script>
+    <div class="ver">
+        v1.4 – Save Encounters!
+        <p>Created by Perry</p>
+    </div>
+</body>
+</html>

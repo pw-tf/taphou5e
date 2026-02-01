@@ -1615,6 +1615,7 @@ let toolsSearchController = null;
 let toolsSearchCache = {};
 let toolsCurrentCategory = 'all';
 let toolsDetailHistory = null; // stores last search state when viewing detail
+let toolsDetailData = null; // stores current detail API response + endpoint for "Add to Character"
 
 const TOOLS_CATEGORIES = [
     { key: 'all', label: 'All', endpoints: ['spells', 'equipment', 'monsters', 'features', 'conditions', 'magic-items'] },
@@ -1831,6 +1832,7 @@ window.showToolsDetail = async function(urlOrIndex, endpoint) {
             return;
         }
         const data = await response.json();
+        toolsDetailData = { data, endpoint };
 
         container.innerHTML = renderToolsDetailView(data, endpoint);
     } catch (e) {
@@ -1871,6 +1873,97 @@ function renderToolsDetailView(data, endpoint) {
     }
 }
 
+// Helper: renders the "Add to Character" button if applicable
+function getToolsAddButton(endpoint) {
+    if (!currentCharacter) return '';
+    const addableEndpoints = ['spells', 'equipment', 'magic-items', 'features'];
+    if (!addableEndpoints.includes(endpoint)) return '';
+    return `<button class="tools-add-btn btn-primary btn-small" onclick="addToolsItemToCharacter()">Add to Character</button>`;
+}
+
+window.addToolsItemToCharacter = async function() {
+    if (!toolsDetailData || !currentCharacter) return;
+
+    const { data, endpoint } = toolsDetailData;
+    let formattedData, table, dataKey;
+
+    if (endpoint === 'spells') {
+        formattedData = formatSpellFromApi(data);
+        delete formattedData.higher_level;
+        formattedData.prepared = false;
+        table = 'spells';
+        dataKey = 'spells';
+    } else if (endpoint === 'equipment' && data.equipment_category?.index === 'weapon') {
+        const abilityScores = currentCharacter.ability_scores?.[0] || null;
+        const profBonus = currentCharacter.proficiency_bonus || 2;
+        formattedData = formatWeaponFromApi(data, abilityScores, profBonus);
+        table = 'weapons';
+        dataKey = 'weapons';
+    } else if (endpoint === 'equipment') {
+        formattedData = formatItemFromApi(data);
+        formattedData.quantity = 1;
+        table = 'inventory_items';
+        dataKey = 'inventory_items';
+    } else if (endpoint === 'magic-items') {
+        const desc = Array.isArray(data.desc) ? data.desc.join('\n\n') : (data.desc || '');
+        formattedData = {
+            name: data.name,
+            item_type: 'Treasure',
+            description: desc,
+            quantity: 1,
+            weight: null
+        };
+        table = 'inventory_items';
+        dataKey = 'inventory_items';
+    } else if (endpoint === 'features') {
+        formattedData = formatFeatureFromApi(data, endpoint);
+        table = 'features_traits';
+        dataKey = 'features_traits';
+    } else {
+        return;
+    }
+
+    formattedData.character_id = currentCharacter.id;
+
+    // Update button to show progress
+    const btn = document.querySelector('.tools-add-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+    }
+
+    // Optimistic rendering
+    const tempId = 'temp_' + Date.now();
+    const tempItem = { ...formattedData, id: tempId };
+    if (!currentCharacter[dataKey]) currentCharacter[dataKey] = [];
+    currentCharacter[dataKey].push(tempItem);
+    renderCharacterPage();
+
+    const { data: insertedData, error } = await db.from(table).insert(formattedData).select().single();
+
+    if (error) {
+        console.error('Error adding from tools:', error);
+        currentCharacter[dataKey] = currentCharacter[dataKey].filter(item => item.id !== tempId);
+        renderCharacterPage();
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Add to Character';
+        }
+        alert('Failed to add item');
+        return;
+    }
+
+    if (insertedData) {
+        const index = currentCharacter[dataKey].findIndex(item => item.id === tempId);
+        if (index !== -1) currentCharacter[dataKey][index] = insertedData;
+    }
+
+    if (btn) {
+        btn.textContent = 'Added!';
+        btn.classList.add('added');
+    }
+};
+
 function renderSpellDetail(spell) {
     const components = spell.components?.join(', ') || 'None';
     const material = spell.material || '';
@@ -1881,12 +1974,15 @@ function renderSpellDetail(spell) {
 
     return `
         <div class="tools-detail-view">
-            <button class="tools-detail-back" onclick="toolsDetailBack()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
-                </svg>
-                Back to results
-            </button>
+            <div class="tools-detail-header">
+                <button class="tools-detail-back" onclick="toolsDetailBack()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back to results
+                </button>
+                ${getToolsAddButton('spells')}
+            </div>
             <div class="tools-detail-title">${escapeHtml(spell.name)}</div>
             <div class="tools-detail-type">${spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`} ${spell.school?.name || ''} ${spell.ritual ? '(Ritual)' : ''}</div>
 
@@ -1951,12 +2047,15 @@ function renderEquipmentDetail(item) {
 
     return `
         <div class="tools-detail-view">
-            <button class="tools-detail-back" onclick="toolsDetailBack()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
-                </svg>
-                Back to results
-            </button>
+            <div class="tools-detail-header">
+                <button class="tools-detail-back" onclick="toolsDetailBack()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back to results
+                </button>
+                ${getToolsAddButton('equipment')}
+            </div>
             <div class="tools-detail-title">${escapeHtml(item.name)}</div>
             <div class="tools-detail-type">${item.equipment_category?.name || 'Equipment'}${item.weapon_category ? ` — ${item.weapon_category}` : ''}${item.armor_category ? ` — ${item.armor_category}` : ''}</div>
 
@@ -2017,12 +2116,15 @@ function renderMagicItemDetail(item) {
 
     return `
         <div class="tools-detail-view">
-            <button class="tools-detail-back" onclick="toolsDetailBack()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
-                </svg>
-                Back to results
-            </button>
+            <div class="tools-detail-header">
+                <button class="tools-detail-back" onclick="toolsDetailBack()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back to results
+                </button>
+                ${getToolsAddButton('magic-items')}
+            </div>
             <div class="tools-detail-title">${escapeHtml(item.name)}</div>
             <div class="tools-detail-type">Magic Item${item.rarity?.name ? ` — ${item.rarity.name}` : ''}${item.equipment_category?.name ? ` (${item.equipment_category.name})` : ''}</div>
 
@@ -2204,12 +2306,15 @@ function renderFeatureDetailView(feature) {
 
     return `
         <div class="tools-detail-view">
-            <button class="tools-detail-back" onclick="toolsDetailBack()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
-                </svg>
-                Back to results
-            </button>
+            <div class="tools-detail-header">
+                <button class="tools-detail-back" onclick="toolsDetailBack()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back to results
+                </button>
+                ${getToolsAddButton('features')}
+            </div>
             <div class="tools-detail-title">${escapeHtml(feature.name)}</div>
             <div class="tools-detail-type">Feature${feature.class?.name ? ` — ${feature.class.name}` : ''}${feature.level ? ` (Level ${feature.level})` : ''}</div>
 
@@ -2813,11 +2918,9 @@ async function handleDelete() {
 // DM Panel & Leveling System
 // ========================================
 
-// Show DM Panel button if user is DM
+// DM controls now handled by sidemenu.js
 function showDMControls() {
-    if (currentSession && currentSession.role === 'dm') {
-        $('#dm-panel-btn')?.classList.remove('hidden');
-    }
+    // No-op: side menu handles DM visibility dynamically
 }
 
 // Render DM Panel character list
@@ -3524,15 +3627,6 @@ async function init() {
         setupRosterRealtime();
     });
     
-    const logoutBtn = $('#logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            clearSession();
-            window.location.href = 'index.html';
-        });
-    }
-    
-    $('#delete-char-btn')?.addEventListener('click', openDeleteModal);
     $('#cancel-delete-btn')?.addEventListener('click', closeDeleteModal);
     $('#confirm-delete-btn')?.addEventListener('click', handleDelete);
 
@@ -3547,10 +3641,6 @@ async function init() {
     $('#level-modal .modal-backdrop')?.addEventListener('click', closeLevelModal);
 
     // DM Panel event listeners
-    $('#dm-panel-btn')?.addEventListener('click', () => {
-        renderDMPanel();
-        showPage('dm-panel-page');
-    });
     $('#dm-panel-back-btn')?.addEventListener('click', () => showPage('home-page'));
     $('#grant-party-level-btn')?.addEventListener('click', grantPartyLevel);
 
