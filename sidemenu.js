@@ -16,27 +16,24 @@
                 <nav class="side-menu-nav">
                     <a id="sm-character-sheets" class="side-menu-item hidden">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <circle cx="12" cy="8" r="5"/>
+                            <path d="M20 21a8 8 0 0 0-16 0"/>
                         </svg>
                         Character Sheets
                     </a>
                     <a id="sm-player-config" class="side-menu-item hidden">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            <circle cx="12" cy="8" r="5"/>
+                            <path d="M20 21a8 8 0 0 0-16 0"/>
                         </svg>
                         Player Config
-                    </a>                    
+                    </a>
                     <a id="sm-monster-tracker" class="side-menu-item hidden">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-                            <circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/>
-                            <path d="M8 16s1.5 2 4 2 4-2 4-2"/>
+                            <path d="m12.5 17-.5-1-.5 1h1z"/>
+                            <path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/>
+                            <circle cx="15" cy="12" r="1"/>
+                            <circle cx="9" cy="12" r="1"/>
                         </svg>
                         Monster Tracker
                     </a>
