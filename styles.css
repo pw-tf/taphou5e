@@ -1420,6 +1420,38 @@ body::before {
     color: var(--text-secondary);
 }
 
+/* Stats Edit Mode */
+.stat-edit-input {
+    width: 60px;
+    padding: 4px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+}
+
+.stat-edit-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.ability-score-box.editing,
+.combat-stat.editing {
+    border-color: var(--accent);
+}
+
+.stats-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
 /* Combat Stats */
 .combat-stats-grid {
     display: grid;

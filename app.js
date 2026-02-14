@@ -1249,6 +1249,7 @@ function renderStatsTab() {
     const pct = getHpPercent(c.current_hit_points, c.hit_point_maximum);
     const profBonus = getProfBonus(c.level);
     const pp = getPassivePerception(c);
+    const editing = window._editingStats;
 
     $('#tab-stats').innerHTML = `
         <div class="hp-section">
@@ -1293,16 +1294,25 @@ function renderStatsTab() {
         </div>
 
         <div class="stats-section">
-            <div class="section-label">Ability Scores</div>
+            <div class="section-header-row">
+                <div class="section-label">Ability Scores</div>
+                ${!editing ? `<button class="add-btn" onclick="enterStatsEditMode()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit Stats</button>` : ''}
+            </div>
             <div class="ability-scores-display">
                 ${(() => {
-                    // Find the highest ability score
                     const scores = ABILITIES.map(a => getAbilityScore(abs, a));
                     const maxScore = Math.max(...scores);
 
                     return ABILITIES.map(a => {
                         const score = getAbilityScore(abs, a);
                         const isHighest = score === maxScore;
+                        if (editing) {
+                            return `<div class="ability-score-box editing">
+                                <span class="label">${a.toUpperCase()}</span>
+                                <input type="number" class="stat-edit-input" id="edit-${a}" value="${score}" min="1" max="30">
+                                <span class="modifier">${formatMod(getModifier(score))}</span>
+                            </div>`;
+                        }
                         return `<div class="ability-score-box">
                             <span class="label">${a.toUpperCase()}${isHighest ? '<span class="top-skill-indicator"></span>' : ''}</span>
                             <span class="score">${score}</span>
@@ -1316,14 +1326,37 @@ function renderStatsTab() {
         <div class="stats-section">
             <div class="section-label">Combat</div>
             <div class="combat-stats-grid">
-                <div class="combat-stat"><span class="value">${c.armor_class}</span><span class="label">AC</span></div>
-                <div class="combat-stat"><span class="value">${formatMod(c.initiative_bonus)}</span><span class="label">Initiative</span></div>
-                <div class="combat-stat"><span class="value">${c.speed}</span><span class="label">Speed</span></div>
-                <div class="combat-stat"><span class="value">${formatMod(profBonus)}</span><span class="label">Prof</span></div>
+                ${editing ? `
+                    <div class="combat-stat editing">
+                        <input type="number" class="stat-edit-input" id="edit-ac" value="${c.armor_class}" min="1">
+                        <span class="label">AC</span>
+                    </div>
+                    <div class="combat-stat editing">
+                        <input type="number" class="stat-edit-input" id="edit-initiative" value="${c.initiative_bonus}">
+                        <span class="label">Initiative</span>
+                    </div>
+                    <div class="combat-stat editing">
+                        <input type="number" class="stat-edit-input" id="edit-speed" value="${parseInt(c.speed) || 30}" min="0" step="5">
+                        <span class="label">Speed</span>
+                    </div>
+                    <div class="combat-stat editing">
+                        <input type="number" class="stat-edit-input" id="edit-hpmax" value="${c.hit_point_maximum}" min="1">
+                        <span class="label">HP Max</span>
+                    </div>
+                ` : `
+                    <div class="combat-stat"><span class="value">${c.armor_class}</span><span class="label">AC</span></div>
+                    <div class="combat-stat"><span class="value">${formatMod(c.initiative_bonus)}</span><span class="label">Initiative</span></div>
+                    <div class="combat-stat"><span class="value">${c.speed}</span><span class="label">Speed</span></div>
+                    <div class="combat-stat"><span class="value">${formatMod(profBonus)}</span><span class="label">Prof</span></div>
+                `}
             </div>
-            <div class="combat-stats-grid" style="grid-template-columns: 1fr;">
+            ${!editing ? `<div class="combat-stats-grid" style="grid-template-columns: 1fr;">
                 <div class="combat-stat"><span class="value">${pp}</span><span class="label">Passive Perception</span></div>
-            </div>
+            </div>` : ''}
+            ${editing ? `<div class="stats-edit-actions">
+                <button class="btn-secondary btn-small" onclick="cancelStatsEdit()">Cancel</button>
+                <button class="btn-primary btn-small" onclick="saveStatsEdit()">Save</button>
+            </div>` : ''}
         </div>
 
         <div class="stats-section">
@@ -1331,8 +1364,8 @@ function renderStatsTab() {
             <div class="saving-throws-grid">
                 ${(() => {
                     // Use saving_throws from DB if available, otherwise generate from abilities
-                    const saves = c.saving_throws && c.saving_throws.length > 0 
-                        ? c.saving_throws 
+                    const saves = c.saving_throws && c.saving_throws.length > 0
+                        ? c.saving_throws
                         : ABILITIES.map(a => ({ ability: a, proficient: false, id: null }));
                     return saves.map(s => {
                         const mod = getModifier(getAbilityScore(abs, s.ability)) + (s.proficient ? profBonus : 0);
@@ -1354,8 +1387,63 @@ function renderStatsTab() {
     `;
 }
 
+window.enterStatsEditMode = function() {
+    window._editingStats = true;
+    renderStatsTab();
+};
+
+window.cancelStatsEdit = function() {
+    window._editingStats = false;
+    renderStatsTab();
+};
+
+window.saveStatsEdit = async function() {
+    const c = currentCharacter;
+
+    // Read ability score inputs
+    const newScores = {};
+    for (const a of ABILITIES) {
+        const val = parseInt($(`#edit-${a}`)?.value);
+        if (val && val >= 1 && val <= 30) {
+            newScores[ABILITY_FULL[a].toLowerCase()] = val;
+        }
+    }
+
+    // Read combat stat inputs
+    const newAC = parseInt($('#edit-ac')?.value) || c.armor_class;
+    const newInit = parseInt($('#edit-initiative')?.value) ?? c.initiative_bonus;
+    const newSpeed = $('#edit-speed')?.value ? `${parseInt($('#edit-speed').value)} ft.` : c.speed;
+    const newHPMax = parseInt($('#edit-hpmax')?.value) || c.hit_point_maximum;
+
+    // Update ability scores in DB
+    const abs = Array.isArray(c.ability_scores) ? c.ability_scores[0] : c.ability_scores;
+    if (abs) {
+        Object.assign(abs, newScores);
+        await db.from('ability_scores').update(newScores).eq('character_id', c.id);
+    }
+
+    // Clamp current HP if max decreased
+    const newCurrentHP = Math.min(c.current_hit_points, newHPMax);
+
+    // Update character stats in DB
+    const charUpdates = {
+        armor_class: newAC,
+        initiative_bonus: newInit,
+        speed: newSpeed,
+        hit_point_maximum: newHPMax,
+        current_hit_points: newCurrentHP
+    };
+    Object.assign(currentCharacter, charUpdates);
+    await db.from('characters').update(charUpdates).eq('id', c.id);
+
+    window._editingStats = false;
+    renderCharacterPage();
+};
+
 // HP Functions - with optimistic UI updates
-window.adjustHP = async function(delta) {
+window.adjustHP = async function(direction) {
+    const inputVal = parseInt($('#hp-delta')?.value) || 1;
+    const delta = direction * inputVal;
     const newHP = Math.max(0, Math.min(currentCharacter.hit_point_maximum, currentCharacter.current_hit_points + delta));
     // Optimistic update
     currentCharacter.current_hit_points = newHP;
