@@ -4129,6 +4129,88 @@ window.closeLevelUpWizard = function() {
     }
 };
 
+// Helper: Fetch feature details from API and save to features_traits
+async function saveFeatureFromAPI(charId, feature, source) {
+    const { data: existing } = await db.from('features_traits')
+        .select('id')
+        .eq('character_id', charId)
+        .eq('name', feature.name)
+        .maybeSingle();
+
+    if (existing) return;
+
+    let description = '';
+    let usesTotal = null;
+    let usesPerRest = null;
+    let isBonusAction = false;
+
+    try {
+        const featureResp = await fetch(`${DND_API_BASE}/features/${feature.index}`);
+        if (featureResp.ok) {
+            const featureData = await featureResp.json();
+            description = Array.isArray(featureData.desc) ? featureData.desc.join('\n\n') : (featureData.desc || '');
+
+            const useMatch = feature.name.match(/\((\d+)\s+uses?\)/i);
+            if (useMatch) {
+                usesTotal = parseInt(useMatch[1], 10);
+            }
+
+            const descLower = description.toLowerCase();
+            if (usesTotal) {
+                if (descLower.includes('short or long rest')) {
+                    usesPerRest = 'short_or_long';
+                } else if (descLower.includes('short rest')) {
+                    usesPerRest = 'short';
+                } else if (descLower.includes('long rest')) {
+                    usesPerRest = 'long';
+                }
+            }
+
+            if (descLower.includes('bonus action')) {
+                isBonusAction = true;
+            }
+        }
+    } catch (e) {
+        // If API fetch fails, save with name only
+    }
+
+    await db.from('features_traits').insert({
+        character_id: charId,
+        name: feature.name,
+        description,
+        source,
+        uses_total: usesTotal,
+        uses_remaining: usesTotal,
+        uses_per_rest: usesPerRest,
+        is_bonus_action: isBonusAction
+    });
+}
+
+// Helper: Fetch and save subclass features for a given level
+async function saveSubclassFeatures(charId, className, subclassName, level) {
+    try {
+        const classIndex = className.toLowerCase();
+        const subListResp = await fetch(`${DND_API_BASE}/classes/${classIndex}/subclasses`);
+        if (!subListResp.ok) return;
+        const subListData = await subListResp.json();
+
+        const match = (subListData.results || []).find(s =>
+            s.name.toLowerCase() === subclassName.toLowerCase()
+        );
+        if (!match) return; // Subclass not in SRD/API
+
+        const subLevelResp = await fetch(`${DND_API_BASE}/subclasses/${match.index}/levels/${level}`);
+        if (!subLevelResp.ok) return;
+        const subLevelData = await subLevelResp.json();
+
+        for (const feature of (subLevelData.features || [])) {
+            await saveFeatureFromAPI(charId, feature, `Subclass Feature (${subclassName} Level ${level})`);
+        }
+    } catch (e) {
+        // Non-SRD subclasses won't have API data; skip gracefully
+    }
+}
+
 // Apply all level-up changes
 async function completeLevelUp() {
     const state = window.levelUpState;
@@ -4141,6 +4223,9 @@ async function completeLevelUp() {
     if (state.onlySubclass) {
         if (changes.subclass) {
             await db.from('characters').update({ subclass: changes.subclass }).eq('id', char.id);
+
+            // Also save subclass features for the character's current level
+            await saveSubclassFeatures(char.id, char.class, changes.subclass, char.level);
         }
 
         // Reload character
@@ -4169,7 +4254,7 @@ async function completeLevelUp() {
         if (abs) {
             for (const [ability, increase] of Object.entries(changes.asiAbilities)) {
                 const fullKey = ABILITY_FULL[ability].toLowerCase();
-                abs[fullKey] = (abs[fullKey] || 10) + increase;
+                abs[fullKey] = Math.min(20, (abs[fullKey] || 10) + increase);
             }
             await db.from('ability_scores').update(abs).eq('character_id', char.id);
         }
@@ -4189,68 +4274,18 @@ async function completeLevelUp() {
     // Save class features from this level
     const classFeatures = state.classData.features || [];
     for (const feature of classFeatures) {
-        // Check if this feature already exists for the character
-        const { data: existing } = await db.from('features_traits')
-            .select('id')
-            .eq('character_id', char.id)
-            .eq('name', feature.name)
-            .maybeSingle();
-
-        if (!existing) {
-            // Fetch full feature details from API
-            let description = '';
-            let usesTotal = null;
-            let usesPerRest = null;
-            let isBonusAction = false;
-            try {
-                const featureResp = await fetch(`${DND_API_BASE}/features/${feature.index}`);
-                if (featureResp.ok) {
-                    const featureData = await featureResp.json();
-                    description = Array.isArray(featureData.desc) ? featureData.desc.join('\n\n') : (featureData.desc || '');
-
-                    // Detect limited-use features from name pattern like "(1 use)" or "(2 uses)"
-                    const useMatch = feature.name.match(/\((\d+)\s+uses?\)/i);
-                    if (useMatch) {
-                        usesTotal = parseInt(useMatch[1], 10);
-                    }
-
-                    // Detect rest type from description
-                    const descLower = description.toLowerCase();
-                    if (usesTotal) {
-                        if (descLower.includes('short or long rest')) {
-                            usesPerRest = 'short_or_long';
-                        } else if (descLower.includes('short rest')) {
-                            usesPerRest = 'short';
-                        } else if (descLower.includes('long rest')) {
-                            usesPerRest = 'long';
-                        }
-                    }
-
-                    // Detect bonus action features
-                    if (descLower.includes('bonus action')) {
-                        isBonusAction = true;
-                    }
-                }
-            } catch (e) {
-                // If API fetch fails, still save the feature with its name
-            }
-
-            await db.from('features_traits').insert({
-                character_id: char.id,
-                name: feature.name,
-                description: description,
-                source: `Class Feature (${char.class} Level ${char.level})`,
-                uses_total: usesTotal,
-                uses_remaining: usesTotal,
-                uses_per_rest: usesPerRest,
-                is_bonus_action: isBonusAction
-            });
-        }
+        await saveFeatureFromAPI(char.id, feature, `Class Feature (${char.class} Level ${char.level})`);
     }
 
     // Update Subclass
     if (changes.subclass) {
         await db.from('characters').update({ subclass: changes.subclass }).eq('id', char.id);
+    }
+
+    // Save subclass features for this level
+    const effectiveSubclass = changes.subclass || char.subclass;
+    if (effectiveSubclass) {
+        await saveSubclassFeatures(char.id, char.class, effectiveSubclass, char.level);
     }
 
     // Add Spells
@@ -4264,10 +4299,13 @@ async function completeLevelUp() {
         });
     }
 
-    // Update proficiency bonus and spell slots
+    // Update proficiency bonus, hit dice, and clear pending flag
     const newProfBonus = getProfBonus(char.level);
+    const hd = HIT_DICE[char.class] || 8;
     await db.from('characters').update({
         proficiency_bonus: newProfBonus,
+        hit_dice_total: `${char.level}d${hd}`,
+        hit_dice_remaining: char.level,
         pending_level_up: false
     }).eq('id', char.id);
 
