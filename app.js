@@ -1597,48 +1597,53 @@ window.closeLevelModal = function() {
 
 async function handleLevelUpdate(e) {
     e.preventDefault();
-    
+
     const newLevel = parseInt($('#new-level').value);
     if (!newLevel || newLevel < 1 || newLevel > 20) {
         alert('Please enter a valid level between 1 and 20');
         return;
     }
-    
+
     if (newLevel === currentCharacter.level) {
         closeLevelModal();
         return;
     }
-    
+
     const c = currentCharacter;
     const oldLevel = c.level;
     const cls = c.class;
     const hd = HIT_DICE[cls] || 8;
     const conMod = getModifier(getAbilityScore(c.ability_scores, 'con'));
-    
-    // Calculate new proficiency bonus
+
+    if (newLevel > oldLevel) {
+        // Leveling UP: increment by 1 and trigger the wizard for each level
+        // Store target level so the wizard knows when to stop
+        if (newLevel > oldLevel + 1) {
+            localStorage.setItem(`targetLevel_${c.id}`, newLevel);
+        }
+
+        const updates = {
+            level: oldLevel + 1,
+            pending_level_up: true
+        };
+
+        Object.assign(currentCharacter, updates);
+        closeLevelModal();
+        await db.from('characters').update(updates).eq('id', c.id);
+        renderCharacterPage();
+
+        // Auto-open the wizard
+        setTimeout(() => openLevelUpWizard(), 300);
+        return;
+    }
+
+    // Leveling DOWN: direct recalculation (no wizard needed)
     const newProfBonus = getProfBonus(newLevel);
-    
-    // Calculate new hit dice
     const newHitDiceTotal = `${newLevel}d${hd}`;
     const newHitDiceRemaining = newLevel;
-    
-    // Calculate new max HP (optional - could keep current or recalculate)
-    // For leveling up, we'll add the average HP per level
-    let newMaxHP = c.hit_point_maximum;
-    if (newLevel > oldLevel) {
-        // Leveling up - add HP for each new level
-        const levelsGained = newLevel - oldLevel;
-        const hpPerLevel = Math.floor(hd / 2) + 1 + conMod;
-        newMaxHP += levelsGained * hpPerLevel;
-    } else {
-        // Leveling down - recalculate HP from scratch
-        newMaxHP = calcHP(cls, newLevel, conMod);
-    }
-    
-    // Ensure current HP doesn't exceed new max
+    const newMaxHP = calcHP(cls, newLevel, conMod);
     const newCurrentHP = Math.min(c.current_hit_points, newMaxHP);
-    
-    // Update character
+
     const updates = {
         level: newLevel,
         proficiency_bonus: newProfBonus,
@@ -1647,13 +1652,11 @@ async function handleLevelUpdate(e) {
         hit_point_maximum: newMaxHP,
         current_hit_points: newCurrentHP
     };
-    
-    // Optimistic update
+
     Object.assign(currentCharacter, updates);
     renderCharacterPage();
     closeLevelModal();
-    
-    // Database update
+
     await db.from('characters').update(updates).eq('id', currentCharacter.id);
 }
 
@@ -3689,9 +3692,9 @@ window.grantPartyEXP = async function() {
         const updates = { experience_points: newEXP };
 
         if (newLevel > char.level) {
-            updates.level = Math.min(newLevel, 20);
+            updates.level = char.level + 1;
             updates.pending_level_up = true;
-            leveledUp.push(`${char.name} (Lvl ${char.level} → ${updates.level})`);
+            leveledUp.push(`${char.name} (Lvl ${char.level} → ${newLevel})`);
         }
 
         await db.from('characters').update(updates).eq('id', char.id);
@@ -3726,7 +3729,7 @@ window.grantIndividualEXP = async function(charId) {
     let leveled = false;
 
     if (newLevel > char.level && char.level < 20) {
-        updates.level = Math.min(newLevel, 20);
+        updates.level = char.level + 1;
         updates.pending_level_up = true;
         leveled = true;
     }
@@ -3736,7 +3739,7 @@ window.grantIndividualEXP = async function(charId) {
     renderDMPanel();
 
     if (leveled) {
-        alert(`${char.name} gained ${amount.toLocaleString()} EXP and leveled up to ${updates.level}!`);
+        alert(`${char.name} gained ${amount.toLocaleString()} EXP and leveled up! (Lvl ${char.level} → ${newLevel})`);
     }
 };
 
@@ -4418,15 +4421,35 @@ async function completeLevelUp() {
         });
     }
 
-    // Update proficiency bonus, hit dice, and clear pending flag
+    // Update proficiency bonus, hit dice
     const newProfBonus = getProfBonus(char.level);
     const hd = HIT_DICE[char.class] || 8;
-    await db.from('characters').update({
-        proficiency_bonus: newProfBonus,
-        hit_dice_total: `${char.level}d${hd}`,
-        hit_dice_remaining: char.level,
-        pending_level_up: false
-    }).eq('id', char.id);
+
+    // Check if more levels are needed after this one
+    const targetFromStorage = parseInt(localStorage.getItem(`targetLevel_${char.id}`)) || 0;
+    const targetFromEXP = char.experience_points ? getLevelForEXP(char.experience_points) : 0;
+    const ultimateTarget = Math.max(targetFromStorage, targetFromEXP);
+    const hasMoreLevels = ultimateTarget > char.level && char.level < 20;
+
+    if (hasMoreLevels) {
+        // More levels to process: increment level by 1 and keep pending
+        await db.from('characters').update({
+            proficiency_bonus: newProfBonus,
+            hit_dice_total: `${char.level}d${hd}`,
+            hit_dice_remaining: char.level,
+            level: char.level + 1,
+            pending_level_up: true
+        }).eq('id', char.id);
+    } else {
+        // Final level reached: clear pending flag and localStorage target
+        await db.from('characters').update({
+            proficiency_bonus: newProfBonus,
+            hit_dice_total: `${char.level}d${hd}`,
+            hit_dice_remaining: char.level,
+            pending_level_up: false
+        }).eq('id', char.id);
+        localStorage.removeItem(`targetLevel_${char.id}`);
+    }
 
     // Update spell slots for casters
     if (state.classData.spellcasting) {
@@ -4440,7 +4463,14 @@ async function completeLevelUp() {
     delete window.levelUpState;
 
     hideLoading();
-    alert('Level-up complete!');
+
+    if (hasMoreLevels) {
+        alert(`Level ${char.level} complete! Advancing to level ${char.level + 1}...`);
+        // Auto-open wizard for the next level
+        setTimeout(() => openLevelUpWizard(), 400);
+    } else {
+        alert('Level-up complete!');
+    }
 }
 
 // Update spell slots based on class level
