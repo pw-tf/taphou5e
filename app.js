@@ -1616,11 +1616,8 @@ async function handleLevelUpdate(e) {
     const conMod = getModifier(getAbilityScore(c.ability_scores, 'con'));
 
     if (newLevel > oldLevel) {
-        // Leveling UP: increment by 1 and trigger the wizard for each level
-        // Store target level so the wizard knows when to stop
-        if (newLevel > oldLevel + 1) {
-            localStorage.setItem(`targetLevel_${c.id}`, newLevel);
-        }
+        // Leveling UP: store target level and set first new level, wizard handles all at once
+        localStorage.setItem(`targetLevel_${c.id}`, newLevel);
 
         const updates = {
             level: oldLevel + 1,
@@ -1632,7 +1629,7 @@ async function handleLevelUpdate(e) {
         await db.from('characters').update(updates).eq('id', c.id);
         renderCharacterPage();
 
-        // Auto-open the wizard
+        // Auto-open the consolidated wizard
         setTimeout(() => openLevelUpWizard(), 300);
         return;
     }
@@ -3766,7 +3763,7 @@ function isASILevel(characterClass, level) {
     return asiLevels.includes(level);
 }
 
-// Open level-up wizard
+// Open level-up wizard (consolidated multi-level support)
 window.openLevelUpWizard = async function() {
     // Allow wizard to open for pending level-ups OR missing subclass
     if (!currentCharacter.pending_level_up && !needsSubclassSelection(currentCharacter)) return;
@@ -3774,26 +3771,68 @@ window.openLevelUpWizard = async function() {
     // If only needs subclass (no pending level-up), show simplified wizard
     const onlySubclass = !currentCharacter.pending_level_up && needsSubclassSelection(currentCharacter);
 
-    // Store level-up state
+    const char = currentCharacter;
+    const classIndex = char.class.toLowerCase();
+
+    // Determine the range of levels to process
+    // currentCharacter.level is already incremented to the first new level
+    const startLevel = char.level;
+    const targetFromStorage = parseInt(localStorage.getItem(`targetLevel_${char.id}`)) || 0;
+    const targetFromEXP = char.experience_points ? getLevelForEXP(char.experience_points) : 0;
+    const targetLevel = onlySubclass ? char.level : Math.min(20, Math.max(startLevel, targetFromStorage, targetFromEXP));
+
+    // Build array of levels to process (e.g., [2, 3] for a level 1→3 jump)
+    const levelsToProcess = [];
+    for (let lvl = startLevel; lvl <= targetLevel; lvl++) {
+        levelsToProcess.push(lvl);
+    }
+
+    showLoading();
+
+    // Fetch class data for ALL levels in the range
+    const classDataByLevel = {};
+    for (const lvl of levelsToProcess) {
+        try {
+            const response = await fetch(`${DND_API_BASE}/classes/${classIndex}/levels/${lvl}`);
+            if (response.ok) {
+                classDataByLevel[lvl] = await response.json();
+            }
+        } catch (e) {
+            // If a level fails to fetch, continue
+        }
+    }
+
+    // Determine which levels have ASI
+    const asiLevels = levelsToProcess.filter(lvl => isASILevel(char.class, lvl));
+
+    // Determine if subclass selection is needed (any level hits subclass level and no subclass yet)
+    const needsSubclass = !char.subclass && levelsToProcess.some(lvl => lvl >= SUBCLASS_LEVEL);
+
+    // Store level-up state with multi-level data
     window.levelUpState = {
-        character: currentCharacter,
+        character: char,
         currentStep: 1,
         totalSteps: 5,
         onlySubclass: onlySubclass,
+        // Multi-level data
+        startLevel: startLevel,
+        targetLevel: targetLevel,
+        levelsToProcess: levelsToProcess,
+        classDataByLevel: classDataByLevel,
+        classData: classDataByLevel[targetLevel] || classDataByLevel[startLevel] || {}, // fallback for spell slot calc
+        asiLevels: asiLevels,
+        needsSubclass: needsSubclass,
         changes: {
-            hp: null,
-            asiChoice: null,
-            asiAbilities: {},
-            featChoice: null,
+            // HP: one entry per level { level: N, hp: amount, method: 'average'|'roll' }
+            hpByLevel: levelsToProcess.map(lvl => ({ level: lvl, hp: null, method: null })),
+            // ASI: one entry per ASI level { level: N, asiChoice: 'asi'|'feat', asiAbilities: {}, featChoice: null }
+            asiByLevel: asiLevels.map(lvl => ({ level: lvl, asiChoice: null, asiAbilities: {}, featChoice: null })),
             subclass: null,
             spells: []
         }
     };
 
-    // Fetch class data from API
-    const classIndex = currentCharacter.class.toLowerCase();
-    const response = await fetch(`${DND_API_BASE}/classes/${classIndex}/levels/${currentCharacter.level}`);
-    window.levelUpState.classData = await response.json();
+    hideLoading();
 
     // Skip to first applicable step
     while (window.levelUpState.currentStep <= 5 && shouldSkipStep(window.levelUpState.currentStep)) {
@@ -3801,7 +3840,10 @@ window.openLevelUpWizard = async function() {
     }
 
     // Update wizard title
-    $('#levelup-wizard-title').textContent = onlySubclass ? 'Select Subclass' : 'Level Up!';
+    const levelRange = levelsToProcess.length > 1
+        ? `Level Up! (${startLevel - 1} → ${targetLevel})`
+        : onlySubclass ? 'Select Subclass' : 'Level Up!';
+    $('#levelup-wizard-title').textContent = levelRange;
 
     // Show wizard modal
     $('#levelup-wizard-modal').classList.remove('hidden');
@@ -3856,189 +3898,264 @@ async function renderLevelUpStep() {
     }
 }
 
-// Step 1: HP Increase
+// Step 1: HP Increase (consolidated for multiple levels)
 async function renderHPStep() {
     const char = currentCharacter;
+    const state = window.levelUpState;
     const conMod = getModifier(getAbilityScore(char.ability_scores, 'con'));
     const hitDie = HIT_DICE[char.class] || 8;
     const hasTough = (char.features_traits || []).some(f => f.name === 'Tough');
     const toughBonus = hasTough ? 2 : 0;
     const average = Math.floor(hitDie / 2) + 1 + conMod + toughBonus;
+    const levels = state.levelsToProcess;
+    const multiLevel = levels.length > 1;
 
-    return `
-        <h3>Hit Points</h3>
-        <p class="step-description">Choose how to increase your maximum HP:</p>
+    let html = `<h3>Hit Points${multiLevel ? ` (${levels.length} Levels)` : ''}</h3>`;
 
-        <div class="hp-choice-container">
-            <div class="hp-choice-option" onclick="selectHPOption('average')">
-                <input type="radio" name="hp-choice" value="average" id="hp-average">
-                <label for="hp-average">
-                    <div class="hp-choice-title">Take Average</div>
-                    <div class="hp-choice-value">+${average} HP${hasTough ? ' (includes Tough)' : ''}</div>
-                    <div class="hp-choice-desc">Consistent and reliable</div>
-                </label>
+    if (multiLevel) {
+        html += `<p class="step-description">Choose HP for each level gained:</p>`;
+        // Batch option: take average for all
+        html += `
+            <div class="hp-batch-actions" style="margin-bottom:12px;">
+                <button class="btn btn-sm" onclick="selectAllHPAverage()">Take Average for All (+${average} each)</button>
             </div>
+        `;
+    } else {
+        html += `<p class="step-description">Choose how to increase your maximum HP:</p>`;
+    }
 
-            <div class="hp-choice-option" onclick="selectHPOption('roll')">
-                <input type="radio" name="hp-choice" value="roll" id="hp-roll">
-                <label for="hp-roll">
-                    <div class="hp-choice-title">Roll for HP</div>
-                    <div class="hp-choice-value">1d${hitDie} + ${conMod}${hasTough ? ' + 2 (Tough)' : ''}</div>
-                    <div class="hp-choice-desc">Take a chance!</div>
-                </label>
+    for (let i = 0; i < levels.length; i++) {
+        const lvl = levels[i];
+        const entry = state.changes.hpByLevel[i];
+        const prefix = multiLevel ? `<div class="hp-level-label" style="font-weight:700;margin-bottom:4px;">Level ${lvl}</div>` : '';
+
+        html += `
+            <div class="hp-level-block" style="${multiLevel ? 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;' : ''}">
+                ${prefix}
+                <div class="hp-choice-container">
+                    <div class="hp-choice-option" onclick="selectHPOption(${i}, 'average')">
+                        <input type="radio" name="hp-choice-${i}" value="average" id="hp-average-${i}" ${entry.method === 'average' ? 'checked' : ''}>
+                        <label for="hp-average-${i}">
+                            <div class="hp-choice-title">Take Average</div>
+                            <div class="hp-choice-value">+${average} HP${hasTough ? ' (includes Tough)' : ''}</div>
+                        </label>
+                    </div>
+
+                    <div class="hp-choice-option" onclick="selectHPOption(${i}, 'roll')">
+                        <input type="radio" name="hp-choice-${i}" value="roll" id="hp-roll-${i}" ${entry.method === 'roll' ? 'checked' : ''}>
+                        <label for="hp-roll-${i}">
+                            <div class="hp-choice-title">Roll for HP</div>
+                            <div class="hp-choice-value">1d${hitDie} + ${conMod}${hasTough ? ' + 2 (Tough)' : ''}</div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="hp-roll-result-${i}" class="hp-roll-result ${entry.method === 'roll' ? '' : 'hidden'}">
+                    <label for="hp-roll-input-${i}" class="hp-roll-label">What did you roll on your d${hitDie}?</label>
+                    <input type="number" id="hp-roll-input-${i}" class="hp-roll-input" min="1" max="${hitDie}" placeholder="Enter roll" oninput="applyHPRoll(${i})" ${entry.method === 'roll' && entry.hp !== null ? `value="${entry.hp - conMod - toughBonus}"` : ''}>
+                    <div id="hp-roll-display-${i}" class="hp-roll-display"></div>
+                </div>
             </div>
-        </div>
+        `;
+    }
 
-        <div id="hp-roll-result" class="hp-roll-result hidden">
-            <label for="hp-roll-input" class="hp-roll-label">What did you roll on your d${hitDie}?</label>
-            <input type="number" id="hp-roll-input" class="hp-roll-input" min="1" max="${hitDie}" placeholder="Enter roll" oninput="applyHPRoll()">
-            <div id="hp-roll-display" class="hp-roll-display"></div>
-        </div>
-    `;
+    // Show running total
+    const totalHP = state.changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
+    html += `<div class="hp-total-summary" style="font-weight:700;margin-top:8px;font-size:16px;">Total HP Gain: +${totalHP}</div>`;
+
+    return html;
 }
 
-window.selectHPOption = function(option) {
+window.selectAllHPAverage = function() {
     const state = window.levelUpState;
-    state.changes.hpChoice = option;
+    const char = currentCharacter;
+    const conMod = getModifier(getAbilityScore(char.ability_scores, 'con'));
+    const hitDie = HIT_DICE[char.class] || 8;
+    const hasTough = (char.features_traits || []).some(f => f.name === 'Tough');
+    const average = Math.floor(hitDie / 2) + 1 + conMod + (hasTough ? 2 : 0);
+
+    for (let i = 0; i < state.changes.hpByLevel.length; i++) {
+        state.changes.hpByLevel[i].method = 'average';
+        state.changes.hpByLevel[i].hp = average;
+        const radio = document.getElementById(`hp-average-${i}`);
+        if (radio) radio.checked = true;
+        const rollUI = document.getElementById(`hp-roll-result-${i}`);
+        if (rollUI) rollUI.classList.add('hidden');
+    }
+
+    // Update total
+    const totalHP = state.changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
+    const totalEl = document.querySelector('.hp-total-summary');
+    if (totalEl) totalEl.textContent = `Total HP Gain: +${totalHP}`;
+};
+
+window.selectHPOption = function(levelIndex, option) {
+    const state = window.levelUpState;
+    const entry = state.changes.hpByLevel[levelIndex];
+    entry.method = option;
 
     // Select radio button
-    document.querySelectorAll('input[name="hp-choice"]').forEach(r => r.checked = false);
-    document.getElementById(`hp-${option}`).checked = true;
+    document.querySelectorAll(`input[name="hp-choice-${levelIndex}"]`).forEach(r => r.checked = false);
+    document.getElementById(`hp-${option}-${levelIndex}`).checked = true;
 
     // Show/hide roll UI
-    const rollUI = $('#hp-roll-result');
+    const rollUI = document.getElementById(`hp-roll-result-${levelIndex}`);
     if (option === 'roll') {
         rollUI.classList.remove('hidden');
+        // Clear HP until they enter a roll
+        entry.hp = null;
     } else {
         rollUI.classList.add('hidden');
         const char = currentCharacter;
         const conMod = getModifier(getAbilityScore(char.ability_scores, 'con'));
         const hitDie = HIT_DICE[char.class] || 8;
         const hasTough = (char.features_traits || []).some(f => f.name === 'Tough');
-        state.changes.hp = Math.floor(hitDie / 2) + 1 + conMod + (hasTough ? 2 : 0);
+        entry.hp = Math.floor(hitDie / 2) + 1 + conMod + (hasTough ? 2 : 0);
     }
+
+    // Update total
+    const totalHP = state.changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
+    const totalEl = document.querySelector('.hp-total-summary');
+    if (totalEl) totalEl.textContent = `Total HP Gain: +${totalHP}`;
 };
 
-window.applyHPRoll = function() {
+window.applyHPRoll = function(levelIndex) {
     const char = currentCharacter;
+    const state = window.levelUpState;
+    const entry = state.changes.hpByLevel[levelIndex];
     const conMod = getModifier(getAbilityScore(char.ability_scores, 'con'));
-    const input = $('#hp-roll-input');
+    const input = document.getElementById(`hp-roll-input-${levelIndex}`);
     const roll = parseInt(input.value);
 
     if (!roll || roll < 1 || roll > (HIT_DICE[char.class] || 8)) {
-        $('#hp-roll-display').innerHTML = '';
-        window.levelUpState.changes.hp = null;
+        document.getElementById(`hp-roll-display-${levelIndex}`).innerHTML = '';
+        entry.hp = null;
         return;
     }
 
     const hasTough = (char.features_traits || []).some(f => f.name === 'Tough');
     const toughBonus = hasTough ? 2 : 0;
     const total = roll + conMod + toughBonus;
-    window.levelUpState.changes.hp = total;
+    entry.hp = total;
 
-    $('#hp-roll-display').innerHTML = `
+    document.getElementById(`hp-roll-display-${levelIndex}`).innerHTML = `
         <div class="roll-animation">
             <div class="roll-result">${roll}</div>
             <div class="roll-modifier">+ ${conMod} (CON)${hasTough ? ' + 2 (Tough)' : ''}</div>
             <div class="roll-total">= ${total} HP</div>
         </div>
     `;
+
+    // Update total
+    const totalHP = state.changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
+    const totalEl = document.querySelector('.hp-total-summary');
+    if (totalEl) totalEl.textContent = `Total HP Gain: +${totalHP}`;
 };
 
-// Step 2: ASI or Feat
+// Step 2: ASI or Feat (consolidated for multiple ASI levels)
 async function renderASIStep() {
     const char = currentCharacter;
     const abs = char.ability_scores || {};
+    const state = window.levelUpState;
+    const asiLevels = state.asiLevels;
+    const multiASI = asiLevels.length > 1;
 
-    return `
-        <h3>Ability Score Improvement</h3>
-        <p class="step-description">Increase your ability scores or choose a feat:</p>
+    let html = `<h3>Ability Score Improvement${multiASI ? ` (${asiLevels.length} ASIs)` : ''}</h3>`;
 
-        <div class="asi-choice-tabs">
-            <button class="asi-tab active" onclick="switchASITab('asi', this)">Ability Scores</button>
-            <button class="asi-tab" onclick="switchASITab('feat', this)">Feat</button>
-        </div>
+    for (let i = 0; i < asiLevels.length; i++) {
+        const lvl = asiLevels[i];
+        const entry = state.changes.asiByLevel[i];
+        const isASI = !entry.asiChoice || entry.asiChoice === 'asi';
 
-        <div id="asi-tab-content" class="asi-tab-content">
-            <p class="asi-instructions">Increase one ability by +2, or two abilities by +1 each (max 20):</p>
-            <div class="asi-grid">
-                ${ABILITIES.map(a => {
-                    const score = getAbilityScore(abs, a);
-                    return `
-                        <div class="asi-ability">
-                            <div class="asi-ability-name">${a.toUpperCase()}</div>
-                            <div class="asi-ability-score">${score}</div>
-                            <div class="asi-controls">
-                                <button class="asi-btn" onclick="adjustASI('${a}', -1)" ${score >= 20 ? 'disabled' : ''}>−</button>
-                                <span id="asi-${a}" class="asi-value">0</span>
-                                <button class="asi-btn" onclick="adjustASI('${a}', 1)" ${score >= 20 ? 'disabled' : ''}>+</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-            <div class="asi-points-remaining">
-                Points remaining: <span id="asi-points">2</span>
-            </div>
-        </div>
+        html += `
+            <div class="asi-level-block" style="${multiASI ? 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;' : ''}">
+                ${multiASI ? `<div style="font-weight:700;margin-bottom:6px;">Level ${lvl} ASI</div>` : ''}
+                <p class="step-description">Increase your ability scores or choose a feat:</p>
 
-        <div id="feat-tab-content" class="asi-tab-content hidden">
-            <p class="asi-instructions">Choose a feat to gain instead of ability score increases:</p>
-            <div class="feat-list">
-                ${FEATS.map(f => `
-                    <div class="feat-option" onclick="selectFeat('${f.name}')">
-                        <input type="radio" name="feat-choice" id="feat-${f.name.replace(/\s/g, '-')}" value="${f.name}">
-                        <label>
-                            <div class="feat-name">${f.name}</div>
-                            <div class="feat-desc">${f.description}</div>
-                        </label>
+                <div class="asi-choice-tabs">
+                    <button class="asi-tab ${isASI ? 'active' : ''}" onclick="switchASITab('asi', this, ${i})">Ability Scores</button>
+                    <button class="asi-tab ${entry.asiChoice === 'feat' ? 'active' : ''}" onclick="switchASITab('feat', this, ${i})">Feat</button>
+                </div>
+
+                <div id="asi-tab-content-${i}" class="asi-tab-content ${isASI ? '' : 'hidden'}">
+                    <p class="asi-instructions">Increase one ability by +2, or two abilities by +1 each (max 20):</p>
+                    <div class="asi-grid">
+                        ${ABILITIES.map(a => {
+                            const score = getAbilityScore(abs, a);
+                            const currentBoost = entry.asiAbilities[a] || 0;
+                            return `
+                                <div class="asi-ability">
+                                    <div class="asi-ability-name">${a.toUpperCase()}</div>
+                                    <div class="asi-ability-score">${score}</div>
+                                    <div class="asi-controls">
+                                        <button class="asi-btn" onclick="adjustASI('${a}', -1, ${i})" ${score >= 20 ? 'disabled' : ''}>&#8722;</button>
+                                        <span id="asi-${a}-${i}" class="asi-value">${currentBoost > 0 ? '+' + currentBoost : '0'}</span>
+                                        <button class="asi-btn" onclick="adjustASI('${a}', 1, ${i})" ${score >= 20 ? 'disabled' : ''}>+</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
-                `).join('')}
+                    <div class="asi-points-remaining">
+                        Points remaining: <span id="asi-points-${i}">${2 - Object.values(entry.asiAbilities).reduce((s, v) => s + v, 0)}</span>
+                    </div>
+                </div>
+
+                <div id="feat-tab-content-${i}" class="asi-tab-content ${entry.asiChoice === 'feat' ? '' : 'hidden'}">
+                    <p class="asi-instructions">Choose a feat to gain instead of ability score increases:</p>
+                    <div class="feat-list">
+                        ${FEATS.map(f => `
+                            <div class="feat-option" onclick="selectFeat('${f.name}', ${i})">
+                                <input type="radio" name="feat-choice-${i}" id="feat-${f.name.replace(/\s/g, '-')}-${i}" value="${f.name}" ${entry.featChoice === f.name ? 'checked' : ''}>
+                                <label>
+                                    <div class="feat-name">${f.name}</div>
+                                    <div class="feat-desc">${f.description}</div>
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
             </div>
-        </div>
-    `;
-}
-
-window.switchASITab = function(tab, clickedButton) {
-    // Reset choices
-    window.levelUpState.changes.asiChoice = tab;
-
-    // Update tabs
-    $$('.asi-tab').forEach(t => t.classList.remove('active'));
-    if (clickedButton) {
-        clickedButton.classList.add('active');
-    } else {
-        // Fallback: find by tab name
-        $$('.asi-tab').forEach(t => {
-            if (t.textContent.toLowerCase().includes(tab)) {
-                t.classList.add('active');
-            }
-        });
+        `;
     }
 
+    return html;
+}
+
+window.switchASITab = function(tab, clickedButton, asiIndex) {
+    const state = window.levelUpState;
+    state.changes.asiByLevel[asiIndex].asiChoice = tab;
+
+    // Update tabs within this block
+    const block = clickedButton.closest('.asi-level-block') || clickedButton.parentElement.parentElement;
+    block.querySelectorAll('.asi-tab').forEach(t => t.classList.remove('active'));
+    clickedButton.classList.add('active');
+
     // Show/hide content
-    $('#asi-tab-content').classList.toggle('hidden', tab !== 'asi');
-    $('#feat-tab-content').classList.toggle('hidden', tab !== 'feat');
+    document.getElementById(`asi-tab-content-${asiIndex}`).classList.toggle('hidden', tab !== 'asi');
+    document.getElementById(`feat-tab-content-${asiIndex}`).classList.toggle('hidden', tab !== 'feat');
 };
 
-window.adjustASI = function(ability, delta) {
+window.adjustASI = function(ability, delta, asiIndex) {
     const state = window.levelUpState;
-    const current = state.changes.asiAbilities[ability] || 0;
+    const entry = state.changes.asiByLevel[asiIndex];
+    const current = entry.asiAbilities[ability] || 0;
     const newVal = current + delta;
 
-    // Calculate total points used
-    const totalUsed = Object.values(state.changes.asiAbilities).reduce((sum, v) => sum + v, 0) - current + newVal;
+    // Calculate total points used for this ASI
+    const totalUsed = Object.values(entry.asiAbilities).reduce((sum, v) => sum + v, 0) - current + newVal;
 
     if (totalUsed > 2 || newVal < 0 || newVal > 2) return;
 
-    state.changes.asiAbilities[ability] = newVal;
-    $(`#asi-${ability}`).textContent = newVal > 0 ? `+${newVal}` : '0';
-    $('#asi-points').textContent = 2 - totalUsed;
+    entry.asiAbilities[ability] = newVal;
+    document.getElementById(`asi-${ability}-${asiIndex}`).textContent = newVal > 0 ? `+${newVal}` : '0';
+    document.getElementById(`asi-points-${asiIndex}`).textContent = 2 - totalUsed;
 };
 
-window.selectFeat = function(featName) {
-    window.levelUpState.changes.featChoice = featName;
-    document.getElementById(`feat-${featName.replace(/\s/g, '-')}`).checked = true;
+window.selectFeat = function(featName, asiIndex) {
+    const state = window.levelUpState;
+    state.changes.asiByLevel[asiIndex].featChoice = featName;
+    document.getElementById(`feat-${featName.replace(/\s/g, '-')}-${asiIndex}`).checked = true;
 };
 
 // Step 3: Subclass Selection
@@ -4068,14 +4185,16 @@ window.selectSubclass = function(subclass) {
     document.getElementById(`subclass-${subclass.replace(/\s/g, '-')}`).checked = true;
 };
 
-// Step 4: Spell Selection (for casters)
+// Step 4: Spell Selection (for casters - uses target level data)
 async function renderSpellStep() {
     const char = currentCharacter;
-    const classData = window.levelUpState.classData;
-    const spellsKnown = classData.spellcasting?.spells_known_at_level || 0;
+    const state = window.levelUpState;
+    // Use the highest level's class data for spells known count
+    const targetClassData = state.classDataByLevel[state.targetLevel] || state.classData;
+    const spellsKnown = targetClassData.spellcasting?.spells_known_at_level || 0;
     const currentSpellCount = char.spells?.length || 0;
     const canLearnCount = Math.max(0, spellsKnown - currentSpellCount);
-    const maxLevel = Math.min(9, Math.ceil(char.level / 2));
+    const maxLevel = Math.min(9, Math.ceil(state.targetLevel / 2));
 
     return `
         <h3>Learn New Spells</h3>
@@ -4114,8 +4233,8 @@ window.filterSpellLevel = async function(level) {
 window.toggleSpellSelection = function(index, name, level) {
     const state = window.levelUpState;
     const checkbox = document.getElementById(`spell-${index}`);
-    const classData = state.classData;
-    const spellsKnown = classData.spellcasting?.spells_known_at_level || 0;
+    const targetClassData = state.classDataByLevel[state.targetLevel] || state.classData;
+    const spellsKnown = targetClassData.spellcasting?.spells_known_at_level || 0;
     const currentSpellCount = currentCharacter.spells?.length || 0;
     const canLearnCount = Math.max(0, spellsKnown - currentSpellCount);
 
@@ -4132,58 +4251,94 @@ window.toggleSpellSelection = function(index, name, level) {
     $('#spell-count').textContent = state.changes.spells.length;
 };
 
-// Step 5: Feature Review
+// Step 5: Feature Review (consolidated for all levels)
 async function renderFeatureStep() {
-    const classData = window.levelUpState.classData;
-    const features = classData.features || [];
+    const state = window.levelUpState;
+    const levels = state.levelsToProcess;
+    const multiLevel = levels.length > 1;
+
+    // Collect all features from all levels
+    let allFeatures = [];
+    for (const lvl of levels) {
+        const classData = state.classDataByLevel[lvl];
+        if (classData && classData.features) {
+            for (const f of classData.features) {
+                allFeatures.push({ ...f, level: lvl });
+            }
+        }
+    }
+
+    // Build summary of all changes
+    const totalHP = state.changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
+    const allASIChanges = [];
+    const allFeats = [];
+    for (const entry of state.changes.asiByLevel) {
+        if (entry.asiChoice === 'feat' && entry.featChoice) {
+            allFeats.push(`${entry.featChoice} (Lvl ${entry.level})`);
+        } else {
+            const boosts = Object.entries(entry.asiAbilities).filter(([, v]) => v > 0);
+            if (boosts.length) {
+                allASIChanges.push(`Lvl ${entry.level}: ${boosts.map(([k, v]) => `${k.toUpperCase()} +${v}`).join(', ')}`);
+            }
+        }
+    }
+
+    let featuresHtml = '';
+    if (allFeatures.length) {
+        featuresHtml = allFeatures.map(f => `
+            <div class="feature-review-item">
+                <h4>${f.name}${multiLevel ? ` <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">(Level ${f.level})</span>` : ''}</h4>
+                <p>See your class description for full details.</p>
+            </div>
+        `).join('');
+    } else {
+        featuresHtml = '<p class="empty-list">No new features at these levels.</p>';
+    }
 
     return `
-        <h3>Level ${currentCharacter.level} Features</h3>
+        <h3>${multiLevel ? `Levels ${state.startLevel}–${state.targetLevel}` : `Level ${state.startLevel}`} Features</h3>
         <p class="step-description">Review your new class features:</p>
 
         <div class="feature-review-list">
-            ${features.length ? features.map(f => `
-                <div class="feature-review-item">
-                    <h4>${f.name}</h4>
-                    <p>See your class description for full details.</p>
-                </div>
-            `).join('') : '<p class="empty-list">No new features at this level.</p>'}
+            ${featuresHtml}
         </div>
 
         <div class="levelup-summary">
             <h4>Summary of Changes:</h4>
             <ul>
-                ${window.levelUpState.changes.hp ? `<li>HP: +${window.levelUpState.changes.hp}</li>` : ''}
-                ${Object.keys(window.levelUpState.changes.asiAbilities).length ? `<li>ASI: ${Object.entries(window.levelUpState.changes.asiAbilities).map(([k,v]) => `${k.toUpperCase()} +${v}`).join(', ')}</li>` : ''}
-                ${window.levelUpState.changes.featChoice ? `<li>Feat: ${window.levelUpState.changes.featChoice}</li>` : ''}
-                ${window.levelUpState.changes.subclass ? `<li>Subclass: ${window.levelUpState.changes.subclass}</li>` : ''}
-                ${window.levelUpState.changes.spells.length ? `<li>Spells: +${window.levelUpState.changes.spells.length}</li>` : ''}
-                <li>Proficiency Bonus: +${getProfBonus(currentCharacter.level)}</li>
+                ${totalHP ? `<li>HP: +${totalHP}</li>` : ''}
+                ${allASIChanges.length ? allASIChanges.map(a => `<li>ASI: ${a}</li>`).join('') : ''}
+                ${allFeats.length ? allFeats.map(f => `<li>Feat: ${f}</li>`).join('') : ''}
+                ${state.changes.subclass ? `<li>Subclass: ${state.changes.subclass}</li>` : ''}
+                ${state.changes.spells.length ? `<li>Spells: +${state.changes.spells.length}</li>` : ''}
+                <li>New Level: ${state.targetLevel}</li>
+                <li>Proficiency Bonus: +${getProfBonus(state.targetLevel)}</li>
             </ul>
         </div>
     `;
 }
 
-// Check if a step should be skipped
+// Check if a step should be skipped (multi-level aware)
 function shouldSkipStep(stepNumber) {
     const char = currentCharacter;
     const state = window.levelUpState;
 
-    // Skip based on what's applicable
     switch(stepNumber) {
-        case 1: // HP
-            return state.onlySubclass; // Skip HP if only selecting subclass
-        case 2: // ASI
-            return state.onlySubclass || !isASILevel(char.class, char.level);
-        case 3: // Subclass
-            return char.level < SUBCLASS_LEVEL || (char.subclass && !state.onlySubclass);
-        case 4: // Spells
-            if (state.onlySubclass || !state.classData?.spellcasting) return true;
-            const spellsKnown = state.classData.spellcasting.spells_known_at_level || 0;
+        case 1: // HP - skip only if subclass-only mode
+            return state.onlySubclass;
+        case 2: // ASI - skip if no ASI levels in range
+            return state.onlySubclass || state.asiLevels.length === 0;
+        case 3: // Subclass - skip if already has subclass or no level in range reaches subclass level
+            return !state.needsSubclass && !state.onlySubclass;
+        case 4: { // Spells - skip if not a caster or no new spells to learn at target level
+            if (state.onlySubclass) return true;
+            const targetClassData = state.classDataByLevel[state.targetLevel] || state.classData;
+            if (!targetClassData?.spellcasting) return true;
+            const spellsKnown = targetClassData.spellcasting.spells_known_at_level || 0;
             const currentSpellCount = char.spells?.length || 0;
-            const canLearnCount = Math.max(0, spellsKnown - currentSpellCount);
-            return canLearnCount === 0;
-        case 5: // Features
+            return Math.max(0, spellsKnown - currentSpellCount) === 0;
+        }
+        case 5: // Features - skip only if subclass-only
             return state.onlySubclass;
         default:
             return false;
@@ -4316,7 +4471,7 @@ async function saveSubclassFeatures(charId, className, subclassName, level) {
     }
 }
 
-// Apply all level-up changes
+// Apply all level-up changes (consolidated for all levels at once)
 async function completeLevelUp() {
     const state = window.levelUpState;
     const changes = state.changes;
@@ -4328,89 +4483,95 @@ async function completeLevelUp() {
     if (state.onlySubclass) {
         if (changes.subclass) {
             await db.from('characters').update({ subclass: changes.subclass }).eq('id', char.id);
-
-            // Also save subclass features for the character's current level
             await saveSubclassFeatures(char.id, char.class, changes.subclass, char.level);
         }
 
-        // Reload character
         await openCharacter(char.id);
-
         $('#levelup-wizard-modal').classList.add('hidden');
         delete window.levelUpState;
-
         hideLoading();
         alert('Subclass selected!');
         return;
     }
 
-    // Full level-up process
-    // Update HP
-    if (changes.hp) {
+    // ---- Full consolidated level-up process ----
+
+    // 1. Calculate total HP gain from all levels
+    const totalHP = changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
+    let runningHPGain = totalHP;
+
+    // 2. Apply all ASIs and feats
+    const abs = Array.isArray(char.ability_scores) ? char.ability_scores[0] : char.ability_scores;
+    let toughHPBonus = 0;
+
+    for (const asiEntry of changes.asiByLevel) {
+        if (asiEntry.asiChoice === 'feat' && asiEntry.featChoice) {
+            // Save feat
+            const feat = FEATS.find(f => f.name === asiEntry.featChoice);
+            const featDesc = feat ? feat.description : '';
+            const isBonusAction = featDesc.toLowerCase().includes('bonus action');
+
+            await db.from('features_traits').insert({
+                character_id: char.id,
+                name: asiEntry.featChoice,
+                description: featDesc,
+                source: `Feat (Level ${asiEntry.level})`,
+                is_bonus_action: isBonusAction
+            });
+
+            // Tough feat: retroactively add +2 HP per target level
+            if (asiEntry.featChoice === 'Tough') {
+                toughHPBonus += 2 * state.targetLevel;
+            }
+        } else if (abs) {
+            // Apply ASI ability score increases
+            for (const [ability, increase] of Object.entries(asiEntry.asiAbilities)) {
+                if (increase > 0) {
+                    const fullKey = ABILITY_FULL[ability].toLowerCase();
+                    abs[fullKey] = Math.min(20, (abs[fullKey] || 10) + increase);
+                }
+            }
+        }
+    }
+
+    // Write ability score changes (once, after all ASIs)
+    if (abs) {
+        await db.from('ability_scores').update(abs).eq('character_id', char.id);
+    }
+
+    // 3. Update HP (total from all levels + Tough bonus)
+    const finalHPGain = runningHPGain + toughHPBonus;
+    if (finalHPGain) {
         await db.from('characters').update({
-            hit_point_maximum: char.hit_point_maximum + changes.hp,
-            current_hit_points: char.current_hit_points + changes.hp
+            hit_point_maximum: char.hit_point_maximum + finalHPGain,
+            current_hit_points: char.current_hit_points + finalHPGain
         }).eq('id', char.id);
     }
 
-    // Update ASI
-    if (Object.keys(changes.asiAbilities).length) {
-        const abs = Array.isArray(char.ability_scores) ? char.ability_scores[0] : char.ability_scores;
-        if (abs) {
-            for (const [ability, increase] of Object.entries(changes.asiAbilities)) {
-                const fullKey = ABILITY_FULL[ability].toLowerCase();
-                abs[fullKey] = Math.min(20, (abs[fullKey] || 10) + increase);
+    // 4. Save class features from ALL levels
+    for (const lvl of state.levelsToProcess) {
+        const classData = state.classDataByLevel[lvl];
+        if (classData && classData.features) {
+            for (const feature of classData.features) {
+                await saveFeatureFromAPI(char.id, feature, `Class Feature (${char.class} Level ${lvl})`);
             }
-            await db.from('ability_scores').update(abs).eq('character_id', char.id);
         }
     }
 
-    // Save Feat choice as a feature/trait
-    if (changes.asiChoice === 'feat' && changes.featChoice) {
-        const feat = FEATS.find(f => f.name === changes.featChoice);
-        const featDesc = feat ? feat.description : '';
-
-        // Detect if this feat grants a bonus action ability
-        const isBonusAction = featDesc.toLowerCase().includes('bonus action');
-
-        await db.from('features_traits').insert({
-            character_id: char.id,
-            name: changes.featChoice,
-            description: featDesc,
-            source: `Feat (Level ${char.level})`,
-            is_bonus_action: isBonusAction
-        });
-
-        // Tough feat: retroactively add +2 HP per character level
-        if (changes.featChoice === 'Tough') {
-            const toughHP = 2 * char.level;
-            await db.from('characters').update({
-                hit_point_maximum: (char.hit_point_maximum + (changes.hp || 0)) + toughHP,
-                current_hit_points: (char.current_hit_points + (changes.hp || 0)) + toughHP
-            }).eq('id', char.id);
-            // Clear HP change so it isn't double-applied (already included above)
-            changes.hp = null;
-        }
-    }
-
-    // Save class features from this level
-    const classFeatures = state.classData.features || [];
-    for (const feature of classFeatures) {
-        await saveFeatureFromAPI(char.id, feature, `Class Feature (${char.class} Level ${char.level})`);
-    }
-
-    // Update Subclass
+    // 5. Update subclass
     if (changes.subclass) {
         await db.from('characters').update({ subclass: changes.subclass }).eq('id', char.id);
     }
 
-    // Save subclass features for this level
+    // 6. Save subclass features for ALL applicable levels
     const effectiveSubclass = changes.subclass || char.subclass;
     if (effectiveSubclass) {
-        await saveSubclassFeatures(char.id, char.class, effectiveSubclass, char.level);
+        for (const lvl of state.levelsToProcess) {
+            await saveSubclassFeatures(char.id, char.class, effectiveSubclass, lvl);
+        }
     }
 
-    // Add Spells
+    // 7. Add spells
     for (const spell of changes.spells) {
         await db.from('spells').insert({
             character_id: char.id,
@@ -4421,39 +4582,26 @@ async function completeLevelUp() {
         });
     }
 
-    // Update proficiency bonus, hit dice
-    const newProfBonus = getProfBonus(char.level);
+    // 8. Update character to target level, proficiency, hit dice
+    const targetLevel = state.targetLevel;
+    const newProfBonus = getProfBonus(targetLevel);
     const hd = HIT_DICE[char.class] || 8;
 
-    // Check if more levels are needed after this one
-    const targetFromStorage = parseInt(localStorage.getItem(`targetLevel_${char.id}`)) || 0;
-    const targetFromEXP = char.experience_points ? getLevelForEXP(char.experience_points) : 0;
-    const ultimateTarget = Math.max(targetFromStorage, targetFromEXP);
-    const hasMoreLevels = ultimateTarget > char.level && char.level < 20;
+    await db.from('characters').update({
+        level: targetLevel,
+        proficiency_bonus: newProfBonus,
+        hit_dice_total: `${targetLevel}d${hd}`,
+        hit_dice_remaining: targetLevel,
+        pending_level_up: false
+    }).eq('id', char.id);
 
-    if (hasMoreLevels) {
-        // More levels to process: increment level by 1 and keep pending
-        await db.from('characters').update({
-            proficiency_bonus: newProfBonus,
-            hit_dice_total: `${char.level}d${hd}`,
-            hit_dice_remaining: char.level,
-            level: char.level + 1,
-            pending_level_up: true
-        }).eq('id', char.id);
-    } else {
-        // Final level reached: clear pending flag and localStorage target
-        await db.from('characters').update({
-            proficiency_bonus: newProfBonus,
-            hit_dice_total: `${char.level}d${hd}`,
-            hit_dice_remaining: char.level,
-            pending_level_up: false
-        }).eq('id', char.id);
-        localStorage.removeItem(`targetLevel_${char.id}`);
-    }
+    // Clean up localStorage target
+    localStorage.removeItem(`targetLevel_${char.id}`);
 
-    // Update spell slots for casters
-    if (state.classData.spellcasting) {
-        await updateSpellSlots(char.id, state.classData.spellcasting);
+    // 9. Update spell slots using the target level's data
+    const targetClassData = state.classDataByLevel[targetLevel];
+    if (targetClassData?.spellcasting) {
+        await updateSpellSlots(char.id, targetClassData.spellcasting);
     }
 
     // Reload character
@@ -4464,10 +4612,9 @@ async function completeLevelUp() {
 
     hideLoading();
 
-    if (hasMoreLevels) {
-        alert(`Level ${char.level} complete! Advancing to level ${char.level + 1}...`);
-        // Auto-open wizard for the next level
-        setTimeout(() => openLevelUpWizard(), 400);
+    const levelsGained = state.levelsToProcess.length;
+    if (levelsGained > 1) {
+        alert(`Level-up complete! Advanced ${levelsGained} levels to level ${targetLevel}.`);
     } else {
         alert('Level-up complete!');
     }
