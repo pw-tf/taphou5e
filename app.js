@@ -915,6 +915,17 @@ function initCreatePage() {
     
     // Initialize HP field on page load
     updateHPField();
+
+    // Level-Up Engine: Show racial bonus preview under race dropdown
+    if (window.LevelUpEngine) {
+        LevelUpEngine.initRacialBonusPreview();
+        // Auto-update speed based on race selection
+        $('#char-race').addEventListener('change', () => {
+            const race = $('#char-race').value;
+            const raceSpeed = LevelUpEngine.RACIAL_SPEED[race] || 30;
+            $('#char-speed').value = raceSpeed;
+        });
+    }
 }
 
 function updateHPField() {
@@ -971,6 +982,20 @@ async function handleCreate(e) {
     await db.from('saving_throws').insert(ABILITIES.map(a => ({ character_id: id, ability: a, proficient: false })));
     await db.from('currency').insert({ character_id: id, copper: 0, silver: 0, electrum: 0, gold: 0, platinum: 0 });
     await db.from('character_details').insert({ character_id: id });
+
+    // Level-Up Engine: Apply racial bonuses, class saving throws, correct speed & HP
+    if (window.LevelUpEngine) {
+        let halfElfChoices = [];
+        if (race === 'Half-Elf') {
+            halfElfChoices = await LevelUpEngine.showHalfElfAbilityChoice();
+        }
+        await LevelUpEngine.enhanceCharacterCreation(id, {
+            race, class: cls, level
+        }, {
+            strength: abs.str, dexterity: abs.dex, constitution: abs.con,
+            intelligence: abs.int, wisdom: abs.wis, charisma: abs.cha
+        }, halfElfChoices);
+    }
 
     $('#create-form').reset();
     ABILITIES.forEach(a => $(`#mod-${a}`).textContent = '+0');
@@ -1039,7 +1064,7 @@ function setupRealtime(id) {
     );
     
     // Listen to all related tables
-    const relatedTables = ['ability_scores', 'skills', 'saving_throws', 'inventory_items', 'weapons', 'spells', 'spell_slots', 'features_traits', 'currency', 'character_details'];
+    const relatedTables = ['ability_scores', 'skills', 'saving_throws', 'inventory_items', 'weapons', 'spells', 'spell_slots', 'features_traits', 'currency', 'character_details', 'character_effects'];
     
     relatedTables.forEach(table => {
         channel.on(
@@ -4635,6 +4660,49 @@ async function completeLevelUp() {
     const targetClassData = state.classDataByLevel[targetLevel];
     if (targetClassData?.spellcasting) {
         await updateSpellSlots(char.id, targetClassData.spellcasting);
+    }
+
+    // 10. Level-Up Engine: Apply mechanical effects from features, ASIs, feats
+    if (window.LevelUpEngine) {
+        // Collect features gained across all levels
+        const newFeatures = [];
+        for (const lvl of state.levelsToProcess) {
+            const classData = state.classDataByLevel[lvl];
+            if (classData && classData.features) {
+                for (const feature of classData.features) {
+                    newFeatures.push({
+                        apiIndex: feature.index,
+                        name: feature.name,
+                        source: `Class Feature (${char.class} Level ${lvl})`
+                    });
+                }
+            }
+        }
+
+        // Collect ASI choices (from last ASI level processed)
+        let asiChoicesForEngine = null;
+        for (const asiEntry of changes.asiByLevel) {
+            if (asiEntry.asiChoice !== 'feat' && asiEntry.asiAbilities) {
+                // Convert {str: 2} or {dex: 1, wis: 1} to full ability names
+                asiChoicesForEngine = {};
+                for (const [shortKey, val] of Object.entries(asiEntry.asiAbilities)) {
+                    if (val > 0) {
+                        const fullKey = ABILITY_FULL[shortKey]?.toLowerCase() || shortKey;
+                        asiChoicesForEngine[fullKey] = val;
+                    }
+                }
+            }
+        }
+
+        // Check if a feat was chosen
+        let featChosen = null;
+        for (const asiEntry of changes.asiByLevel) {
+            if (asiEntry.asiChoice === 'feat' && asiEntry.featChoice) {
+                featChosen = asiEntry.featChoice.toLowerCase().replace(/\s+/g, '-');
+            }
+        }
+
+        await LevelUpEngine.enhanceLevelUpCompletion(char.id, newFeatures, asiChoicesForEngine, featChosen);
     }
 
     // Reload character
