@@ -3153,6 +3153,47 @@ body::before {
 }
 
 /* HP Step */
+.hp-batch-actions {
+    margin-bottom: var(--space-md);
+}
+
+.hp-average-all-btn {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+}
+
+.hp-level-block {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.hp-level-label {
+    font-weight: 700;
+    margin-bottom: var(--space-xs);
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hp-total-summary {
+    font-weight: 700;
+    margin-top: var(--space-md);
+    font-size: 16px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+
+.hp-level-block-single {
+    border: none;
+    padding: 0;
+    margin-bottom: 0;
+}
+
 .hp-choice-container {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
