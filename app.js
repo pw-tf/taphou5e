@@ -1616,8 +1616,9 @@ async function handleLevelUpdate(e) {
     const conMod = getModifier(getAbilityScore(c.ability_scores, 'con'));
 
     if (newLevel > oldLevel) {
-        // Leveling UP: store target level and set first new level, wizard handles all at once
+        // Leveling UP: store target level and pre-grant level, wizard handles all at once
         localStorage.setItem(`targetLevel_${c.id}`, newLevel);
+        localStorage.setItem(`preGrantLevel_${c.id}`, oldLevel);
 
         const updates = {
             level: oldLevel + 1,
@@ -3619,34 +3620,46 @@ function renderDMPanelEXP(container) {
 
 // Grant level to entire party (milestone mode)
 window.grantPartyLevel = async function() {
+    if (window._grantingLevel) return;
     if (!confirm('Grant a level to ALL characters in this game world?')) return;
 
+    window._grantingLevel = true;
     showLoading();
 
-    const eligibleCharacters = characters.filter(c => c.level < 20);
+    try {
+        const eligibleCharacters = characters.filter(c => c.level < 20);
 
-    if (!eligibleCharacters.length) {
-        alert('All characters are already at level 20!');
+        if (!eligibleCharacters.length) {
+            alert('All characters are already at level 20!');
+            hideLoading();
+            return;
+        }
+
+        for (const char of eligibleCharacters) {
+            // Store pre-grant level so the level-up wizard knows the full range
+            if (!char.pending_level_up) {
+                localStorage.setItem(`preGrantLevel_${char.id}`, char.level);
+            }
+
+            await db.from('characters').update({
+                level: char.level + 1,
+                pending_level_up: true
+            }).eq('id', char.id);
+        }
+
+        await loadCharacters();
+        renderDMPanel();
         hideLoading();
-        return;
+
+        alert(`Level granted to ${eligibleCharacters.length} character(s)!`);
+    } finally {
+        window._grantingLevel = false;
     }
-
-    for (const char of eligibleCharacters) {
-        await db.from('characters').update({
-            level: char.level + 1,
-            pending_level_up: true
-        }).eq('id', char.id);
-    }
-
-    await loadCharacters();
-    renderDMPanel();
-    hideLoading();
-
-    alert(`Level granted to ${eligibleCharacters.length} character(s)!`);
 };
 
 // Grant level to individual character (milestone mode)
 window.grantIndividualLevel = async function(charId) {
+    if (window._grantingLevel) return;
     const char = characters.find(c => c.id === charId);
     if (!char) return;
 
@@ -3657,15 +3670,25 @@ window.grantIndividualLevel = async function(charId) {
 
     if (!confirm(`Grant a level to ${char.name}? (Level ${char.level} → ${char.level + 1})`)) return;
 
-    await db.from('characters').update({
-        level: char.level + 1,
-        pending_level_up: true
-    }).eq('id', charId);
+    window._grantingLevel = true;
+    try {
+        // Store pre-grant level so the level-up wizard knows the full range
+        if (!char.pending_level_up) {
+            localStorage.setItem(`preGrantLevel_${charId}`, char.level);
+        }
 
-    await loadCharacters();
-    renderDMPanel();
+        await db.from('characters').update({
+            level: char.level + 1,
+            pending_level_up: true
+        }).eq('id', charId);
 
-    alert(`${char.name} has been granted a level!`);
+        await loadCharacters();
+        renderDMPanel();
+
+        alert(`${char.name} has been granted a level!`);
+    } finally {
+        window._grantingLevel = false;
+    }
 };
 
 // Grant EXP to entire party
@@ -3689,7 +3712,11 @@ window.grantPartyEXP = async function() {
         const updates = { experience_points: newEXP };
 
         if (newLevel > char.level) {
-            updates.level = char.level + 1;
+            // Store pre-grant level so the level-up wizard knows the full range
+            if (!char.pending_level_up) {
+                localStorage.setItem(`preGrantLevel_${char.id}`, char.level);
+            }
+            updates.level = Math.min(20, newLevel);
             updates.pending_level_up = true;
             leveledUp.push(`${char.name} (Lvl ${char.level} → ${newLevel})`);
         }
@@ -3726,7 +3753,11 @@ window.grantIndividualEXP = async function(charId) {
     let leveled = false;
 
     if (newLevel > char.level && char.level < 20) {
-        updates.level = char.level + 1;
+        // Store pre-grant level so the level-up wizard knows the full range
+        if (!char.pending_level_up) {
+            localStorage.setItem(`preGrantLevel_${charId}`, char.level);
+        }
+        updates.level = Math.min(20, newLevel);
         updates.pending_level_up = true;
         leveled = true;
     }
@@ -3775,11 +3806,12 @@ window.openLevelUpWizard = async function() {
     const classIndex = char.class.toLowerCase();
 
     // Determine the range of levels to process
-    // currentCharacter.level is already incremented to the first new level
-    const startLevel = char.level;
+    // Use pre-grant level if available to capture ALL levels gained (e.g., DM granted 2+ levels)
+    const preGrantLevel = parseInt(localStorage.getItem(`preGrantLevel_${char.id}`)) || 0;
+    const startLevel = (preGrantLevel > 0 && preGrantLevel < char.level) ? preGrantLevel + 1 : char.level;
     const targetFromStorage = parseInt(localStorage.getItem(`targetLevel_${char.id}`)) || 0;
     const targetFromEXP = char.experience_points ? getLevelForEXP(char.experience_points) : 0;
-    const targetLevel = onlySubclass ? char.level : Math.min(20, Math.max(startLevel, targetFromStorage, targetFromEXP));
+    const targetLevel = onlySubclass ? char.level : Math.min(20, Math.max(char.level, targetFromStorage, targetFromEXP));
 
     // Build array of levels to process (e.g., [2, 3] for a level 1→3 jump)
     const levelsToProcess = [];
@@ -3916,8 +3948,8 @@ async function renderHPStep() {
         html += `<p class="step-description">Choose HP for each level gained:</p>`;
         // Batch option: take average for all
         html += `
-            <div class="hp-batch-actions" style="margin-bottom:12px;">
-                <button class="btn btn-sm" onclick="selectAllHPAverage()">Take Average for All (+${average} each)</button>
+            <div class="hp-batch-actions">
+                <button class="btn-secondary hp-average-all-btn" onclick="selectAllHPAverage()">Take Average for All (+${average} each)</button>
             </div>
         `;
     } else {
@@ -3927,10 +3959,10 @@ async function renderHPStep() {
     for (let i = 0; i < levels.length; i++) {
         const lvl = levels[i];
         const entry = state.changes.hpByLevel[i];
-        const prefix = multiLevel ? `<div class="hp-level-label" style="font-weight:700;margin-bottom:4px;">Level ${lvl}</div>` : '';
+        const prefix = multiLevel ? `<div class="hp-level-label">Level ${lvl}</div>` : '';
 
         html += `
-            <div class="hp-level-block" style="${multiLevel ? 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;' : ''}">
+            <div class="hp-level-block${multiLevel ? '' : ' hp-level-block-single'}">
                 ${prefix}
                 <div class="hp-choice-container">
                     <div class="hp-choice-option" onclick="selectHPOption(${i}, 'average')">
@@ -3961,7 +3993,7 @@ async function renderHPStep() {
 
     // Show running total
     const totalHP = state.changes.hpByLevel.reduce((sum, e) => sum + (e.hp || 0), 0);
-    html += `<div class="hp-total-summary" style="font-weight:700;margin-top:8px;font-size:16px;">Total HP Gain: +${totalHP}</div>`;
+    html += `<div class="hp-total-summary">Total HP Gain: +${totalHP}</div>`;
 
     return html;
 }
@@ -4595,8 +4627,9 @@ async function completeLevelUp() {
         pending_level_up: false
     }).eq('id', char.id);
 
-    // Clean up localStorage target
+    // Clean up localStorage targets
     localStorage.removeItem(`targetLevel_${char.id}`);
+    localStorage.removeItem(`preGrantLevel_${char.id}`);
 
     // 9. Update spell slots using the target level's data
     const targetClassData = state.classDataByLevel[targetLevel];
