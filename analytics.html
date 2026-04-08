@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1f2937">
+    <title>TAPHOU5E - Analytics</title>
+    <link rel="icon" type="image/png" href="taphou5e.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="auth-screen" class="login-container">
+        <header class="login-header">
+            <h1><img src="taphou5e.png" alt="TAPHOU5E" class="login-logo">Analytics</h1>
+            <p>Admin Dashboard</p>
+        </header>
+        <main class="login-content">
+            <div class="login-card">
+                <form id="auth-form" class="login-form active" style="display: block;">
+                    <div class="form-error" id="auth-error"></div>
+                    <div class="form-group">
+                        <label for="auth-email">Email</label>
+                        <input type="email" id="auth-email" required placeholder="Enter your email">
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-password">Password</label>
+                        <input type="password" id="auth-password" required placeholder="Enter your password">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: var(--space-lg);">
+                        <span id="auth-btn-text">Sign In</span>
+                        <div class="loader-small" id="auth-loader"></div>
+                    </button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="page hidden">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">Analytics</h1>
+                <div style="display: flex; gap: var(--space-sm);">
+                    <button id="refresh-btn" class="icon-btn" title="Refresh">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                        </svg>
+                    </button>
+                    <button id="logout-btn" class="icon-btn" title="Sign Out">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="analytics-main">
+            <!-- Loading -->
+            <div id="analytics-loading" class="analytics-loading">
+                <div class="loader"></div>
+                <p>Loading analytics...</p>
+            </div>
+
+            <!-- Content -->
+            <div id="analytics-content" class="analytics-content hidden">
+                <!-- Overview Cards -->
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Overview</h2>
+                    <div class="analytics-cards" id="overview-cards"></div>
+                </section>
+
+                <!-- Game Worlds -->
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Game Worlds</h2>
+                    <div class="analytics-table-wrap" id="worlds-table"></div>
+                </section>
+
+                <!-- Character Analytics -->
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Class Distribution</h2>
+                    <div class="analytics-chart" id="class-chart"></div>
+                </section>
+
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Race Distribution</h2>
+                    <div class="analytics-chart" id="race-chart"></div>
+                </section>
+
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Level Distribution</h2>
+                    <div class="analytics-chart" id="level-chart"></div>
+                </section>
+
+                <!-- Content Stats -->
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Content Stats</h2>
+                    <div class="analytics-cards" id="content-cards"></div>
+                </section>
+
+                <!-- Recent Characters -->
+                <section class="analytics-section">
+                    <h2 class="analytics-section-title">Recent Characters</h2>
+                    <div class="analytics-table-wrap" id="recent-table"></div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ========================================
+        // Supabase Configuration
+        // ========================================
+        const SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // ========================================
+        // DOM References
+        // ========================================
+        const authScreen = document.getElementById('auth-screen');
+        const dashboard = document.getElementById('dashboard');
+        const authForm = document.getElementById('auth-form');
+        const authError = document.getElementById('auth-error');
+        const authEmail = document.getElementById('auth-email');
+        const authPassword = document.getElementById('auth-password');
+        const authBtnText = document.getElementById('auth-btn-text');
+        const authLoader = document.getElementById('auth-loader');
+        const analyticsLoading = document.getElementById('analytics-loading');
+        const analyticsContent = document.getElementById('analytics-content');
+
+        // ========================================
+        // Authentication
+        // ========================================
+        async function checkAuth() {
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                showDashboard();
+            }
+        }
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            authError.classList.remove('show');
+            authBtnText.textContent = 'Signing in...';
+            authLoader.style.display = 'block';
+
+            const { error } = await db.auth.signInWithPassword({
+                email: authEmail.value.trim(),
+                password: authPassword.value
+            });
+
+            authBtnText.textContent = 'Sign In';
+            authLoader.style.display = 'none';
+
+            if (error) {
+                authError.textContent = error.message;
+                authError.classList.add('show');
+                return;
+            }
+
+            showDashboard();
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            await db.auth.signOut();
+            dashboard.classList.add('hidden');
+            authScreen.style.display = '';
+            authScreen.classList.remove('hidden');
+            authEmail.value = '';
+            authPassword.value = '';
+        });
+
+        function showDashboard() {
+            authScreen.style.display = 'none';
+            dashboard.classList.remove('hidden');
+            loadAnalytics();
+        }
+
+        document.getElementById('refresh-btn').addEventListener('click', loadAnalytics);
+
+        // ========================================
+        // Analytics Data Loading
+        // ========================================
+        async function loadAnalytics() {
+            analyticsLoading.classList.remove('hidden');
+            analyticsContent.classList.add('hidden');
+
+            try {
+                const [worlds, characters, spells, weapons, inventory, features] = await Promise.all([
+                    db.from('game_worlds').select('*').order('created_at', { ascending: false }),
+                    db.from('characters').select('id, name, player_name, race, class, subclass, level, game_world_id, created_at').order('created_at', { ascending: false }),
+                    db.from('spells').select('id', { count: 'exact', head: true }),
+                    db.from('weapons').select('id', { count: 'exact', head: true }),
+                    db.from('inventory_items').select('id', { count: 'exact', head: true }),
+                    db.from('features_traits').select('id', { count: 'exact', head: true })
+                ]);
+
+                const worldsData = worlds.data || [];
+                const charsData = characters.data || [];
+
+                renderOverview(worldsData, charsData);
+                renderWorldsTable(worldsData, charsData);
+                renderDistribution('class-chart', charsData, 'class');
+                renderDistribution('race-chart', charsData, 'race');
+                renderLevelDistribution(charsData);
+                renderContentStats(spells.count, weapons.count, inventory.count, features.count);
+                renderRecentCharacters(charsData, worldsData);
+
+                analyticsLoading.classList.add('hidden');
+                analyticsContent.classList.remove('hidden');
+            } catch (err) {
+                console.error('Failed to load analytics:', err);
+                analyticsLoading.innerHTML = '<p style="color: var(--danger);">Failed to load analytics data.</p>';
+            }
+        }
+
+        // ========================================
+        // Render Functions
+        // ========================================
+        function renderOverview(worlds, chars) {
+            const activeWorlds = worlds.filter(w => w.is_active).length;
+            const uniquePlayers = new Set(chars.map(c => c.player_name.toLowerCase().trim())).size;
+
+            document.getElementById('overview-cards').innerHTML = `
+                ${statCard('Game Worlds', worlds.length, `${activeWorlds} active`)}
+                ${statCard('Characters', chars.length)}
+                ${statCard('Unique Players', uniquePlayers)}
+                ${statCard('Avg Party Size', chars.length && worlds.length ? (chars.length / worlds.length).toFixed(1) : '0')}
+            `;
+        }
+
+        function statCard(label, value, sub) {
+            return `
+                <div class="analytics-stat-card">
+                    <div class="analytics-stat-value">${value}</div>
+                    <div class="analytics-stat-label">${label}</div>
+                    ${sub ? `<div class="analytics-stat-sub">${sub}</div>` : ''}
+                </div>
+            `;
+        }
+
+        function renderWorldsTable(worlds, chars) {
+            const charCounts = {};
+            chars.forEach(c => {
+                charCounts[c.game_world_id] = (charCounts[c.game_world_id] || 0) + 1;
+            });
+
+            const rows = worlds.map(w => `
+                <tr>
+                    <td>${w.name}</td>
+                    <td>${charCounts[w.id] || 0}</td>
+                    <td>${w.leveling_mode || 'milestone'}</td>
+                    <td><span class="analytics-badge ${w.is_active ? 'active' : 'inactive'}">${w.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>${formatDate(w.created_at)}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('worlds-table').innerHTML = `
+                <table class="analytics-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Characters</th>
+                            <th>Leveling</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }
+
+        function renderDistribution(containerId, chars, field) {
+            const counts = {};
+            chars.forEach(c => {
+                const val = c[field] || 'Unknown';
+                counts[val] = (counts[val] || 0) + 1;
+            });
+
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            const max = sorted.length ? sorted[0][1] : 1;
+            const total = chars.length || 1;
+
+            const bars = sorted.map(([name, count]) => `
+                <div class="analytics-bar-row">
+                    <span class="analytics-bar-label">${name}</span>
+                    <div class="analytics-bar-track">
+                        <div class="analytics-bar-fill" style="width: ${(count / max) * 100}%"></div>
+                    </div>
+                    <span class="analytics-bar-value">${count} <span class="analytics-bar-pct">(${Math.round(count / total * 100)}%)</span></span>
+                </div>
+            `).join('');
+
+            document.getElementById(containerId).innerHTML = bars || '<p class="analytics-empty">No data</p>';
+        }
+
+        function renderLevelDistribution(chars) {
+            const counts = {};
+            for (let i = 1; i <= 20; i++) counts[i] = 0;
+            chars.forEach(c => {
+                if (c.level >= 1 && c.level <= 20) counts[c.level]++;
+            });
+
+            const max = Math.max(...Object.values(counts), 1);
+
+            const bars = Object.entries(counts).map(([level, count]) => `
+                <div class="analytics-bar-row">
+                    <span class="analytics-bar-label">Lv ${level}</span>
+                    <div class="analytics-bar-track">
+                        <div class="analytics-bar-fill" style="width: ${(count / max) * 100}%"></div>
+                    </div>
+                    <span class="analytics-bar-value">${count}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('level-chart').innerHTML = bars;
+        }
+
+        function renderContentStats(spells, weapons, inventory, features) {
+            document.getElementById('content-cards').innerHTML = `
+                ${statCard('Spells', spells || 0)}
+                ${statCard('Weapons', weapons || 0)}
+                ${statCard('Inventory Items', inventory || 0)}
+                ${statCard('Features & Traits', features || 0)}
+            `;
+        }
+
+        function renderRecentCharacters(chars, worlds) {
+            const worldMap = {};
+            worlds.forEach(w => worldMap[w.id] = w.name);
+
+            const recent = chars.slice(0, 10);
+            const rows = recent.map(c => `
+                <tr>
+                    <td>${c.name}</td>
+                    <td>${c.player_name}</td>
+                    <td>${c.class}${c.subclass ? ` (${c.subclass})` : ''}</td>
+                    <td>${c.race}</td>
+                    <td>${c.level}</td>
+                    <td>${worldMap[c.game_world_id] || 'Unknown'}</td>
+                    <td>${formatDate(c.created_at)}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('recent-table').innerHTML = `
+                <table class="analytics-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Player</th>
+                            <th>Class</th>
+                            <th>Race</th>
+                            <th>Level</th>
+                            <th>World</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }
+
+        // ========================================
+        // Helpers
+        // ========================================
+        function formatDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        // ========================================
+        // Init
+        // ========================================
+        checkAuth();
+    </script>
+</body>
+</html>
