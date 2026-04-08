@@ -5206,3 +5206,198 @@ body::before {
             opacity: 0.7;
             flex-shrink: 0;
         }
+
+/* ========================================
+   Analytics Dashboard
+======================================== */
+.analytics-main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-md);
+    padding-bottom: var(--space-2xl);
+}
+
+.analytics-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2xl) 0;
+    min-height: 300px;
+}
+
+.analytics-loading p {
+    margin-top: var(--space-md);
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.analytics-section {
+    margin-bottom: var(--space-xl);
+}
+
+.analytics-section-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-md);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Stat Cards */
+.analytics-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+}
+
+@media (min-width: 640px) {
+    .analytics-cards {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.analytics-stat-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    text-align: center;
+}
+
+.analytics-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+}
+
+.analytics-stat-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: var(--space-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.analytics-stat-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Tables */
+.analytics-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.analytics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.analytics-table th {
+    text-align: left;
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-tertiary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-default);
+    white-space: nowrap;
+}
+
+.analytics-table td {
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+}
+
+.analytics-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.analytics-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.analytics-badge.active {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.analytics-badge.inactive {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+/* Bar Charts */
+.analytics-chart {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.analytics-bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.analytics-bar-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    min-width: 100px;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.analytics-bar-track {
+    flex: 1;
+    height: 20px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.analytics-bar-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: var(--radius-sm);
+    min-width: 2px;
+    transition: width 0.4s ease;
+}
+
+.analytics-bar-value {
+    font-size: 13px;
+    color: var(--text-primary);
+    min-width: 60px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.analytics-bar-pct {
+    color: var(--text-tertiary);
+    font-weight: 400;
+}
+
+.analytics-empty {
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: var(--space-md);
+    text-align: center;
+}
