@@ -617,18 +617,18 @@
         if (!d.encounters.length) {
             return `<div class="empty-state">
                         <h3>No encounters yet</h3>
-                        <p>Encounters are built and run in the tracker, which is not rebuilt in this version yet. The classic monster tracker still works.</p>
-                        <a class="btn" href="../monster-tracker.html">Open the classic tracker</a>
+                        <p>Build one from this campaign's monster roster, then run it in the tracker.</p>
+                        <a class="btn btn-accent" href="monster-tracker.html">Open the tracker</a>
                     </div>`;
         }
         return `<div class="stack">${d.encounters.map(e => `
-            <div class="list-row" style="cursor:default">
+            <a class="list-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}">
                 <div class="who">
                     <div class="name">${escapeHtml(e.name)}</div>
                     <div class="meta">${escapeHtml(e.status)}${e.status === 'active' ? ` · round ${e.round || 0}` : ''}</div>
                 </div>
                 ${e.status === 'active' ? '<span class="mono nav-count is-live">LIVE</span>' : ''}
-            </div>`).join('')}</div>`;
+            </a>`).join('')}</div>`;
     }
 
     // ========================================

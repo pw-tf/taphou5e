@@ -159,6 +159,26 @@ FIXTURES = {
         "components": ["V", "S", "M"], "material": "a tiny ball of bat guano",
         "duration": "Instantaneous", "desc": ["A bright streak flashes."],
         "higher_level": ["Damage increases by 1d6."]},
+    "encounters_single": {"id": "e1", "campaign_id": "cam1", "game_world_id": "w1",
+                          "name": "Ambush at the Ford", "status": "planned", "round": 0,
+                          "active_combatant_id": None, "hide_monster_hp": True,
+                          "read_aloud": "Mist hangs over the water.", "area_id": None},
+    "encounter_combatants": [
+        {"id": "cb1", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "character",
+         "character_id": "c2", "campaign_monster_id": None, "npc_id": None,
+         "display_name": "Sythra of the Ninefold Ash", "initiative": 17, "armor_class": 12,
+         "max_hit_points": None, "current_hit_points": None, "temporary_hit_points": None,
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 0},
+        {"id": "cb2", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "monster",
+         "character_id": None, "campaign_monster_id": "m2", "npc_id": None,
+         "display_name": "Gargoyle 1", "initiative": 12, "armor_class": 15,
+         "max_hit_points": 52, "current_hit_points": 52, "temporary_hit_points": 0,
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 1},
+        {"id": "cb3", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "monster",
+         "character_id": None, "campaign_monster_id": "m1", "npc_id": None,
+         "display_name": "Bog Lurker", "initiative": None, "armor_class": 13,
+         "max_hit_points": 44, "current_hit_points": 44, "temporary_hit_points": 0,
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 2}],
     "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
                   "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
                   "encounter_id": None, "campaign_session_id": None,
@@ -371,10 +391,10 @@ async def main():
 
         # ---------- 4. Pending destinations are inert ----------
         pending = await page.locator(".hub-tile.is-pending").count()
-        assert pending == 1, pending                       # only the tracker is left
+        assert pending == 0, pending                       # every hub tile now links somewhere
         assert await page.locator('.hub-tile[href="characters.html"]').count() == 1
-        assert await page.locator('.sidebar-nav a[href="monster-tracker.html"]').count() == 0
-        ok(f"{pending} unbuilt destinations inert; built ones link normally")
+        assert await page.locator('.sidebar-nav a[href="monster-tracker.html"]').count() == 1
+        ok("every hub tile and nav item links to a real page")
 
         # ---------- 5. Mobile ----------
         await page.set_viewport_size({"width": 390, "height": 844})
@@ -862,7 +882,140 @@ async def main():
         assert await page.locator('button:has-text("Add to a campaign")').count() == 0
         ok("players can browse the SRD but not write to a roster")
 
-        # ---------- 28. Router ----------
+        # ---------- 28. Tracker ----------
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "1379")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+        assert await page.locator(".init-row").count() == 3
+        ok("tracker renders every combatant")
+
+        # Sorted by initiative descending; the one with none sorts last.
+        names = [n.strip() for n in await page.locator(".init-name").all_inner_texts()]
+        assert names[0].startswith("Sythra") and names[1].startswith("Gargoyle"), names
+        assert names[2] == "Bog Lurker", names
+        ok(f"combatants sort by initiative, unrolled last ({[n[:9] for n in names]})")
+
+        assert await page.locator(".init-row.is-party").count() == 1
+        ok("the party member is marked")
+
+        # --- Decision 1: a PC's HP comes from the character record ---
+        pc = page.locator('.init-row:has-text("Sythra")')
+        assert (await pc.locator(".hp-value b").inner_text()) == "9", "PC HP must read from characters"
+        assert (await pc.locator(".hp-value .temp").inner_text()) == "+5"
+        ok("a player character's HP is read from their character record, not the combatant row")
+
+        await pc.locator("#amt-cb1").fill("4")
+        await pc.locator(".hp-btn.damage").click()
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        hit = writes[-1]
+        assert hit["table"] == "characters", f"PC damage must write to characters, got {hit}"
+        assert hit["payload"]["current_hit_points"] == 5, hit
+        ok("damaging a player character writes through to characters.current_hit_points")
+
+        assert (await pc.locator(".hp-value b").inner_text()) == "5"
+        ok("the tracker reflects the character record immediately")
+
+        # --- A monster's HP lives on the combatant row ---
+        mob = page.locator('.init-row:has-text("Gargoyle")')
+        await mob.locator("#amt-cb2").fill("60")
+        await mob.locator(".hp-btn.damage").click()
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        hit = writes[-1]
+        assert hit["table"] == "encounter_combatants", hit
+        assert hit["payload"]["current_hit_points"] == 0, hit      # clamped, not negative
+        assert hit["payload"]["is_defeated"] is True, hit
+        ok("monster damage writes to the combatant row, clamps at zero and marks it down")
+
+        assert await page.locator(".init-row.is-dead").count() == 1
+        ok("a downed combatant dims rather than disappearing")
+
+        # ---------- 29. Turn order ----------
+        await page.click('button:has-text("Roll initiative")')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        rolled = [w for w in writes if w["table"] == "encounter_combatants"
+                  and "initiative" in (w["payload"] or {})]
+        assert len(rolled) == 1, "only the combatant without an initiative should be rolled"
+        assert 1 <= rolled[-1]["payload"]["initiative"] <= 20, rolled[-1]
+        ok("rolling initiative only fills the blanks")
+
+        await page.click('button:has-text("Start encounter")')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        started = [w for w in writes if w["table"] == "encounters"][-1]
+        assert started["payload"]["status"] == "active" and started["payload"]["round"] == 1, started
+        assert started["payload"]["active_combatant_id"], started
+        ok("starting an encounter sets round 1 and the first turn")
+
+        assert await page.locator(".init-row.is-active").count() == 1
+        assert "ROUND 1" in await page.locator(".round-pill").inner_text()
+        ok("the active combatant is highlighted and the round shows")
+
+        # Two live combatants remain (the Gargoyle is down), so the second
+        # Next turn wraps and increments the round.
+        await page.click('button:has-text("Next turn")')
+        await page.wait_for_timeout(500)
+        await page.click('button:has-text("Next turn")')
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        turn = [w for w in writes if w["table"] == "encounters"][-1]
+        assert turn["payload"]["round"] == 2, turn
+        ok("the turn order skips the downed combatant and wraps into round 2")
+
+        # ---------- 30. Conditions ----------
+        await page.locator('.init-row:has-text("Sythra") .init-name').click()
+        await page.wait_for_selector(".init-detail", timeout=5000)
+        await page.click('.init-detail .condition-tag:has-text("Prone")')
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        cond = [w for w in writes if w["table"] == "encounter_combatants"][-1]
+        assert cond["payload"]["conditions"] == ["Prone"], cond
+        ok("conditions persist to the combatant row")
+
+        await page.screenshot(path="/tmp/shot-11-tracker.png", full_page=True)
+
+        # ---------- 31. Mobile ----------
+        await page.set_viewport_size({"width": 390, "height": 844})
+        await page.wait_for_timeout(400)
+        overflow = await page.evaluate(
+            "document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 0, f"tracker overflows at 390px by {overflow}px"
+        ok(f"tracker has no horizontal scroll at 390px ({overflow}px)")
+        await page.screenshot(path="/tmp/shot-12-tracker-mobile.png", full_page=True)
+        await page.set_viewport_size({"width": 1280, "height": 900})
+
+        # ---------- 32. Player view: hidden monster HP ----------
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "5555")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+
+        # hide_monster_hp is on, so a player sees the order but not monster HP --
+        # and still sees their own party's, which is never hidden.
+        mob = page.locator('.init-row:has-text("Gargoyle")')
+        assert await mob.locator(".hp-value").count() == 0, "monster HP must be hidden from players"
+        assert "hidden" in (await mob.locator(".init-hp").inner_text()).lower()
+        pc = page.locator('.init-row:has-text("Sythra")')
+        assert await pc.locator(".hp-value").count() == 1, "party HP stays visible"
+        ok("players see the initiative order and party HP, but not monster HP")
+
+        assert await page.locator(".hp-btn").count() == 0
+        assert await page.locator('button:has-text("Next turn")').count() == 0
+        ok("players get no combat controls")
+
+        # ---------- 33. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)
