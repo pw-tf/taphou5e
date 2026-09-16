@@ -822,18 +822,53 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 
 | Built | Not yet |
 |---|---|
-| Shell, tokens, theme control, root router | DM panel |
-| Login and world creation on the RPCs | Character creation (still classic — it drives the level-up engine) |
-| Overview hub | Campaign checks: rendered, but only creatable in SQL |
-| Party roster | Encounter ↔ storyline beat linking |
+| Shell, tokens, theme control, root router | **Character creation and levelling up** — both still classic |
+| Login and world creation on the RPCs | Encounter ↔ storyline beat linking |
+| Overview hub | Encounter sharing (the classic seed code) |
+| Party roster | |
 | Character sheet: six tabs, HP controls, rests, conditions, detail pane | |
 | Campaigns list, campaign detail with seven tabs | |
 | Party membership: pull from world, remove, re-add | |
 | Reveal toggles and DM notes on every hideable row | |
 | Compendium: SRD browse, add to roster, homebrew | |
-| Encounter tracker: initiative, turns, HP, conditions, persistence | |
+| Encounter tracker at parity with the classic version | |
+| DM panel: levelling mode, milestone and EXP grants | |
+| Check authoring on beats and areas | |
 
-Every hub tile and navigation item now links to a real page.
+Every hub tile and navigation item links to a real page.
+
+### 11.3c DM panel
+
+Matches the classic panel's write semantics, because both versions write the
+same columns: milestone grants set `level + 1` and `pending_level_up`; EXP grants
+add to `experience_points` and recompute the level from the 5e thresholds,
+setting `pending_level_up` **only if the level actually moved**.
+
+Two things worth recording:
+
+- **The classic level-up wizard reads `localStorage['preGrantLevel_<id>']`** to
+  know the range to walk, written before the grant. v2 writes the same key. It
+  is per-device, so it only helps when the same browser grants and then runs the
+  wizard — a limitation of the classic design, not something introduced here.
+- **v2 has no level-up wizard.** It lives in `level-up-engine.js` and
+  `feature-registry.js`, which pick new features and hit points. So v2 grants the
+  level and flags it, and the panel says plainly that levelling finishes in the
+  classic version rather than leaving a player wondering why nothing happened.
+
+The page guards itself rather than relying on the nav hiding it: a player
+reaching `/v2/dm-panel.html` by URL gets an explanation and no controls.
+
+### 11.3d Check authoring
+
+`campaign_checks` had a schema and a renderer but no way to create a row outside
+SQL. Checks can now be added to a storyline beat or to an area — a trap needs no
+beat — with the type, DC, outcome text and the secret and group flags.
+
+The form sends only the field its type uses: a skill check stores `skill_name`
+and leaves `ability` null, a saving throw the reverse. That is what
+`campaign_checks_shape` requires, and it stops a stale select from landing a
+contradictory row. The DC range is checked before the insert rather than letting
+the column constraint produce an opaque failure.
 
 Unbuilt destinations render as inert rows marked "soon" rather than links, so
 the nav shows the shape of the finished app without pointing at a 404.
@@ -938,6 +973,21 @@ planning tool; initiative is a combat one.
 SRD access, hit point rolling and armor-class normalisation moved into `core.js`
 so the tracker and Compendium share one cache — two copies would have meant two
 sets of requests to a free public API.
+
+### 11.3a3 Encounter fixes before merge
+
+- **The search box kept the fragment that was typed.** Picking Bandit after
+  typing "ban" added the right creature but left the box reading "ban", which
+  looked like the pick had not registered. It now shows the chosen name.
+- **A colour marks a set, not a row.** Four monsters added in one colour were
+  drawing four separate stripes. Same-coloured combatants now gather into one
+  bordered block, and rows inside it drop their individual stripe — one border,
+  not four. A lone coloured combatant gets no box, since there is no set to mark.
+
+Colour blocks follow the same rule as groups: they apply while preparing, and a
+running encounter goes flat in initiative order with the colour back to a
+per-row stripe. Anything that reorders the list has to stand down once turn
+order matters.
 
 ### 11.3b Review fixes
 

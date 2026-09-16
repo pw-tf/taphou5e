@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 114 assertions.
+version router. 132 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -66,6 +66,12 @@ at it directly — edit `CHROME` at the top of the file, or run
   rolled hit points, initiative including the dexterity modifier, an unknown SRD
   monster creating its roster row automatically, colour stripes, collapsible
   groups, notes and inline armor class editing
+- The DM panel: milestone grants writing level and the pending flag, the
+  pre-grant level recorded for the classic wizard, the mode toggle, EXP crossing
+  a threshold levelling a character and EXP short of one not, and a player
+  reaching the page by URL getting nothing to act on
+- Check authoring: attaching to exactly one parent, sending only the field the
+  check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no

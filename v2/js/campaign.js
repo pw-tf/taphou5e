@@ -345,6 +345,75 @@
     // Storylines
     // ========================================
 
+    const SKILL_NAMES = ['Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
+        'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine', 'Nature', 'Perception',
+        'Performance', 'Persuasion', 'Religion', 'Sleight of Hand', 'Stealth', 'Survival'];
+    const ABILITY_CODES = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+
+    // campaign_checks can hang off a beat, an area, an NPC or an encounter --
+    // exactly one, enforced by check constraint. The caller says which.
+    window.newCheck = (parentColumn, parentId, contextLabel) => {
+        openModal({
+            title: `New check — ${contextLabel}`,
+            submitLabel: 'Add check',
+            fields: [
+                { name: 'label', label: 'What is being attempted', required: true,
+                  placeholder: 'Spot the tripwire' },
+                { name: 'check_type', label: 'Type', type: 'select', value: 'skill_check',
+                  options: [
+                      { value: 'skill_check', label: 'Skill check' },
+                      { value: 'ability_check', label: 'Ability check' },
+                      { value: 'saving_throw', label: 'Saving throw' },
+                      { value: 'contested', label: 'Contested' }
+                  ] },
+                { name: 'skill_name', label: 'Skill (for a skill check)', type: 'select', value: 'Perception',
+                  options: SKILL_NAMES.map(n => ({ value: n, label: n })) },
+                { name: 'ability', label: 'Ability (for an ability check or save)', type: 'select', value: 'dex',
+                  options: ABILITY_CODES.map(a => ({ value: a, label: a.toUpperCase() })) },
+                { name: 'dc', label: 'DC', type: 'number', value: 12, hint: 'Between 1 and 40.' },
+                { name: 'success_text', label: 'On a success', type: 'textarea', rows: 2 },
+                { name: 'failure_text', label: 'On a failure', type: 'textarea', rows: 2 },
+                { name: 'is_secret', type: 'checkbox', label: '',
+                  checkboxLabel: 'Secret — you roll it, the party does not know', value: false },
+                { name: 'is_group_check', type: 'checkbox', label: '',
+                  checkboxLabel: 'Group check', value: false }
+            ],
+            onSubmit: async values => {
+                const dc = Number(values.dc);
+                if (!Number.isFinite(dc) || dc < 1 || dc > 40) {
+                    throw new Error('DC must be between 1 and 40.');
+                }
+                // The shape constraint wants the field its type actually uses,
+                // and nothing else, so a stale select never lands in the row.
+                const payload = {
+                    campaign_id: campaignId,
+                    game_world_id: session.gameWorldId,
+                    [parentColumn]: parentId,
+                    label: values.label,
+                    check_type: values.check_type,
+                    dc,
+                    skill_name: values.check_type === 'skill_check' ? values.skill_name : null,
+                    ability: (values.check_type === 'ability_check' || values.check_type === 'saving_throw')
+                        ? values.ability : null,
+                    success_text: values.success_text || null,
+                    failure_text: values.failure_text || null,
+                    is_secret: values.is_secret,
+                    is_group_check: values.is_group_check,
+                    sort_order: d.checks.length
+                };
+                const { error } = await db.from('campaign_checks').insert(payload);
+                if (error) throw new Error(error.message || 'Could not add that check.');
+                await refresh();
+            }
+        });
+    };
+
+    window.deleteCheck = async id => {
+        if (await run(db.from('campaign_checks').delete().eq('id', id), 'Could not remove that check.')) {
+            await refresh();
+        }
+    };
+
     function checkRow(check) {
         const what = check.check_type === 'skill_check'
             ? check.skill_name
@@ -356,6 +425,8 @@
                 <span>${escapeHtml(what || '')} ${kind}</span>
                 <span style="flex:1;min-width:0;color:var(--text-tertiary)">${escapeHtml(check.label)}</span>
                 ${check.is_secret ? '<span class="hidden-pill">secret</span>' : ''}
+                ${isDM ? `<button class="btn btn-quiet btn-tiny"
+                                  onclick="deleteCheck('${check.id}')">Remove</button>` : ''}
             </div>`;
     }
 
@@ -399,6 +470,9 @@
                                         </div>
                                         ${b.read_aloud ? `<p class="prose">${escapeHtml(b.read_aloud)}</p>` : ''}
                                         ${bChecks.map(checkRow).join('')}
+                                        ${isDM ? `<button class="btn btn-quiet btn-tiny" style="align-self:flex-start"
+                                                    onclick="newCheck('storyline_beat_id','${b.id}',${
+                                                        JSON.stringify(b.title).replace(/"/g, '&quot;')})">Add check</button>` : ''}
                                         ${dmNoteBlock('storyline_beat_id', b.id, b.title)}
                                     </div>`;
                             }).join('')}
@@ -473,6 +547,10 @@
                         ${isDM ? `<button class="btn btn-quiet btn-tiny" onclick="newArea('${area.id}')">Add inside</button>` : ''}
                     </div>
                     ${area.description ? `<p class="prose">${escapeHtml(area.description)}</p>` : ''}
+                    ${d.checks.filter(k => k.area_id === area.id).map(checkRow).join('')}
+                    ${isDM ? `<button class="btn btn-quiet btn-tiny" style="align-self:flex-start"
+                                onclick="newCheck('area_id','${area.id}',${
+                                    JSON.stringify(area.name).replace(/"/g, '&quot;')})">Add check</button>` : ''}
                     ${dmNoteBlock('area_id', area.id, area.name)}
                 </div>
                 ${children.map(child => areaNode(child, depth + 1)).join('')}

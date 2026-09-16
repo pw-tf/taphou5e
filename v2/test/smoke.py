@@ -21,7 +21,8 @@ FIXTURES = {
          "subclass": "Champion", "level": 5, "armor_class": 18, "speed": 30,
          "initiative_bonus": 2, "proficiency_bonus": 3,
          "current_hit_points": 44, "hit_point_maximum": 44, "temporary_hit_points": 0,
-         "active_conditions": [], "pending_level_up": False,
+         "active_conditions": [], "pending_level_up": False, "race": "Human",
+         "experience_points": 14000,
          "ability_scores": {"dexterity": 14, "wisdom": 12}},
         {"id": "c2", "name": "Sythra of the Ninefold Ash", "player_name": "Priya",
          "class": "Wizard", "subclass": None, "level": 5, "armor_class": 12, "speed": 30,
@@ -33,7 +34,8 @@ FIXTURES = {
          "subclass": None, "level": 4, "armor_class": 15, "speed": 40,
          "initiative_bonus": 1, "proficiency_bonus": 2,
          "current_hit_points": 22, "hit_point_maximum": 52, "temporary_hit_points": 0,
-         "active_conditions": [], "pending_level_up": True,
+         "active_conditions": [], "pending_level_up": True, "race": "Goliath",
+         "experience_points": 6000,
          "ability_scores": {"dexterity": 12, "wisdom": 10}},
         {"id": "c4", "name": "Wisp", "player_name": "Alex", "class": "Rogue",
          "subclass": None, "level": 5, "armor_class": 16, "speed": 30,
@@ -43,6 +45,7 @@ FIXTURES = {
          "ability_scores": {"dexterity": 18, "wisdom": 13}},
     ],
     "campaigns": [{"id": "cam1", "name": "The Drowned Road", "status": "active", "is_default": True}],
+    "game_worlds_single": {"id": "w1", "name": "Thornfell Reach", "leveling_mode": "milestone"},
     "characters_single": {
         "id": "c2", "game_world_id": "w1", "name": "Sythra of the Ninefold Ash",
         "player_name": "Priya", "race": "Elf", "class": "Wizard", "subclass": None, "level": 5,
@@ -184,7 +187,13 @@ FIXTURES = {
          "display_name": "Gargoyle 2", "initiative": 8, "armor_class": 15,
          "max_hit_points": 48, "current_hit_points": 30, "temporary_hit_points": 0,
          "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 3,
-         "color": "#3d5a72", "group_label": "Wave 2", "notes": "Holds the far bank."}],
+         "color": "#3d5a72", "group_label": "Wave 2", "notes": "Holds the far bank."},
+        {"id": "cb5", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "monster",
+         "character_id": None, "campaign_monster_id": "m2", "npc_id": None,
+         "display_name": "Gargoyle 3", "initiative": 7, "armor_class": 15,
+         "max_hit_points": 48, "current_hit_points": 48, "temporary_hit_points": 0,
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 4,
+         "color": "#3d5a72", "group_label": "Wave 2"}],
     "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
                   "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
                   "encounter_id": None, "campaign_session_id": None,
@@ -898,7 +907,7 @@ async def main():
 
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        assert await page.locator(".init-row").count() == 4
+        assert await page.locator(".init-row").count() == 5
         ok("tracker renders every combatant")
 
         # Sorted by initiative descending; the one with none sorts last.
@@ -1214,7 +1223,7 @@ async def main():
         # ungrouped rows last, as the classic tracker does.
         head = page.locator('.enc-group h2:has-text("Wave 2")')
         assert await head.count() == 1, "grouped rows need a heading"
-        assert "1/1" in await head.inner_text()
+        assert "2/2" in await head.inner_text()
         ok("grouped combatants gather under a collapsible heading with a live count")
 
         await head.click()
@@ -1226,9 +1235,12 @@ async def main():
 
         coloured = page.locator('.init-row:has-text("Gargoyle 2")')
         assert "has-color" in await coloured.get_attribute("class")
-        border = await coloured.evaluate("el => getComputedStyle(el).borderLeftColor")
+        # While preparing, the colour boxes the whole set rather than striping
+        # each row -- see the dedicated block assertions further down.
+        border = await page.locator(".colour-block").evaluate(
+            "el => getComputedStyle(el).borderTopColor")
         assert border == "rgb(61, 90, 114)", border      # #3d5a72
-        ok(f"an assigned colour renders as a left stripe ({border})")
+        ok(f"an assigned colour renders on the block containing its set ({border})")
 
         assert "Holds the far bank." in await coloured.locator(".init-note").inner_text()
         ok("a combatant note renders on its row")
@@ -1250,7 +1262,206 @@ async def main():
 
         await page.screenshot(path="/tmp/shot-15-groups.png", full_page=True)
 
-        # ---------- 36. Router ----------
+        # ---------- 36. DM panel ----------
+        await page.goto(f"{BASE}/v2/dm-panel.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".dm-row", timeout=10000)
+        assert await page.locator(".dm-row").count() == 4
+        ok("DM panel lists every character in the world")
+
+        assert await page.locator('.dm-row:has-text("Korr") .tag-accent').count() == 1
+        banner = await page.locator(".error-banner").inner_text()
+        assert "level waiting" in banner and "classic version" in banner, banner
+        ok("characters owed a level are flagged, and the panel says where levelling finishes")
+
+        # Milestone: granting sets the level and the pending flag, and records
+        # the pre-grant level for the classic wizard.
+        await page.evaluate("localStorage.removeItem('preGrantLevel_c1')")
+        await page.click('.dm-row:has-text("Brannor") button:has-text("Grant level")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+
+        writes = await page.evaluate("window.__writes")
+        grant = [w for w in writes if w["table"] == "characters"][-1]
+        assert grant["payload"] == {"level": 6, "pending_level_up": True}, grant
+        ok("a milestone grant writes level + 1 and the pending flag")
+
+        pre = await page.evaluate("localStorage.getItem('preGrantLevel_c1')")
+        assert pre == "5", pre
+        ok("the pre-grant level is recorded for the classic level-up wizard")
+
+        # Switching mode writes to the world, as the classic panel does.
+        await page.click('button:has-text("EXP")')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        mode_write = [w for w in writes if w["table"] == "game_worlds"][-1]
+        assert mode_write["payload"]["leveling_mode"] == "exp", mode_write
+        ok("the levelling mode toggle writes to the world")
+
+        await page.wait_for_selector(".dm-row-exp", timeout=5000)
+        korr = page.locator('.dm-row:has-text("Korr")')
+        assert "6,000 / 6,500 XP" in await korr.inner_text()
+        ok("EXP mode shows progress toward the next threshold")
+
+        # 6000 + 1000 crosses the level 5 threshold of 6500.
+        await korr.locator("input").fill("1000")
+        await korr.locator('button:has-text("Grant")').click()
+        await page.wait_for_timeout(800)
+        writes = await page.evaluate("window.__writes")
+        exp_grant = [w for w in writes if w["table"] == "characters"][-1]
+        assert exp_grant["payload"]["experience_points"] == 7000, exp_grant
+        assert exp_grant["payload"]["level"] == 5, exp_grant
+        assert exp_grant["payload"]["pending_level_up"] is True, exp_grant
+        ok("granting EXP across a threshold levels the character and flags them")
+
+        # Below a threshold, no level change and no flag.
+        await page.evaluate("window.__writes = []")
+        brannor = page.locator('.dm-row:has-text("Brannor")')
+        await brannor.locator("input").fill("10")
+        await brannor.locator('button:has-text("Grant")').click()
+        await page.wait_for_timeout(800)
+        writes = await page.evaluate("window.__writes")
+        small = [w for w in writes if w["table"] == "characters"][-1]
+        assert "level" not in small["payload"], small
+        assert "pending_level_up" not in small["payload"], small
+        ok("EXP short of a threshold changes nothing but the total")
+
+        await page.screenshot(path="/tmp/shot-16-dm.png", full_page=True)
+
+        # The page is reachable by URL, so it guards itself rather than relying
+        # on the nav hiding it.
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "5555")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        await page.goto(f"{BASE}/v2/dm-panel.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".empty-state", timeout=8000)
+        assert "DM only" in await page.locator(".empty-state").inner_text()
+        assert await page.locator(".dm-row").count() == 0
+        ok("a player reaching the DM panel by URL gets nothing to act on")
+
+        # ---------- 37. Check authoring ----------
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "1379")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+        await page.click('.campaign-tabs button:has-text("Storylines")')
+        await page.wait_for_timeout(400)
+
+        await page.click('.beat-list button:has-text("Add check")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        await page.fill("#mf-label", "Hear the bowstring")
+        await page.fill("#mf-dc", "15")
+        await page.check("#mf-is_secret")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(800)
+
+        writes = await page.evaluate("window.__writes")
+        check = [w for w in writes if w["table"] == "campaign_checks" and w["verb"] == "insert"][-1]
+        p_ = check["payload"]
+        # Only the one parent column is sent; the rest default to NULL.
+        assert p_["storyline_beat_id"] and p_.get("area_id") is None, p_
+        assert p_["label"] == "Hear the bowstring" and p_["dc"] == 15, p_
+        assert p_["is_secret"] is True, p_
+        ok("a check can be authored on a beat, attached to exactly one parent")
+
+        # The shape constraint wants the field the type uses and nothing else.
+        assert p_["check_type"] == "skill_check", p_
+        assert p_["skill_name"] == "Perception" and p_["ability"] is None, p_
+        ok("a skill check stores its skill and leaves the ability null")
+
+        # Out-of-range DCs are caught before the insert, since the column has a
+        # between-1-and-40 constraint.
+        await page.click('.beat-list button:has-text("Add check")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        await page.fill("#mf-label", "Impossible")
+        await page.fill("#mf-dc", "99")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(400)
+        assert not await page.locator(".modal-error").is_hidden()
+        assert "between 1 and 40" in await page.locator(".modal-error").inner_text()
+        ok("a DC outside the allowed range is refused before it reaches the database")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+
+        # Areas can carry a check too -- a trap needs no storyline beat.
+        await page.click('.campaign-tabs button:has-text("Areas")')
+        await page.wait_for_timeout(400)
+        assert await page.locator('button:has-text("Add check")').count() >= 1
+        await page.locator('button:has-text("Add check")').first.click()
+        await page.wait_for_selector(".modal", timeout=5000)
+        await page.fill("#mf-label", "Notice the flooding")
+        await page.select_option("#mf-check_type", "saving_throw")
+        await page.select_option("#mf-ability", "con")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(800)
+        writes = await page.evaluate("window.__writes")
+        area_check = [w for w in writes if w["table"] == "campaign_checks" and w["verb"] == "insert"][-1]
+        assert area_check["payload"]["area_id"], area_check
+        assert area_check["payload"].get("storyline_beat_id") is None, area_check
+        assert area_check["payload"]["ability"] == "con", area_check
+        assert area_check["payload"]["skill_name"] is None, area_check
+        ok("a saving throw on an area stores its ability and leaves the skill null")
+
+        # ---------- 38. Encounter quick fixes ----------
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+
+        # A colour marks a set, so the two Gargoyles sharing one sit inside a
+        # single bordered block rather than each carrying its own stripe.
+        block = page.locator(".colour-block")
+        assert await block.count() == 1, await block.count()
+        assert await block.locator(".init-row").count() == 2
+        border = await block.evaluate("el => getComputedStyle(el).borderTopColor")
+        assert border == "rgb(61, 90, 114)", border
+        ok("combatants sharing a colour box together under one border")
+
+        inner = await block.locator(".init-row").first.evaluate(
+            "el => getComputedStyle(el).borderLeftWidth")
+        assert inner == "1px", f"rows inside the block should drop their own stripe: {inner}"
+        ok("rows inside a colour block drop their individual stripe")
+
+        # Picking a suggestion must put the chosen name in the box, not leave
+        # the fragment that was typed.
+        await page.click('.topbar button:has-text("Add monsters")')
+        await page.wait_for_selector("#add-search", timeout=5000)
+        await page.fill("#add-search", "gob")
+        await page.wait_for_timeout(400)
+        await page.click('.add-suggestion:has-text("Goblin")')
+        await page.wait_for_selector("#add-config:not(.hidden)", timeout=5000)
+        assert (await page.input_value("#add-search")) == "Goblin", \
+            await page.input_value("#add-search")
+        ok("picking a suggestion fills the search box with the chosen name")
+
+        # A single creature is not numbered; numbering starts at two.
+        assert (await page.locator(".add-hp-row label").first.inner_text()).strip() == "Goblin"
+        await page.fill("#add-count", "2")
+        await page.wait_for_timeout(300)
+        labels = [t.strip() for t in await page.locator(".add-hp-row label").all_inner_texts()]
+        assert labels == ["Goblin 1", "Goblin 2"], labels
+        ok("the hit point rows use the chosen name, numbered only when there are several")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+
+        # Once running, the list goes flat and the colour returns to a stripe,
+        # so turn order is never reshuffled by a colour.
+        await page.click('.topbar button:has-text("Roll initiative")')
+        await page.wait_for_timeout(500)
+        await page.click('.topbar button:has-text("Start encounter")')
+        await page.wait_for_timeout(700)
+        assert await page.locator(".colour-block").count() == 0, "colour blocks are a planning view"
+        assert await page.locator(".init-row.has-color").count() == 2
+        ok("a running encounter keeps flat initiative order with per-row colour stripes")
+
+        await page.screenshot(path="/tmp/shot-17-colour.png", full_page=True)
+
+        # ---------- 39. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

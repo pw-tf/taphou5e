@@ -414,6 +414,10 @@
                                                     armor_class: 10, max_hit_points: 10 };
                                 addState.detail = null;
                             }
+                            // The box still held the fragment that was typed
+                            // ("ban"), which then read as the chosen creature's
+                            // name. Show what was actually picked.
+                            addState.query = addState.picked.name;
                             addState.rolls = [];
                             redraw();
                         });
@@ -634,6 +638,36 @@
 
     const collapsed = new Set();
 
+    // A colour is a marker for a set of combatants -- "the red ones are the
+    // archers" -- not a decoration on one row. So same-coloured rows gather
+    // into a single bordered block rather than each carrying its own stripe.
+    // Adding four goblins in one colour therefore reads as one block of four.
+    //
+    // This only applies while preparing. Once the encounter is running the list
+    // is flat in initiative order and the colour goes back to a per-row stripe,
+    // for the same reason groups do: turn order must not be reshuffled.
+    function colourBlocks(rows) {
+        const coloured = rows.filter(r => r.color);
+        const plain = rows.filter(r => !r.color);
+
+        const byColour = new Map();
+        coloured.forEach(r => {
+            if (!byColour.has(r.color)) byColour.set(r.color, []);
+            byColour.get(r.color).push(r);
+        });
+
+        const blocks = Array.from(byColour.entries()).map(([color, group]) => {
+            // A lone coloured combatant needs no box around it.
+            if (group.length === 1) return initRow(group[0]);
+            return `
+                <div class="colour-block" style="--block-color:${escapeHtml(color)}">
+                    ${group.map(initRow).join('')}
+                </div>`;
+        });
+
+        return blocks.join('') + plain.map(initRow).join('');
+    }
+
     // Rows carrying a group label gather under a collapsible heading, with
     // ungrouped rows last -- the same shape as the classic tracker.
     //
@@ -657,7 +691,7 @@
 
         return keys.map(key => {
             const rows = groups.get(key);
-            if (!key) return `<div class="enc-group">${rows.map(initRow).join('')}</div>`;
+            if (!key) return `<div class="enc-group">${colourBlocks(rows)}</div>`;
             const isCollapsed = collapsed.has(key);
             const alive = rows.filter(r => !r.is_defeated).length;
             return `
@@ -667,7 +701,7 @@
                         ${escapeHtml(key)}
                         <span class="mono group-count">${alive}/${rows.length}</span>
                     </h2>
-                    ${isCollapsed ? '' : rows.map(initRow).join('')}
+                    ${isCollapsed ? '' : colourBlocks(rows)}
                 </div>`;
         }).join('');
     }
