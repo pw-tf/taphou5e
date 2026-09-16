@@ -549,6 +549,45 @@ would have broken that `select('*')`, which is why relocation is the better shap
 UPDATE and DELETE from anyone, and the 11 character tables remain fully open. Neither is new, and
 neither is made worse by this design.
 
+### 5.6 Transition state (applied 2026-09-16)
+
+The PIN relocation is deliberately **half-applied**, and stays that way until the new `login.js` is
+confirmed live. What is in place now:
+
+- `game_world_secrets` exists and holds all 191 rows.
+- **`game_worlds.dm_pin_hash` and `player_pin_hash` still exist and are still populated.**
+- A trigger, `sync_game_world_secrets_trg`, mirrors any write to those columns into
+  `game_world_secrets`.
+- `world_login` and `world_create` are live; `world_create` writes the legacy columns too.
+
+This makes the cutover **bidirectionally safe**. Both clients work at once:
+
+| | reads | works? |
+|---|---|---|
+| Old `login.js` (on main) | `game_worlds.*_pin_hash` | yes — columns still there |
+| New `login.js` (on the branch) | `world_login` RPC → `game_world_secrets` | yes |
+
+A world created by either client is loginable from the other: the old path inserts the columns and the
+trigger mirrors them; the new path writes both directly. Rolling back is just pointing GitHub Pages
+back at main — no database change required.
+
+**The secret is not yet protected.** The hashes remain readable on `game_worlds` until step 5, so DM
+PINs are still recoverable by lookup for now. Decision 3 only takes effect when those columns drop.
+
+### 5.7 Cutover checklist
+
+1. ✅ `game_world_secrets` created and populated, sync trigger live
+2. ✅ `world_login` / `world_create` created, rate limited, round-trip tested
+3. ✅ New `login.js` written to the branch
+4. ⬜ **Deploy**: point GitHub Pages at the branch, **root folder — not `/docs`**, which now exists
+5. ⬜ **Verify** against the live site: DM login, player login, wrong PIN, world creation, and a login
+   from a world created on main during the window
+6. ⬜ Merge the branch to main and point Pages back
+7. ⬜ **Only then**: drop the two columns, the sync trigger, and its function
+
+Step 7 is the irreversible one and the only step that must not run early. Dropping those columns while
+main still serves the old `login.js` locks every user out of all 191 worlds.
+
 ---
 
 ## 6. Resolved design tensions

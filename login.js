@@ -12,13 +12,19 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
-// Simple SHA-256 hash function for PINs
-async function hashPIN(pin) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(pin);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// PINs are verified server-side by the world_login / world_create functions.
+// The stored hash is never sent to the client, so it cannot be read back and
+// reversed -- a 4-digit PIN is only 10,000 values.
+function loginErrorMessage(code) {
+    switch (code) {
+        case 'not_found':       return 'Game world not found';
+        case 'bad_pin':         return 'Incorrect PIN';
+        case 'rate_limited':    return 'Too many attempts. Please wait 15 minutes and try again.';
+        case 'name_taken':      return 'Game world name already exists';
+        case 'bad_name':        return 'Game world name must be 3-50 characters';
+        case 'pins_identical':  return 'DM and Player PINs must be different';
+        default:                return 'An error occurred. Please try again.';
+    }
 }
 
 function showError(elementId, message) {
@@ -259,41 +265,36 @@ async function handleJoinSubmit(e) {
     if (loader) loader.style.display = 'inline-block';
     
     try {
-        // Hash the PIN
-        const pinHash = await hashPIN(pin);
-        
-        // Fetch game world
-        const { data: gameWorld, error } = await db
-            .from('game_worlds')
-            .select('*')
-            .eq('name', worldName)
-            .eq('is_active', true)
-            .single();
+        // The PIN is checked on the server, which also decides the role.
+        const { data: result, error } = await db.rpc('world_login', {
+            p_world_name: worldName,
+            p_pin: pin
+        });
         
         if (error) {
-            console.error('Error fetching game world:', error);
-            showError('join-error', 'Game world not found');
+            console.error('Login failed:', error);
+            showError('join-error', 'An error occurred. Please try again.');
             return;
         }
         
-        // Auto-detect role based on PIN
-        let role = null;
-        if (pinHash === gameWorld.dm_pin_hash) {
-            role = 'dm';
-        } else if (pinHash === gameWorld.player_pin_hash) {
-            role = 'player';
-        } else {
-            showError('join-error', 'Incorrect PIN');
+        if (!result || !result.ok) {
+            showError('join-error', loginErrorMessage(result && result.error));
             return;
         }
         
         // Create session
         const session = {
-            gameWorldId: gameWorld.id,
-            gameWorldName: gameWorld.name,
-            role: role,
+            gameWorldId: result.game_world_id,
+            gameWorldName: result.game_world_name,
+            role: result.role,
             timestamp: Date.now()
         };
+        
+        // A DM carries a short-lived token that unlocks the private campaign
+        // data for their own world. Players are issued none.
+        if (result.dm_token) {
+            session.dmToken = result.dm_token;
+        }
         
         // Store session
         if (remember) {
@@ -364,40 +365,37 @@ async function handleCreateSubmit(e) {
     if (loader) loader.style.display = 'inline-block';
     
     try {
-        // Hash PINs
-        const dmPinHash = await hashPIN(dmPin);
-        const playerPinHash = await hashPIN(playerPin);
-        
-        // Create game world
-        const { data: gameWorld, error } = await db
-            .from('game_worlds')
-            .insert({
-                name: worldName,
-                description: description || null,
-                dm_pin_hash: dmPinHash,
-                player_pin_hash: playerPinHash,
-                leveling_mode: levelingMode
-            })
-            .select()
-            .single();
+        // The server hashes the PINs and re-checks the same validation rules.
+        const { data: result, error } = await db.rpc('world_create', {
+            p_name: worldName,
+            p_description: description || null,
+            p_leveling_mode: levelingMode,
+            p_dm_pin: dmPin,
+            p_player_pin: playerPin
+        });
         
         if (error) {
-            if (error.code === '23505') { // Unique constraint violation
-                showError('create-error', 'Game world name already exists');
-            } else {
-                console.error('Error creating game world:', error);
-                showError('create-error', 'Failed to create game world');
-            }
+            console.error('Error creating game world:', error);
+            showError('create-error', 'Failed to create game world');
+            return;
+        }
+        
+        if (!result || !result.ok) {
+            showError('create-error', loginErrorMessage(result && result.error));
             return;
         }
         
         // Create DM session
         const session = {
-            gameWorldId: gameWorld.id,
-            gameWorldName: gameWorld.name,
+            gameWorldId: result.game_world_id,
+            gameWorldName: result.game_world_name,
             role: 'dm',
             timestamp: Date.now()
         };
+        
+        if (result.dm_token) {
+            session.dmToken = result.dm_token;
+        }
         
         // Store session
         if (remember) {
