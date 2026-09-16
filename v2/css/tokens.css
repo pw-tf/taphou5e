@@ -1,0 +1,170 @@
+/* ==========================================================================
+   Ember — design tokens for taphou5e
+   Theme: <html data-theme="dark"> | "light" | absent = follow system
+   Drop-in replacement for the :root block at the top of styles.css.
+   Variable NAMES match the current styles.css so most rules keep working.
+   ========================================================================== */
+
+:root {
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', var(--font-sans);
+  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', Consolas, monospace;
+
+  /* Type scale (px) */
+  --fs-9: 9px;   --fs-10: 10px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px;
+  --fs-14: 14px; --fs-15: 15px; --fs-16: 16px; --fs-17: 17px; --fs-19: 19px;
+  --fs-21: 21px; --fs-24: 24px; --fs-30: 30px; --fs-32: 32px;
+
+  /* Spacing */
+  --space-xs: 4px; --space-sm: 8px; --space-md: 16px;
+  --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
+  --space-6: 6px; --space-10: 10px; --space-12: 12px; --space-14: 14px;
+  --space-18: 18px; --space-20: 20px; --space-26: 26px;
+
+  /* Radius */
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  --radius-xl: 16px; --radius-full: 9999px;
+
+  /* Motion */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Layout */
+  --header-height: 56px;          /* mobile header */
+  --header-height-desktop: 60px;  /* topbar above the breakpoint */
+  --tab-bar-height: 64px;         /* mobile bottom tabs */
+  --sidebar-width: 240px;         /* labelled desktop sidebar */
+  --rail-width: 64px;             /* icon-only rail (tracker, sheet) */
+  --sheet-nav-width: 212px;       /* tab rail on the desktop sheet */
+  --pane-width: 400px;            /* right-hand detail pane */
+  --content-max: 1360px;          /* content cap; the old 600px cap is gone */
+  --bp-desktop: 900px;            /* sidebar shell kicks in here */
+
+  /* HP bars — fixed heights, never one segment per hit point */
+  --hp-bar-h: 8px;            /* roster card + sheet header */
+  --hp-bar-h-row: 10px;       /* encounter initiative row */
+  --hp-bar-h-inline: 6px;     /* compact summaries */
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(12, 8, 5, .28);
+  --shadow-md: 0 4px 12px rgba(12, 8, 5, .34);
+  --shadow-lg: 0 8px 24px rgba(12, 8, 5, .44);
+}
+
+/* ---------- Dark (default) ---------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-primary:   #15110e;
+  --bg-secondary: #1a1512;
+  --bg-tertiary:  #221b16;
+  --bg-elevated:  #1e1815;
+  --bg-hover:     #2a211a;
+  --bg-sunken:    #171310;
+
+  --border-subtle:  #2a221c;
+  --border-default: #342b23;
+  --border-strong:  #47392e;
+
+  --text-primary:   #f5efe6;
+  --text-secondary: #b6a795;
+  --text-tertiary:  #8a7b6b;
+  --text-muted:     #6b5d4f;
+
+  --accent-primary:       #e2703a;
+  --accent-primary-hover: #f08a56;
+  --accent-on:            #1b0f08;   /* ink on accent fills */
+  --accent-soft:          #2c1a10;   /* accent-tinted surface */
+  --accent-soft-border:   #6b3a1f;
+  --accent-secondary:     #d9a94a;
+
+  --success:    #7fa65c;
+  --success-bg: rgba(127, 166, 88, .13);
+  --warning:    #d9a94a;
+  --warning-bg: rgba(217, 169, 74, .13);
+  --danger:     #c4452f;
+  --danger-bg:  rgba(196, 69, 47, .13);
+  --danger-hover: #d9603f;
+
+  --hp-high: #7fa65c;
+  --hp-mid:  #d9a94a;
+  --hp-low:  #c4452f;
+  --hp-temp: #3d5a72;        /* temp-HP bar segment */
+  --hp-temp-text: #7aa2c4;   /* "+5" readout */
+
+  --heal-ink: #9dc47c;  --heal-border: #3d5c2c;  --heal-bg: #1c2417;
+  --harm-ink: #e08a6f;  --harm-border: #6b2f22;  --harm-bg: #2c1a15;
+}
+
+/* ---------- Light ---------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-primary:   #f5efe3;
+  --bg-secondary: #fffaf1;
+  --bg-tertiary:  #f7f0e2;
+  --bg-elevated:  #f0e4d0;
+  --bg-hover:     #ece0cc;
+  --bg-sunken:    #efe7d8;
+
+  --border-subtle:  #ece0cc;
+  --border-default: #e0d4c0;
+  --border-strong:  #d9b98f;
+
+  --text-primary:   #231c15;
+  --text-secondary: #5c4d3f;
+  --text-tertiary:  #6f6252;
+  --text-muted:     #8a7b6b;
+
+  --accent-primary:       #c85a27;
+  --accent-primary-hover: #ab4a1d;
+  --accent-on:            #fffaf1;
+  --accent-soft:          #f7e3d3;
+  --accent-soft-border:   #d9b98f;
+  --accent-secondary:     #9a7b28;
+
+  --success:    #4e7a37;
+  --success-bg: rgba(95, 145, 66, .14);
+  --warning:    #8a5d10;
+  --warning-bg: rgba(199, 148, 36, .18);
+  --danger:     #a83521;
+  --danger-bg:  rgba(184, 58, 34, .13);
+  --danger-hover: #8f2a18;
+
+  --hp-high: #5f9142;
+  --hp-mid:  #c79424;
+  --hp-low:  #b83a22;
+  --hp-temp: #7fa5c4;
+  --hp-temp-text: #3d6d96;
+
+  --heal-ink: #4e7a37;  --heal-border: #aebfa6;  --heal-bg: #eef2e6;
+  --harm-ink: #a83521;  --harm-border: #d3a79c;  --harm-bg: #f8e7e1;
+
+  --shadow-sm: 0 1px 2px rgba(80, 50, 20, .10);
+  --shadow-md: 0 4px 12px rgba(80, 50, 20, .14);
+  --shadow-lg: 0 8px 20px rgba(80, 50, 20, .18);
+}
+
+/* System preference when no data-theme is set */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg-primary:#f5efe3; --bg-secondary:#fffaf1; --bg-tertiary:#f7f0e2;
+    --bg-elevated:#f0e4d0; --bg-hover:#ece0cc; --bg-sunken:#efe7d8;
+    --border-subtle:#ece0cc; --border-default:#e0d4c0; --border-strong:#d9b98f;
+    --text-primary:#231c15; --text-secondary:#5c4d3f; --text-tertiary:#6f6252; --text-muted:#8a7b6b;
+    --accent-primary:#c85a27; --accent-primary-hover:#ab4a1d; --accent-on:#fffaf1;
+    --accent-soft:#f7e3d3; --accent-soft-border:#d9b98f; --accent-secondary:#9a7b28;
+    --success:#4e7a37; --success-bg:rgba(95,145,66,.14);
+    --warning:#8a5d10; --warning-bg:rgba(199,148,36,.18);
+    --danger:#a83521; --danger-bg:rgba(184,58,34,.13); --danger-hover:#8f2a18;
+    --hp-high:#5f9142; --hp-mid:#c79424; --hp-low:#b83a22;
+    --hp-temp:#7fa5c4; --hp-temp-text:#3d6d96;
+    --heal-ink:#4e7a37; --heal-border:#aebfa6; --heal-bg:#eef2e6;
+    --harm-ink:#a83521; --harm-border:#d3a79c; --harm-bg:#f8e7e1;
+  }
+}

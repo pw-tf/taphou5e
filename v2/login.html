@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#15110e">
+<title>TAPHOU5E — Login</title>
+<link rel="icon" type="image/png" href="../taphou5e.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/ember.css">
+<link rel="stylesheet" href="css/v2.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+<div class="login-container">
+  <header class="login-header">
+    <h1>TAPHOU5E</h1>
+    <p>Track your adventures with your party</p>
+  </header>
+
+  <main class="login-main">
+    <div class="segmented" style="width:100%">
+      <button type="button" class="is-active" data-mode="join" style="flex:1">Join game world</button>
+      <button type="button" data-mode="create" style="flex:1">Create</button>
+    </div>
+
+    <div id="form-error" class="error-banner" hidden></div>
+
+    <!-- Join -->
+    <form class="login-card" id="join-form">
+      <div class="form-group">
+        <label for="world-name">Game world name</label>
+        <input id="world-name" type="text" autocomplete="off" placeholder="Enter your game world name">
+      </div>
+      <div class="form-group">
+        <label for="join-pin-1">4-digit PIN</label>
+        <div class="pin-inputs" data-pin-group="join">
+          <input class="pin-input" id="join-pin-1" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        </div>
+      </div>
+      <label class="remember-row">
+        <input type="checkbox" id="join-remember" checked>
+        Remember me on this device
+      </label>
+      <button type="submit" class="btn btn-accent btn-block btn-submit">Enter game world</button>
+      <p class="switch-line">Don't have a game world? <a href="#" data-mode="create">Create one</a></p>
+    </form>
+
+    <!-- Create -->
+    <form class="login-card" id="create-form" hidden>
+      <div class="form-group">
+        <label for="new-world-name">Game world name</label>
+        <input id="new-world-name" type="text" autocomplete="off" placeholder="Choose a unique name">
+      </div>
+      <div class="form-group">
+        <label for="world-description">Description (optional)</label>
+        <textarea id="world-description" rows="3" placeholder="Describe your game world..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Leveling mode</label>
+        <div class="segmented" id="leveling-mode" style="width:100%">
+          <button type="button" class="is-active" data-mode-value="milestone" style="flex:1">Milestone</button>
+          <button type="button" data-mode-value="exp" style="flex:1">EXP</button>
+        </div>
+        <p class="hint" id="leveling-hint">DM grants levels directly to characters.</p>
+      </div>
+      <div class="form-group">
+        <label for="dm-pin-1">DM 4-digit PIN</label>
+        <div class="pin-inputs" data-pin-group="dm">
+          <input class="pin-input" id="dm-pin-1" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="player-pin-1">Player 4-digit PIN</label>
+        <div class="pin-inputs" data-pin-group="player">
+          <input class="pin-input" id="player-pin-1" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        </div>
+      </div>
+      <label class="remember-row">
+        <input type="checkbox" id="create-remember" checked>
+        Remember me on this device
+      </label>
+      <button type="submit" class="btn btn-accent btn-block btn-submit">Create game world</button>
+      <p class="switch-line">Already have a game world? <a href="#" data-mode="join">Join existing</a></p>
+    </form>
+
+    <div class="segmented" style="align-self:center">
+      <button type="button" data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
+      <button type="button" data-theme-option="light" onclick="setTheme('light')">Light</button>
+      <button type="button" data-theme-option="system" onclick="setTheme('system')">System</button>
+    </div>
+
+    <p class="switch-line"><a href="../index.html" id="use-classic">Use the classic version</a></p>
+  </main>
+
+  <footer class="login-footer">
+    <p>Always free, open source · All data encrypted · Created by Perry</p>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/core.js"></script>
+<script src="js/login.js"></script>
+</body>
+</html>

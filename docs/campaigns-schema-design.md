@@ -816,7 +816,35 @@ and silent on everything in §4.
 | No DM/player content distinction | The design shows a role pill only. Every campaign surface needs a "players can see this" state |
 | Compendium is a dead anchor | Scoped as the browse/search/homebrew front end for `campaign_monsters` — see §11.3 |
 
-### 11.3 Compendium
+### 11.3 Build status
+
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertions):
+
+| Built | Not yet |
+|---|---|
+| Shell: sidebar, mobile header, drawer, topbar | Characters / roster page |
+| Tokens, `ember.css`, three-way theme control | Character sheet |
+| Login and world creation on the RPCs | Campaign screens |
+| Overview hub with live party, campaign and encounter state | Encounter tracker |
+| The single `.hp` component | Compendium |
+| Root version router | DM panel |
+
+Unbuilt destinations render as inert rows marked "soon" rather than links, so
+the nav shows the shape of the finished app without pointing at a 404.
+
+Two things worth recording from building it:
+
+- **Grid blowout.** `1fr` is `minmax(auto, 1fr)`, so a grid item's min-content
+  width sets a floor on its track. The four stat chips in a roster card pushed
+  that floor past half the viewport and gave the page 156px of horizontal scroll
+  at 390px — exactly what the handoff forbids. Fixed with `min-width: 0` on the
+  grid items, plus dropping the SP chip below the breakpoint, which the handoff
+  explicitly allows.
+- **`theme.js` marks its control on `DOMContentLoaded`,** but the shell rebuilds
+  `document.body` after that, so the marking was lost. It now exposes
+  `window.markThemeButtons()` for the shell to re-run.
+
+### 11.4 Compendium
 
 Not a standalone reference section: it is the write path for §4.4. Browse and search SRD monsters and
 spells from `dnd5eapi.co`, "Add to campaign" inserting a `campaign_monsters` row with an `api_index`,
