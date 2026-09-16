@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 132 assertions.
+version router. 141 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -73,9 +73,21 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- Deleting a campaign or an encounter: what the confirmation says cascades, and
+  the delete write itself surviving the redirect back to the list
+- Encounter sharing: a ten-character code, the dialog saying what travels, an
+  unknown code refused before anything is created, a lower-case code with stray
+  spaces still importing, and an import creating the roster monsters the recipe
+  needs, at full health with their colour and group intact
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
 network at all.
+
+Recorded writes are mirrored into `sessionStorage`, so an assertion can read
+what a page wrote even after the page redirected — importing a shared encounter
+and deleting a campaign both navigate away on success. Use
+`window.__resetWrites()` rather than assigning to `window.__writes` when a test
+wants a clean slate.
 
 The stub returns the same character regardless of the id in the query string, so
 the sheet assertions always describe that one fixture even when the test arrived

@@ -165,7 +165,8 @@ FIXTURES = {
     "encounters_single": {"id": "e1", "campaign_id": "cam1", "game_world_id": "w1",
                           "name": "Ambush at the Ford", "status": "planned", "round": 0,
                           "active_combatant_id": None, "hide_monster_hp": True,
-                          "read_aloud": "Mist hangs over the water.", "area_id": None},
+                          "read_aloud": "Mist hangs over the water.", "area_id": None,
+                          "storyline_beat_id": None},
     "encounter_combatants": [
         {"id": "cb1", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "character",
          "character_id": "c2", "campaign_monster_id": None, "npc_id": None,
@@ -204,7 +205,20 @@ STUB = """
 (() => {
   const FIXTURES = __FIXTURES__;
   window.__capturedHeaders = null;
-  window.__writes = [];
+  // Writes survive a navigation. Import redirects to the new encounter on
+  // success, so an in-memory list would be wiped before the test could read
+  // what was created.
+  const WRITE_KEY = '__smoke_writes';
+  try { window.__writes = JSON.parse(sessionStorage.getItem(WRITE_KEY) || '[]'); }
+  catch (e) { window.__writes = []; }
+  function recordWrite(entry) {
+    window.__writes.push(entry);
+    try { sessionStorage.setItem(WRITE_KEY, JSON.stringify(window.__writes)); } catch (e) {}
+  }
+  window.__resetWrites = () => {
+    window.__writes = [];
+    try { sessionStorage.removeItem(WRITE_KEY); } catch (e) {}
+  };
   function query(table) {
     const q = {};
     ['select','eq','order','limit','neq','in','is'].forEach(m => { q[m] = () => q; });
@@ -215,7 +229,7 @@ STUB = """
   }
   function writer(table, verb) {
     return (payload) => {
-      window.__writes.push({ table, verb, payload: payload || null });
+      recordWrite({ table, verb, payload: payload || null });
       const single = FIXTURES[table + '_single'];
       if (verb === 'update' && single) Object.assign(single, payload);
       // Mirror an update onto the list fixture too, so a re-read reflects it.
@@ -268,6 +282,22 @@ STUB = """
             return Promise.resolve({ data: { ok:true, role: dm ? 'dm' : 'player',
               game_world_id:'w1', game_world_name: params.p_world_name,
               leveling_mode:'milestone', dm_token: dm ? 'tok_'+'a'.repeat(60) : null }, error:null });
+          }
+          if (fn === 'encounter_share_create') {
+            window.__sharedFrom = params.p_encounter_id;
+            return Promise.resolve({ data: { ok:true, code:'K7PQR2MWXJ', count:2 }, error:null });
+          }
+          if (fn === 'encounter_share_get') {
+            const code = String(params.p_code || '').trim().toUpperCase();
+            if (code !== 'K7PQR2MWXJ') {
+              return Promise.resolve({ data: { ok:false, error:'not_found' }, error:null });
+            }
+            return Promise.resolve({ data: { ok:true, name:'Ambush at the Ford', payload: {
+              name: 'Ambush at the Ford', read_aloud: 'Mist hangs over the water.',
+              combatants: [
+                { name:'Goblin 1', api:'goblin', hp:9, ac:15, color:'#c4452f', group:'Wave 1' },
+                { name:'Goblin 2', api:'goblin', hp:6, ac:15, color:'#c4452f', group:'Wave 1' }
+              ] } }, error:null });
           }
           if (fn === 'world_create') {
             return Promise.resolve({ data: { ok:true, role:'dm', game_world_id:'w1',
@@ -1315,7 +1345,7 @@ async def main():
         ok("granting EXP across a threshold levels the character and flags them")
 
         # Below a threshold, no level change and no flag.
-        await page.evaluate("window.__writes = []")
+        await page.evaluate("window.__resetWrites()")
         brannor = page.locator('.dm-row:has-text("Brannor")')
         await brannor.locator("input").fill("10")
         await brannor.locator('button:has-text("Grant")').click()
@@ -1461,7 +1491,159 @@ async def main():
 
         await page.screenshot(path="/tmp/shot-17-colour.png", full_page=True)
 
-        # ---------- 39. Router ----------
+        # ---------- 39. Row layout, deletes and story linking ----------
+        mob2 = await browser.new_context(viewport={"width": 390, "height": 844})
+        await mob2.add_init_script(STUB)
+        m2 = await mob2.new_page()
+        watch(m2, "mobile-2")
+
+        await m2.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await m2.fill("#world-name", "Thornfell Reach")
+        await fill_pin(m2, "join", "1379")
+        await m2.click("#join-form .btn-submit")
+        await m2.wait_for_selector(".party-roster", timeout=10000)
+        await m2.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await m2.wait_for_selector(".campaign-tabs", timeout=10000)
+        await m2.click('.campaign-tabs button:has-text("Party")')
+        await m2.wait_for_selector(".party-row", timeout=5000)
+
+        # The fixed columns either side of the identity block left it almost no
+        # width, so a name broke across several lines.
+        heights = await m2.evaluate("""() => Array.from(document.querySelectorAll('.party-row .name'))
+            .map(el => Math.round(el.getBoundingClientRect().height))""")
+        assert all(h < 30 for h in heights), f"names should stay on one line: {heights}"
+        ok(f"party names stay on one line at 390px ({heights})")
+
+        meta_heights = await m2.evaluate("""() => Array.from(document.querySelectorAll('.party-row .meta'))
+            .map(el => Math.round(el.getBoundingClientRect().height))""")
+        assert all(h < 26 for h in meta_heights), meta_heights
+        ok(f"the class and player line stays on one line too ({meta_heights})")
+
+        overflow = await m2.evaluate(
+            "document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 0, overflow
+        ok("the party tab has no horizontal scroll at 390px")
+        await m2.screenshot(path="/tmp/shot-18-party-mobile.png", full_page=True)
+        await mob2.close()
+
+        # Deleting a campaign says what goes with it.
+        await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+        await page.click('.topbar button:has-text("Delete campaign")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        message = await page.locator(".modal-body .prose").inner_text()
+        assert "storyline" in message and "NPC" in message and "encounter" in message, message
+        assert "stay in the world" in message, "characters must be said to survive"
+        assert "cannot be undone" in message, message
+        ok("deleting a campaign lists what cascades and says characters survive")
+
+        # Confirming deletes and returns to the list.
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_url("**/campaigns.html", timeout=10000)
+        ok("confirming deletes the campaign and returns to the list")
+
+        # Recorded writes survive the redirect, so the delete itself is visible.
+        writes = await page.evaluate("window.__writes")
+        gone = [w for w in writes if w["table"] == "campaigns" and w["verb"] == "delete"]
+        assert gone, [w["table"] for w in writes]
+        ok("the campaign row is deleted, not just navigated away from")
+
+        # Deleting an encounter is scoped to the encounter, not the roster.
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+        await page.click('.topbar button:has-text("Delete encounter")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        message = await page.locator(".modal-body .prose").inner_text()
+        assert "combatant" in message and "roster" in message, message
+        ok("deleting an encounter says the campaign roster is left alone")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+
+        # Linking an encounter to the moment in the story it belongs to.
+        await page.click('.topbar button:has-text("Link to a beat")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        options = [t.strip() for t in await page.locator("#mf-storyline_beat_id option").all_inner_texts()]
+        assert any("The first crossing" in o for o in options), options
+        assert any("The Toll Keeper" in o for o in options), "beats show their storyline"
+        ok(f"the beat picker offers this campaign's beats, named by storyline")
+
+        await page.select_option("#mf-storyline_beat_id", label=[o for o in options if "first crossing" in o][0])
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        link = [w for w in writes if w["table"] == "encounters"][-1]
+        assert link["payload"]["storyline_beat_id"] == "b1", link
+        ok("linking writes storyline_beat_id")
+        assert "The first crossing" in await page.locator(".story-link").inner_text()
+        ok("the encounter shows which beat it belongs to")
+
+        # ---------- 40. Encounter sharing ----------
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+        await page.click('.topbar button:has-text("Share encounter")')
+        await page.wait_for_selector(".share-code", timeout=5000)
+
+        code = (await page.locator(".share-code").inner_text()).strip()
+        assert len(code) == 10, code
+        # The whole point: a code you can read aloud, not a two-kilobyte URL.
+        assert len(code) < 20, code
+        ok(f"sharing produces a short code ({code})")
+
+        body = await page.locator("#panel-body").inner_text()
+        assert "not your party" in body and "full health" in body, body
+        ok("the share dialog says what travels and what does not")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+
+        # Importing rebuilds the recipe in the chosen campaign.
+        await page.goto(f"{BASE}/v2/monster-tracker.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".topbar button", timeout=10000)
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.topbar button:has-text("Add a shared encounter")')
+        await page.wait_for_selector(".modal", timeout=5000)
+
+        # A wrong code is refused before anything is created.
+        await page.fill("#mf-code", "NOPENOPE12")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(500)
+        assert "No encounter with that code" in await page.locator(".modal-error").inner_text()
+        writes = await page.evaluate("window.__writes")
+        assert not [w for w in writes if w["table"] == "encounters"], "nothing should be created"
+        ok("an unknown share code is refused and creates nothing")
+
+        # Codes are typed, so case and stray spaces must not matter.
+        await page.fill("#mf-code", "  k7pqr2mwxj ")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(900)
+
+        writes = await page.evaluate("window.__writes")
+        made = [w for w in writes if w["table"] == "encounters" and w["verb"] == "insert"][-1]
+        assert made["payload"]["name"] == "Ambush at the Ford", made
+        assert made["payload"]["game_world_id"] == "w1", made
+        ok("a lower-case code with stray spaces still imports")
+
+        # The Goblin is not on this campaign's roster, so importing creates it
+        # rather than asking the recipient to set the roster up first.
+        roster = [w for w in writes if w["table"] == "campaign_monsters" and w["verb"] == "insert"]
+        assert roster, "the shared creature should be added to the roster"
+        assert roster[-1]["payload"]["api_index"] == "goblin", roster[-1]
+        # "Goblin 1" is an instance name; the roster entry is the creature.
+        assert roster[-1]["payload"]["name"] == "Goblin", roster[-1]
+        ok("importing creates any roster monsters the recipe needs, named without the instance number")
+
+        combat = [w for w in writes if w["table"] == "encounter_combatants"
+                  and w["verb"] == "insert"][-1]
+        rows = combat["payload"]
+        assert isinstance(rows, list) and len(rows) == 2, rows
+        assert rows[0]["color"] == "#c4452f" and rows[0]["group_label"] == "Wave 1", rows[0]
+        assert rows[0]["display_name"] == "Goblin 1", rows[0]
+        # The recipe is a template: creatures arrive ready to fight.
+        assert rows[0]["current_hit_points"] == rows[0]["max_hit_points"] == 9, rows[0]
+        assert rows[1]["max_hit_points"] == 6, rows[1]
+        ok("imported creatures keep their colour, group and rolled hit points, at full health")
+
+        # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

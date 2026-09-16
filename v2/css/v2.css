@@ -582,3 +582,35 @@ a.list-row, a.list-row:hover,
   border-radius: var(--radius-lg);
 }
 .colour-block .init-row.has-color { border-left: 1px solid var(--border-default); }
+
+/* ---------- Row text must not wrap a character at a time ----------
+   .list-row carries fixed-width columns either side of .who, so a long name
+   had almost no room left and broke across four lines. Truncate instead, and
+   below the breakpoint let the row wrap into two tidy lines. */
+.list-row .name, .list-row .meta {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.party-hp { width: 120px; flex: none; }
+
+@media (max-width: 899px) {
+  .party-row { flex-wrap: wrap; row-gap: var(--space-sm); }
+  /* Avatar and identity share the first line; HP and the buttons take the second. */
+  .party-row .who { flex: 1 1 auto; }
+  .party-row .party-hp { flex: 1 1 100%; width: auto; order: 3; }
+  .party-row .row-actions { order: 4; margin-left: auto; }
+}
+.story-link {
+  font-size: var(--fs-11); color: var(--text-tertiary);
+  border: 1px solid var(--border-default); border-radius: var(--radius-full); padding: 2px 10px;
+}
+a.check-row { text-decoration: none; }
+a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
+
+/* ---------- Share code ---------- */
+.share-code {
+  font-family: var(--font-mono); font-size: var(--fs-24); font-weight: 600;
+  letter-spacing: .18em; text-align: center; color: var(--accent-primary);
+  padding: var(--space-md); user-select: all;
+  background: var(--bg-tertiary); border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
