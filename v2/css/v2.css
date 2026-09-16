@@ -411,3 +411,87 @@ textarea:focus-visible,
   .init-hp { flex-basis: 100%; }
   .init-actions { margin-left: auto; }
 }
+
+/* ==========================================================================
+   Review fixes
+   ========================================================================== */
+
+/* 1. Block-level anchors must not inherit the inline-link hover underline from
+   ember.css. It propagates to every descendant, and on touch the hover state
+   sticks after a tap, so a card stays underlined. */
+.character-card, .character-card:hover,
+.campaign-card, .campaign-card:hover,
+.summary-card, .summary-card:hover,
+.hub-tile, .hub-tile:hover,
+a.list-row, a.list-row:hover,
+.side-menu-item, .side-menu-item:hover,
+.fab-item, .fab-item:hover { text-decoration: none; }
+
+/* 4. An <input> carries an intrinsic width from its default size="20", and a
+   flex item's min-width is auto, so the PIN boxes refused to shrink below about
+   20 characters at 22px and pushed the login page into horizontal scroll. */
+.pin-input { min-width: 0; }
+.pin-inputs { max-width: 100%; }
+
+/* 2 + 5. Floating action button: the topbar is desktop-only, so this carries
+   the same actions below the breakpoint. */
+.fab-wrap {
+  position: fixed; right: var(--space-md); bottom: var(--space-md); z-index: 250;
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-sm);
+}
+.fab {
+  width: 56px; height: 56px; border-radius: var(--radius-full);
+  background: var(--accent-primary); border: none; color: var(--accent-on);
+  box-shadow: var(--shadow-lg); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.fab:hover { background: var(--accent-primary-hover); }
+.fab-wrap.open .fab { transform: rotate(45deg); }
+
+.fab-menu {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  /* visibility, not opacity alone: a transparent menu still sits in the tab
+     order and the accessibility tree. Delaying it keeps the fade on close. */
+  opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast),
+              visibility 0s linear var(--transition-fast);
+}
+.fab-wrap.open .fab-menu {
+  opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0);
+  transition: opacity var(--transition-fast), transform var(--transition-fast),
+              visibility 0s linear 0s;
+}
+.fab-item {
+  padding: 10px 16px; border-radius: var(--radius-full);
+  background: var(--bg-secondary); border: 1px solid var(--border-strong);
+  color: var(--text-primary); font: inherit; font-size: var(--fs-13); font-weight: 500;
+  box-shadow: var(--shadow-md); cursor: pointer; white-space: nowrap;
+}
+.fab-item.is-primary { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--accent-on); font-weight: 600; }
+.fab-item:hover { background: var(--bg-hover); }
+.fab-item.is-primary:hover { background: var(--accent-primary-hover); }
+
+/* The sheet and tracker have their own bottom furniture to clear. */
+.sheet-page ~ .fab-wrap, .fab-wrap.above-tabs { bottom: calc(var(--tab-bar-height) + var(--space-md)); }
+
+@media (min-width: 900px) {
+  /* Above the breakpoint the topbar already shows these. */
+  .fab-wrap { display: none; }
+}
+
+/* 3. Compendium on a phone: the detail sat under a list of a hundred-plus rows,
+   so picking something looked like it did nothing. Show it as a bottom sheet. */
+@media (max-width: 899px) {
+  .srd-detail.has-detail {
+    position: fixed; inset: auto 0 0 0; z-index: 240;
+    max-height: 78vh; overflow: auto;
+    padding: var(--space-md) var(--space-md) var(--space-xl);
+    background: var(--bg-secondary); border-top: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0; box-shadow: var(--shadow-lg);
+  }
+  .srd-detail.has-detail .statblock { background: transparent; border: none; padding: 0; }
+  .srd-detail:not(.has-detail) { display: none; }
+  .srd-close { position: absolute; top: var(--space-sm); right: var(--space-sm); }
+}
+@media (min-width: 900px) { .srd-close { display: none; } }

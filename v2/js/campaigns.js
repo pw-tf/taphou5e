@@ -104,7 +104,7 @@
             title: 'Campaigns',
             sub: `${session.gameWorldName} · ${data.campaigns.length} campaign${data.campaigns.length === 1 ? '' : 's'}`,
             counts: { campaigns: data.campaigns.length },
-            topbarExtra: isDM ? '<button class="btn btn-accent" onclick="newCampaign()">New campaign</button>' : ''
+            actions: isDM ? [{ label: 'New campaign', onclick: 'newCampaign()', primary: true }] : []
         });
 
         const main = $('#main-content');
