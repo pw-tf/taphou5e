@@ -11,6 +11,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script>
+    // Version router. The classic app is the default; this only acts for people
+    // who have explicitly opted into the new UI. Runs before login.js so there
+    // is no flash of the classic login. See docs/campaigns-schema-design.md 9.3.
+    (function () {
+        try {
+            if (localStorage.getItem('taphou5e-ui') === 'next') {
+                window.location.replace('v2/');
+            }
+        } catch (e) { /* private mode: stay on classic */ }
+    })();
+    </script>
 </head>
 <body>
     <div class="login-container">

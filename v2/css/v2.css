@@ -1,0 +1,186 @@
+/* ==========================================================================
+   TAPHOU5E v2 — additions on top of ember.css
+   Only things the design handoff did not cover: campaign screens, empty and
+   loading states, the version switch, toasts and focus rings.
+   Everything here uses tokens.css variables; no new colours are introduced.
+   ========================================================================== */
+
+/* ---------- Focus. The handoff notes the current build has no focus ring
+   at all, so every interactive element gets one. ---------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Shared chrome bits ---------- */
+.world-row { display: flex; align-items: center; gap: var(--space-6); margin-top: var(--space-6); }
+.world-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hp-high); flex: none; }
+.world-name {
+  font-size: var(--fs-12); color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.role-pill {
+  margin-left: auto; flex: none;
+  font-size: var(--fs-10); color: var(--accent-primary);
+  border: 1px solid var(--border-strong); border-radius: 4px; padding: 1px 5px;
+}
+.nav-count { margin-left: auto; font-size: var(--fs-11); color: var(--text-tertiary); }
+.nav-count.is-live {
+  color: var(--accent-on); background: var(--accent-primary);
+  border-radius: 4px; padding: 1px 5px; font-size: var(--fs-10);
+}
+
+.side-menu-item { text-decoration: none; }
+.side-menu-item:hover { text-decoration: none; }
+
+/* ---------- States ---------- */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-10);
+  padding: var(--space-2xl) var(--space-lg); text-align: center;
+  background: var(--bg-secondary); border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.empty-state h3 { font-family: var(--font-display); font-size: var(--fs-17); font-weight: 700; color: var(--text-primary); }
+.empty-state p { font-size: var(--fs-13); color: var(--text-tertiary); max-width: 42ch; line-height: 1.55; }
+
+.skeleton {
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); height: 104px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+.error-banner {
+  padding: var(--space-12) var(--space-14);
+  background: var(--harm-bg); border: 1px solid var(--harm-border); color: var(--harm-ink);
+  border-radius: var(--radius-lg); font-size: var(--fs-13); line-height: 1.5;
+}
+
+/* ---------- Toasts ---------- */
+.toast-host {
+  position: fixed; left: 50%; bottom: calc(var(--tab-bar-height) + var(--space-md));
+  transform: translateX(-50%); z-index: 300;
+  display: flex; flex-direction: column; gap: var(--space-sm); pointer-events: none;
+}
+.toast {
+  padding: var(--space-10) var(--space-md);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+  font-size: var(--fs-13); color: var(--text-primary); max-width: 90vw;
+}
+.toast-error { border-color: var(--harm-border); color: var(--harm-ink); }
+@media (min-width: 900px) { .toast-host { bottom: var(--space-lg); } }
+
+/* ---------- Summary rows (hub) ---------- */
+.summary-card {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-12) var(--space-14);
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); text-decoration: none; color: inherit;
+}
+.summary-card:hover { border-color: var(--border-strong); background: var(--bg-elevated); text-decoration: none; }
+.summary-card .body { flex: 1; min-width: 0; }
+.summary-card .title { font-size: var(--fs-14); font-weight: 600; color: var(--text-primary); }
+.summary-card .meta { font-size: var(--fs-12); color: var(--text-tertiary); margin-top: 2px; }
+.summary-card .go { color: var(--text-tertiary); flex: none; }
+
+.hub-tile { text-decoration: none; }
+.hub-tile:hover { border-color: var(--border-strong); background: var(--bg-elevated); text-decoration: none; }
+.character-card { text-decoration: none; color: inherit; display: flex; }
+
+/* ---------- Campaigns ---------- */
+.campaign-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-12); }
+@media (min-width: 900px) { .campaign-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1200px) { .campaign-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.campaign-card {
+  display: flex; flex-direction: column; gap: var(--space-10);
+  padding: var(--space-14);
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); text-decoration: none; color: inherit;
+}
+.campaign-card:hover { border-color: var(--border-strong); background: var(--bg-elevated); text-decoration: none; }
+.campaign-card .head { display: flex; align-items: flex-start; gap: var(--space-sm); }
+.campaign-card h3 {
+  flex: 1; min-width: 0;
+  font-family: var(--font-display); font-size: var(--fs-17); font-weight: 700; color: var(--text-primary);
+}
+.campaign-card .summary {
+  font-size: var(--fs-12); color: var(--text-tertiary); line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.campaign-card .stats { display: flex; gap: var(--space-md); margin-top: auto; padding-top: var(--space-6); }
+.campaign-card .stats > div { display: flex; align-items: baseline; gap: 4px; }
+.campaign-card .stats b { font-family: var(--font-mono); font-size: var(--fs-13); color: var(--text-primary); font-weight: 600; }
+.campaign-card .stats span { font-size: var(--fs-10); color: var(--text-tertiary); letter-spacing: .08em; }
+
+.status-pill {
+  flex: none; font-family: var(--font-mono); font-size: var(--fs-9);
+  letter-spacing: .1em; text-transform: uppercase;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-full);
+  padding: 2px 8px; color: var(--text-tertiary);
+}
+.status-pill.is-active { color: var(--hp-high); border-color: var(--hp-high); }
+.status-pill.is-planning { color: var(--accent-secondary); border-color: var(--accent-secondary); }
+.status-pill.is-completed { color: var(--text-muted); }
+
+/* A row players cannot see yet. Marks DM-only content so a DM always knows
+   what is hidden, rather than guessing from the absence of a marker. */
+.hidden-pill {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--fs-10); color: var(--text-tertiary);
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-full);
+  padding: 1px 7px;
+}
+
+/* ---------- Login additions ---------- */
+.login-main {
+  flex: 1; width: 100%; max-width: 440px; margin: 0 auto;
+  padding: var(--space-lg);
+  display: flex; flex-direction: column; gap: var(--space-18);
+}
+.login-footer { padding: var(--space-18) var(--space-lg); text-align: center; border-top: 1px solid var(--border-default); }
+.login-footer p { font-size: var(--fs-11); color: var(--text-muted); }
+.remember-row { display: flex; align-items: center; gap: var(--space-10); font-size: var(--fs-13); color: var(--text-secondary); cursor: pointer; }
+.remember-row input { width: 18px; height: 18px; accent-color: var(--accent-primary); }
+.btn-submit { padding: 14px 0; font-size: var(--fs-15); }
+.switch-line { text-align: center; font-size: var(--fs-12); color: var(--text-tertiary); }
+.switch-line a { color: var(--accent-primary); cursor: pointer; }
+.hint { font-size: var(--fs-11); color: var(--text-tertiary); line-height: 1.5; }
+.btn[aria-busy="true"] { opacity: .6; pointer-events: none; }
+
+/* ---------- Not-yet-built destinations ----------
+   Rendered as inert rows instead of links, so the shell shows the shape of the
+   finished app without pointing anywhere that 404s. */
+.is-pending { opacity: .55; cursor: default; pointer-events: none; }
+.nav-soon {
+  margin-left: auto; flex: none;
+  font-family: var(--font-mono); font-size: var(--fs-9);
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted);
+  border: 1px solid var(--border-default); border-radius: var(--radius-full);
+  padding: 1px 6px;
+}
+.hub-tile .nav-soon { margin-left: auto; }
+
+/* ---------- Grid blowout fix ----------
+   `1fr` is `minmax(auto, 1fr)`, so a grid item's min-content width sets a floor
+   on its track. The four stat chips inside a roster card made that floor wider
+   than half the viewport, pushing the page into horizontal scroll at 390px.
+   Letting the items shrink below min-content is the fix; the tracks themselves
+   are untouched, so the 4-up desktop grid still works. */
+.party-roster > *,
+.hub-tiles > *,
+.campaign-grid > * { min-width: 0; }
+.chip { min-width: 0; }
+.card-name, .card-meta { min-width: 0; }
+
+/* The handoff allows dropping SP below the breakpoint to keep the remaining
+   chips legible at 2-up. */
+@media (max-width: 899px) {
+  .chip-sp { display: none; }
+}
