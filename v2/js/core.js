@@ -275,7 +275,7 @@ function icon(name, size) {
 const NAV = [
     { id: 'overview',   label: 'Overview',   href: 'index.html',           icon: 'overview' },
     { id: 'characters', label: 'Characters', href: 'characters.html',      icon: 'user' },
-    { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map',     pending: true },
+    { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map' },
     { id: 'encounters', label: 'Encounters', href: 'monster-tracker.html', icon: 'monster', pending: true },
     { id: 'compendium', label: 'Compendium', href: 'compendium.html',      icon: 'search',  pending: true },
     { id: 'dm',         label: 'DM panel',   href: 'dm-panel.html',        icon: 'user',    pending: true, dmOnly: true }
@@ -410,4 +410,127 @@ function renderShell(options) {
     wireSideMenu();
     if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
     return $('#main-content');
+}
+
+// ========================================
+// Modal forms
+//
+// One small dialog used by every "add" and "edit" action in v2. Fields are
+// declared, not hand-written, so each screen stays about its own data.
+// ========================================
+
+function closeModal() {
+    const host = $('#modal-host');
+    if (host) host.remove();
+    document.body.style.overflow = '';
+}
+
+// fields: [{ name, label, type: 'text'|'textarea'|'number'|'select'|'checkbox',
+//            value, options: [{value,label}], placeholder, required, hint }]
+function openModal({ title, fields = [], submitLabel = 'Save', danger = false, onSubmit }) {
+    closeModal();
+
+    const control = f => {
+        const common = `id="mf-${f.name}" name="${f.name}"${f.required ? ' required' : ''}`;
+        if (f.type === 'textarea') {
+            return `<textarea ${common} rows="${f.rows || 4}" placeholder="${escapeHtml(f.placeholder || '')}">${escapeHtml(f.value || '')}</textarea>`;
+        }
+        if (f.type === 'select') {
+            return `<select ${common}>${(f.options || []).map(o =>
+                `<option value="${escapeHtml(o.value)}"${o.value === f.value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+            ).join('')}</select>`;
+        }
+        if (f.type === 'checkbox') {
+            return `<label class="remember-row"><input type="checkbox" ${common}${f.value ? ' checked' : ''}> ${escapeHtml(f.checkboxLabel || '')}</label>`;
+        }
+        return `<input ${common} type="${f.type || 'text'}" value="${escapeHtml(f.value ?? '')}" placeholder="${escapeHtml(f.placeholder || '')}">`;
+    };
+
+    const body = fields.map(f => `
+        <div class="form-group">
+            ${f.type === 'checkbox' ? '' : `<label for="mf-${f.name}">${escapeHtml(f.label)}</label>`}
+            ${control(f)}
+            ${f.hint ? `<p class="hint">${escapeHtml(f.hint)}</p>` : ''}
+        </div>`).join('');
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal-host" class="modal-host">
+            <div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+                <div class="modal-head">
+                    <h2>${escapeHtml(title)}</h2>
+                    <button class="icon-btn" id="modal-close" aria-label="Close">&times;</button>
+                </div>
+                <form id="modal-form" class="modal-body">
+                    ${body}
+                    <div class="modal-error error-banner" hidden></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" id="modal-cancel">Cancel</button>
+                        <button type="submit" class="btn ${danger ? 'btn-danger' : 'btn-accent'}">${escapeHtml(submitLabel)}</button>
+                    </div>
+                </form>
+            </div>
+        </div>`);
+
+    document.body.style.overflow = 'hidden';
+    const host = $('#modal-host');
+    const form = $('#modal-form');
+    const errorBox = $('.modal-error', host);
+
+    const dismiss = () => closeModal();
+    $('#modal-close').addEventListener('click', dismiss);
+    $('#modal-cancel').addEventListener('click', dismiss);
+    host.addEventListener('click', e => { if (e.target === host) dismiss(); });
+    document.addEventListener('keydown', function esc(e) {
+        if (e.key === 'Escape') { dismiss(); document.removeEventListener('keydown', esc); }
+    });
+
+    const firstField = $('.modal-body input, .modal-body textarea, .modal-body select');
+    if (firstField) firstField.focus();
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        errorBox.hidden = true;
+
+        const values = {};
+        fields.forEach(f => {
+            const el = $(`#mf-${f.name}`);
+            if (!el) return;
+            if (f.type === 'checkbox') values[f.name] = el.checked;
+            else if (f.type === 'number') values[f.name] = el.value === '' ? null : Number(el.value);
+            else values[f.name] = el.value.trim();
+        });
+
+        const missing = fields.find(f => f.required && !values[f.name]);
+        if (missing) {
+            errorBox.textContent = `${missing.label} is required.`;
+            errorBox.hidden = false;
+            return;
+        }
+
+        const submit = $('button[type="submit"]', form);
+        submit.setAttribute('aria-busy', 'true');
+        try {
+            await onSubmit(values);
+            closeModal();
+        } catch (err) {
+            console.error('Modal submit failed:', err);
+            errorBox.textContent = (err && err.message) || 'Could not save that. Please try again.';
+            errorBox.hidden = false;
+            submit.setAttribute('aria-busy', 'false');
+        }
+    });
+}
+
+// A destructive confirm, in the same dialog language as the forms above.
+function confirmModal({ title, message, confirmLabel = 'Delete', onConfirm }) {
+    openModal({
+        title,
+        fields: [{ name: '_confirm', type: 'static', label: message }],
+        submitLabel: confirmLabel,
+        danger: true,
+        onSubmit: onConfirm
+    });
+    // 'static' has no control; show the message as prose instead.
+    const group = $('#modal-form .form-group');
+    if (group) group.innerHTML = `<p class="prose">${escapeHtml(message)}</p>`;
 }
