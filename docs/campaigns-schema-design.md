@@ -826,10 +826,11 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 | Login and world creation on the RPCs | Compendium |
 | Overview hub | DM panel |
 | Party roster | Character creation (still classic — it drives the level-up engine) |
-| Character sheet: six tabs, HP controls, rests, conditions, detail pane | Campaign checks: created in SQL, no authoring UI yet |
-| Campaigns list, campaign detail with seven tabs | Monster roster writes (waiting on the Compendium) |
+| Character sheet: six tabs, HP controls, rests, conditions, detail pane | Campaign checks: rendered, but only creatable in SQL |
+| Campaigns list, campaign detail with seven tabs | |
 | Party membership: pull from world, remove, re-add | |
 | Reveal toggles and DM notes on every hideable row | |
+| Compendium: SRD browse, add to roster, homebrew | |
 
 Unbuilt destinations render as inert rows marked "soon" rather than links, so
 the nav shows the shape of the finished app without pointing at a 404.
@@ -866,7 +867,31 @@ absorbing damage first. That last one departs from the rulebook, but both
 versions write the same columns and a divergence would surface as the two
 disagreeing about whether a character is alive.
 
-### 11.4 Compendium
+### 11.4 Compendium — built
+
+The write path for §4.4, as scoped. Browse and search SRD monsters and spells,
+add a monster to a campaign roster, or author a homebrew stat block.
+
+Three details worth recording:
+
+- **The SRD is never copied in.** Adding an SRD monster stores `source='srd_api'`
+  with its `api_index`, and `statblock` holds **only the fields the DM changed**
+  — rename it, buff its hit points, and those two keys are all that persist.
+  Untouched entries store `null`.
+- **`armor_class` has shipped as both a number and an array** of `{type, value}`
+  across SRD revisions, so it is normalised to an integer before it reaches the
+  `armor_class` column. Fractional challenge ratings render as `1/4`, not `0.25`.
+- **The index is fetched once per tab session** and cached in `sessionStorage`,
+  not re-fetched per keystroke as the classic tracker does on every search.
+
+Monsters already on a campaign's roster are marked in the list, so a DM does not
+add the same creature twice.
+
+Spells are reference only. They belong to a character and are added from the
+sheet; the compendium closes the standing v1 gap where a spell could only be read
+if it was already on someone's sheet.
+
+### 11.5 Compendium — original rationale
 
 Not a standalone reference section: it is the write path for §4.4. Browse and search SRD monsters and
 spells from `dnd5eapi.co`, "Add to campaign" inserting a `campaign_monsters` row with an `api_index`,

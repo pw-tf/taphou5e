@@ -277,7 +277,7 @@ const NAV = [
     { id: 'characters', label: 'Characters', href: 'characters.html',      icon: 'user' },
     { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map' },
     { id: 'encounters', label: 'Encounters', href: 'monster-tracker.html', icon: 'monster', pending: true },
-    { id: 'compendium', label: 'Compendium', href: 'compendium.html',      icon: 'search',  pending: true },
+    { id: 'compendium', label: 'Compendium', href: 'compendium.html',      icon: 'search' },
     { id: 'dm',         label: 'DM panel',   href: 'dm-panel.html',        icon: 'user',    pending: true, dmOnly: true }
 ];
 

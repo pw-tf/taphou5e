@@ -125,13 +125,40 @@ FIXTURES = {
               "faction": "The Guild", "description": "Weathered and watchful.",
               "disposition": "neutral", "status": "alive", "is_known_to_players": False,
               "sort_order": 0}],
-    "campaign_monsters": [{"id": "m1", "campaign_id": "cam1", "game_world_id": "w1",
-                           "name": "Bog Lurker", "source": "homebrew", "api_index": None,
-                           "challenge_rating": 2, "armor_class": 13, "max_hit_points": 44}],
+    "campaign_monsters": [
+        {"id": "m1", "campaign_id": "cam1", "game_world_id": "w1",
+         "name": "Bog Lurker", "source": "homebrew", "api_index": None,
+         "challenge_rating": 2, "armor_class": 13, "max_hit_points": 44},
+        {"id": "m2", "campaign_id": "cam1", "game_world_id": "w1",
+         "name": "Gargoyle", "source": "srd_api", "api_index": "gargoyle",
+         "challenge_rating": 2, "armor_class": 15, "max_hit_points": 52}],
     "campaign_sessions": [{"id": "sess1", "campaign_id": "cam1", "game_world_id": "w1",
                            "session_number": 4, "title": "The bridge at dusk",
                            "played_on": "2026-09-01", "recap": "They met Vell.",
                            "is_published": True}],
+    "srd_monsters": {"count": 3, "results": [
+        {"index": "goblin", "name": "Goblin", "url": "/api/monsters/goblin"},
+        {"index": "gargoyle", "name": "Gargoyle", "url": "/api/monsters/gargoyle"},
+        {"index": "ancient-red-dragon", "name": "Ancient Red Dragon",
+         "url": "/api/monsters/ancient-red-dragon"}]},
+    "srd_monster_goblin": {
+        "index": "goblin", "name": "Goblin", "size": "Small", "type": "humanoid",
+        "alignment": "neutral evil", "armor_class": [{"type": "armor", "value": 15}],
+        "hit_points": 7, "challenge_rating": 0.25,
+        "strength": 8, "dexterity": 14, "constitution": 10,
+        "intelligence": 10, "wisdom": 8, "charisma": 8,
+        "speed": {"walk": "30 ft."},
+        "special_abilities": [{"name": "Nimble Escape", "desc": "Disengage as a bonus action."}],
+        "actions": [{"name": "Scimitar", "desc": "Melee weapon attack."}]},
+    "srd_spells": {"count": 2, "results": [
+        {"index": "fireball", "name": "Fireball", "url": "/api/spells/fireball"},
+        {"index": "mage-hand", "name": "Mage Hand", "url": "/api/spells/mage-hand"}]},
+    "srd_spell_fireball": {
+        "index": "fireball", "name": "Fireball", "level": 3,
+        "school": {"name": "Evocation"}, "casting_time": "1 action", "range": "150 feet",
+        "components": ["V", "S", "M"], "material": "a tiny ball of bat guano",
+        "duration": "Instantaneous", "desc": ["A bright streak flashes."],
+        "higher_level": ["Damage increases by 1d6."]},
     "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
                   "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
                   "encounter_id": None, "campaign_session_id": None,
@@ -175,6 +202,21 @@ STUB = """
       return w;
     };
   }
+  // dnd5eapi.co is blocked in this sandbox, so serve the SRD from fixtures.
+  const realFetch = window.fetch.bind(window);
+  window.__srdCalls = [];
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.indexOf('dnd5eapi.co') === -1) return realFetch(input, init);
+    window.__srdCalls.push(url);
+    const json = (body) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+    if (/\/api\/monsters$/.test(url))          return json(FIXTURES.srd_monsters);
+    if (/\/api\/spells$/.test(url))            return json(FIXTURES.srd_spells);
+    if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
+    if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
+    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+  };
+
   window.supabase = {
     createClient(url, key, opts) {
       window.__capturedHeaders = (opts && opts.global && opts.global.headers) || {};
@@ -329,9 +371,9 @@ async def main():
 
         # ---------- 4. Pending destinations are inert ----------
         pending = await page.locator(".hub-tile.is-pending").count()
-        assert pending == 2, pending                       # sheets + campaigns are built
+        assert pending == 1, pending                       # only the tracker is left
         assert await page.locator('.hub-tile[href="characters.html"]').count() == 1
-        assert await page.locator('.sidebar-nav a[href="compendium.html"]').count() == 0
+        assert await page.locator('.sidebar-nav a[href="monster-tracker.html"]').count() == 0
         ok(f"{pending} unbuilt destinations inert; built ones link normally")
 
         # ---------- 5. Mobile ----------
@@ -702,7 +744,125 @@ async def main():
         assert await page.locator('.status-pill:has-text("Known")').count() == 0
         ok("reveal toggles are DM-only")
 
-        # ---------- 23. Router ----------
+        # ---------- 23. Compendium ----------
+        # Back to the DM session.
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "1379")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+
+        await page.click('.sidebar-nav a[href="compendium.html"]')
+        await page.wait_for_url("**/compendium.html", timeout=10000)
+        await page.wait_for_selector(".srd-list .list-row", timeout=10000)
+        assert await page.locator(".srd-list .list-row").count() == 3
+        ok("compendium lists SRD monsters")
+
+        # A monster already on the roster is marked, so a DM does not add it twice.
+        assert await page.locator('.list-row:has-text("Gargoyle") .hidden-pill:has-text("in roster")').count() == 1
+        assert await page.locator('.list-row:has-text("Goblin") .hidden-pill').count() == 0
+        ok("monsters already in the campaign roster are marked")
+
+        await page.fill("#srd-search", "drag")
+        await page.wait_for_timeout(300)
+        rows = await page.locator(".srd-list .list-row").count()
+        assert rows == 1, rows
+        assert "Ancient Red Dragon" in await page.locator(".srd-list .list-row").inner_text()
+        ok("search filters the SRD index")
+
+        await page.fill("#srd-search", "")
+        await page.wait_for_timeout(250)
+        await page.click('.srd-list .list-row:has-text("Goblin")')
+        await page.wait_for_selector(".srd-detail .statblock h2", timeout=8000)
+        assert (await page.locator(".srd-detail h2").inner_text()).strip() == "Goblin"
+        trio = await page.locator(".srd-detail .stat-trio").inner_text()
+        # armor_class arrives as [{type,value}] and must normalise to 15;
+        # challenge_rating 0.25 must render as 1/4, not 0.25.
+        assert "15" in trio and "7" in trio and "1/4" in trio, trio
+        ok(f"stat block normalises array armor class and fractional CR ({trio.split()[0]}/{trio.split()[-1]})")
+
+        assert "Nimble Escape" in await page.locator(".srd-detail").inner_text()
+        ok("traits and actions render in the stat block")
+
+        # The index is fetched once and cached for the tab session.
+        calls = await page.evaluate("window.__srdCalls")
+        assert len([c for c in calls if c.endswith("/api/monsters")]) == 1, calls
+        ok("the SRD index is fetched once, not per keystroke")
+
+        # ---------- 24. Add to roster ----------
+        await page.click('button:has-text("Add to a campaign")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        assert (await page.input_value("#mf-name")) == "Goblin"
+        assert (await page.input_value("#mf-max_hit_points")) == "7"
+        assert (await page.input_value("#mf-armor_class")) == "15"
+        ok("add-to-roster prefills from the SRD entry")
+
+        # Rename and buff it: only the deltas should be stored as overrides.
+        await page.fill("#mf-name", "Goblin Bloodcaller")
+        await page.fill("#mf-max_hit_points", "18")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+
+        writes = await page.evaluate("window.__writes")
+        added = [w for w in writes if w["table"] == "campaign_monsters" and w["verb"] == "insert"][-1]
+        p_ = added["payload"]
+        assert p_["source"] == "srd_api" and p_["api_index"] == "goblin", p_
+        assert p_["game_world_id"] == "w1" and p_["campaign_id"] == "cam1", p_
+        assert p_["max_hit_points"] == 18 and p_["armor_class"] == 15, p_
+        assert p_["challenge_rating"] == 0.25 and p_["size"] == "Small", p_
+        ok("adding an SRD monster stores a reference, not a copy of the stat block")
+
+        assert set(p_["statblock"].keys()) == {"name", "hit_points"}, p_["statblock"]
+        ok(f"only the changed fields are stored as overrides ({sorted(p_['statblock'])})")
+
+        # ---------- 25. Homebrew ----------
+        await page.click('button:has-text("New homebrew monster")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        await page.fill("#mf-name", "Bog Lurker")
+        await page.fill("#mf-max_hit_points", "44")
+        await page.fill("#mf-description", "Drags the unwary under.")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+
+        writes = await page.evaluate("window.__writes")
+        brew = [w for w in writes if w["table"] == "campaign_monsters" and w["verb"] == "insert"][-1]
+        assert brew["payload"]["source"] == "homebrew", brew
+        # The source check constraint requires a stat block for homebrew rows.
+        assert brew["payload"]["statblock"] is not None, brew
+        assert brew["payload"].get("api_index") is None, brew   # homebrew has no SRD reference
+        ok("homebrew writes a stat block, satisfying the source check constraint")
+
+        # ---------- 26. Spells ----------
+        await page.click('button:has-text("Spells")')
+        await page.wait_for_selector('.srd-list .list-row:has-text("Fireball")', timeout=8000)
+        assert await page.locator(".srd-list .list-row").count() == 2
+        await page.click('.srd-list .list-row:has-text("Fireball")')
+        await page.wait_for_selector(".srd-detail h2", timeout=8000)
+        body = await page.locator(".srd-detail").inner_text()
+        assert "Level 3" in body and "Evocation" in body, body
+        assert "Damage increases by 1d6." in body, "higher-level text should render"
+        assert "reference only" in body
+        ok("spells render, including higher-level text, and say they are reference only")
+
+        await page.screenshot(path="/tmp/shot-10-compendium.png", full_page=True)
+
+        # ---------- 27. Player view ----------
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "5555")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        await page.goto(f"{BASE}/v2/compendium.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".srd-list .list-row", timeout=10000)
+        assert await page.locator('button:has-text("New homebrew monster")').count() == 0
+        await page.click('.srd-list .list-row:has-text("Goblin")')
+        await page.wait_for_selector(".srd-detail h2", timeout=8000)
+        assert await page.locator('button:has-text("Add to a campaign")').count() == 0
+        ok("players can browse the SRD but not write to a roster")
+
+        # ---------- 28. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

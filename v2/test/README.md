@@ -1,7 +1,7 @@
 # v2 smoke test
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
-campaigns, responsive behaviour and the version router. 63 assertions.
+campaigns, the compendium, responsive behaviour and the version router. 75 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -46,7 +46,14 @@ at it directly — edit `CHROME` at the top of the file, or run
   row rather than inserting a duplicate
 - Reveal flags: the DM-facing hidden/visible markers and the writes they make
 - The player view: no DM notes, no editing actions, no reveal toggles
+- The compendium: SRD search, stat block normalisation (array armor class,
+  fractional CR), the index being fetched once rather than per keystroke, adding
+  a monster as a reference with only changed fields stored as overrides, and
+  homebrew writing a stat block so the source check constraint holds
 - The root router: opted-in devices go to v2, everyone else stays on classic
+
+`dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
+network at all.
 
 The stub returns the same character regardless of the id in the query string, so
 the sheet assertions always describe that one fixture even when the test arrived
