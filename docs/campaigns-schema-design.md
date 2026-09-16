@@ -822,15 +822,18 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 
 | Built | Not yet |
 |---|---|
-| Shell, tokens, theme control, root router | Encounter tracker |
-| Login and world creation on the RPCs | Compendium |
-| Overview hub | DM panel |
-| Party roster | Character creation (still classic — it drives the level-up engine) |
-| Character sheet: six tabs, HP controls, rests, conditions, detail pane | Campaign checks: rendered, but only creatable in SQL |
+| Shell, tokens, theme control, root router | DM panel |
+| Login and world creation on the RPCs | Character creation (still classic — it drives the level-up engine) |
+| Overview hub | Campaign checks: rendered, but only creatable in SQL |
+| Party roster | Encounter ↔ storyline beat linking |
+| Character sheet: six tabs, HP controls, rests, conditions, detail pane | |
 | Campaigns list, campaign detail with seven tabs | |
 | Party membership: pull from world, remove, re-add | |
 | Reveal toggles and DM notes on every hideable row | |
 | Compendium: SRD browse, add to roster, homebrew | |
+| Encounter tracker: initiative, turns, HP, conditions, persistence | |
+
+Every hub tile and navigation item now links to a real page.
 
 Unbuilt destinations render as inert rows marked "soon" rather than links, so
 the nav shows the shape of the finished app without pointing at a 404.
@@ -866,6 +869,37 @@ are optimistic then persisted, and temporary hit points sit alongside rather tha
 absorbing damage first. That last one departs from the rulebook, but both
 versions write the same columns and a divergence would surface as the two
 disagreeing about whether a character is alive.
+
+### 11.3a Encounter tracker — built, and where decision 1 pays off
+
+Combat state lives in the database: round, initiative, whose turn it is,
+conditions and hit points all survive a refresh or a change of device. The
+classic tracker holds all of it in `localStorage`.
+
+**The hit point split from §6.1 is what makes this safe.** A combatant row holds
+hit points for monsters and NPCs, because they have nowhere else to live. A
+player character's row holds none — the `encounter_combatants_pc_hp_passthrough`
+constraint rejects them — so damage dealt to a PC in the tracker writes to
+`characters.current_hit_points`, the same column the classic app and the v2 sheet
+write. Three assertions pin this: that a PC's displayed HP comes from the
+character record, that damaging them writes to `characters`, and that damaging a
+monster writes to `encounter_combatants` instead.
+
+Other behaviour worth recording:
+
+- Damage clamps at zero and marks a combatant down rather than going negative.
+  A downed row dims and is struck through instead of disappearing, so a DM can
+  still see what was in the fight.
+- The turn order skips downed combatants, and wrapping past the last one
+  increments the round.
+- Rolling initiative fills only the blanks, so a DM who has typed some values
+  does not lose them.
+- `hide_monster_hp` is honoured for players: they see the initiative order, who
+  is down, and their own party's hit points, but not monster hit points. It
+  defaults to on.
+- `ember.css` fixes the identity column at 180px, which does not fit beside the
+  HP rail and the controls on a phone; below the breakpoint the row wraps and the
+  HP rail takes its own line.
 
 ### 11.4 Compendium — built
 

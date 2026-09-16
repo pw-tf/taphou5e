@@ -376,3 +376,38 @@ textarea:focus-visible,
   .srd-list { flex: 1; max-height: calc(100vh - 220px); overflow: auto; }
   .srd-detail { width: var(--pane-width); flex: none; max-height: calc(100vh - 220px); overflow: auto; }
 }
+
+/* ---------- Encounter tracker ----------
+   ember.css supplies .init-row and its columns; these add the controls, the
+   wrapping behaviour on a phone, and the inline condition editor. */
+.tracker-controls { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.round-pill {
+  font-size: var(--fs-11); letter-spacing: .1em; color: var(--accent-primary);
+  border: 1px solid var(--accent-soft-border); border-radius: var(--radius-full); padding: 2px 10px;
+}
+.read-aloud {
+  padding: var(--space-12) var(--space-14); background: var(--bg-elevated);
+  border-left: 3px solid var(--accent-secondary); border-radius: var(--radius-md);
+  font-style: italic;
+}
+.init-row { flex-wrap: wrap; }
+.init-input {
+  width: 46px; height: 30px; text-align: center; background: var(--bg-primary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  color: var(--text-primary); font-family: var(--font-mono); font-size: var(--fs-15); font-weight: 600;
+}
+.init-row.is-active .init-input { border-color: var(--accent-primary); color: var(--accent-primary); }
+.init-name { cursor: pointer; }
+.init-conditions, .init-detail { flex-basis: 100%; }
+.init-detail { padding-top: var(--space-sm); border-top: 1px solid var(--border-subtle); }
+.init-conditions { display: flex; flex-wrap: wrap; gap: 4px; }
+.init-row.is-dead .init-actions, .init-row.is-dead .hp { opacity: .6; }
+.btn:disabled { opacity: .45; pointer-events: none; }
+
+@media (max-width: 899px) {
+  /* The identity column is fixed at 180px in ember.css, which does not fit
+     beside the HP rail and the controls on a phone. Let it share a line. */
+  .init-id { width: auto; flex: 1 1 140px; }
+  .init-hp { flex-basis: 100%; }
+  .init-actions { margin-left: auto; }
+}

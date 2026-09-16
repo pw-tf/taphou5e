@@ -12,7 +12,7 @@
     // exists, so the hub shows the finished shape without linking to a 404.
     const TILES = [
         { label: 'Character sheets',  blurb: 'Open the party roster and play from a sheet.', href: 'characters.html',      icon: 'user' },
-        { label: 'Encounter tracker', blurb: 'Run initiative, HP and conditions.',           href: 'monster-tracker.html', icon: 'monster', pending: true },
+        { label: 'Encounter tracker', blurb: 'Run initiative, HP and conditions.',           href: 'monster-tracker.html', icon: 'monster' },
         { label: 'Campaigns',         blurb: 'Storylines, areas, NPCs and encounters.',      href: 'campaigns.html',       icon: 'map' },
         { label: 'Compendium',        blurb: 'Search monsters and spells; build homebrew.',  href: 'compendium.html',      icon: 'search' }
     ];
@@ -71,7 +71,9 @@
                 characters: data.characters.length,
                 campaigns: data.campaigns.length
             },
-            topbarExtra: ''
+            topbarExtra: data.liveEncounter
+                ? `<a class="btn btn-accent" href="monster-tracker.html?id=${encodeURIComponent(data.liveEncounter.id)}">Resume encounter</a>`
+                : ''
         });
 
         const parts = [];
@@ -110,14 +112,14 @@
                 </div>
                 ${
                     data.liveEncounter
-                        ? `<div class="summary-card is-pending" aria-disabled="true">
+                        ? `<a class="summary-card" href="monster-tracker.html?id=${encodeURIComponent(data.liveEncounter.id)}">
                                ${icon('monster', 18)}
                                <div class="body">
                                    <div class="title">${escapeHtml(data.liveEncounter.name)}</div>
                                    <div class="meta">In progress · round ${data.liveEncounter.round || 0}</div>
                                </div>
-                               <span class="nav-soon">soon</span>
-                           </div>`
+                               <span class="mono nav-count is-live">LIVE</span>
+                           </a>`
                         : ''
                 }
                 <a class="summary-card" href="campaigns.html">
