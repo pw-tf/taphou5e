@@ -204,45 +204,314 @@
     // Adding combatants
     // ========================================
 
-    window.addMonsters = () => {
-        if (!monsters.length) {
-            toast('This campaign has no monsters yet. Add some from the Compendium.', 'error');
-            return;
-        }
-        openModal({
-            title: 'Add monsters',
-            submitLabel: 'Add',
-            fields: [
-                { name: 'monster_id', label: 'Monster', type: 'select', value: monsters[0].id,
-                  options: monsters.map(m => ({ value: m.id, label: m.name })) },
-                { name: 'count', label: 'How many', type: 'number', value: 1 }
-            ],
-            onSubmit: async values => {
-                const monster = monsters.find(m => m.id === values.monster_id);
-                const count = Math.max(1, Math.min(20, values.count || 1));
-                const existing = combatants.filter(r => r.campaign_monster_id === monster.id).length;
+    // The classic tracker lets a DM type a name, pick from suggestions, choose
+    // how many, and add. Requiring a trip to the Compendium first was the main
+    // thing that made v2 slower to run a fight with.
+    //
+    // The schema still wants every combatant to reference something, so picking
+    // an SRD creature that is not on this campaign's roster creates the roster
+    // row silently. The roster therefore fills itself from actual use, and the
+    // Compendium becomes curation rather than a required first step.
+    const PALETTE = ['#c4452f', '#d9a94a', '#7fa65c', '#3d5a72', '#8a5fa8', '#b9743a', '#6b7280'];
 
-                const rows = [];
-                for (let i = 0; i < count; i++) {
-                    rows.push({
-                        encounter_id: enc.id,
-                        game_world_id: session.gameWorldId,
-                        combatant_type: 'monster',
-                        campaign_monster_id: monster.id,
-                        display_name: count > 1 || existing
-                            ? `${monster.name} ${existing + i + 1}` : monster.name,
-                        armor_class: monster.armor_class,
-                        max_hit_points: monster.max_hit_points,
-                        current_hit_points: monster.max_hit_points,
-                        sort_order: combatants.length + i
+    let addState = { query: '', suggestions: [], picked: null, detail: null, rolls: [] };
+
+    async function ensureMonsterIndex() {
+        try { return await srdIndex('monsters'); }
+        catch (err) { console.error('SRD index failed:', err); return []; }
+    }
+
+    function addPanelBody() {
+        const a = addState;
+        const roster = monsters.filter(m =>
+            !a.query || m.name.toLowerCase().includes(a.query.toLowerCase()));
+
+        return `
+            <div class="form-group">
+                <label for="add-search">Monster</label>
+                <input id="add-search" type="search" autocomplete="off"
+                       placeholder="Start typing — goblin, wolf, bandit…"
+                       value="${escapeHtml(a.query)}">
+                <p class="hint" id="add-hint">${a.picked
+                    ? `Adding <b>${escapeHtml(a.picked.name)}</b>${a.picked.source === 'roster'
+                        ? ' from this campaign' : ' from the SRD'}. Typing again changes it.`
+                    : 'Anything not in the SRD can be added by name with your own hit points.'}</p>
+            </div>
+
+            <div id="add-suggestions" class="add-suggestions">
+                ${a.picked ? '' : suggestionRows(roster, a.suggestions)}
+            </div>
+
+            <div id="add-config" class="${a.picked ? '' : 'hidden'}">
+                <div class="add-row">
+                    <div class="form-group" style="flex:0 0 96px">
+                        <label for="add-count">How many</label>
+                        <input id="add-count" type="number" min="1" max="20" value="1">
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:0">
+                        <label for="add-group">Group (optional)</label>
+                        <input id="add-group" type="text" placeholder="Wave 1" value="${escapeHtml(lastGroup)}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Colour</label>
+                    <div class="swatches" id="add-swatches">
+                        <button type="button" class="swatch is-none is-active" data-color=""
+                                title="No colour" aria-label="No colour"></button>
+                        ${PALETTE.map(c => `
+                            <button type="button" class="swatch" data-color="${c}"
+                                    style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}
+                    </div>
+                </div>
+
+                <label class="remember-row">
+                    <input type="checkbox" id="add-auto-init" checked>
+                    Roll initiative automatically (d20 + DEX)
+                </label>
+
+                <div class="form-group">
+                    <label>Hit points</label>
+                    <div id="add-hp-rows" class="add-hp-rows"></div>
+                    <p class="hint">Rolled from hit dice, so each one differs. Edit any of them.</p>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-accent" id="add-confirm">Add to encounter</button>
+                </div>
+            </div>`;
+    }
+
+    function suggestionRows(roster, srd) {
+        if (!addState.query) {
+            return roster.length
+                ? `<div class="eyebrow">In this campaign</div>` +
+                  roster.slice(0, 8).map(m =>
+                    `<button type="button" class="add-suggestion" data-kind="roster" data-id="${m.id}">
+                        ${escapeHtml(m.name)}<span class="hidden-pill">roster</span>
+                     </button>`).join('')
+                : '<p class="hint">Type to search the SRD.</p>';
+        }
+
+        const rosterRows = roster.slice(0, 5).map(m =>
+            `<button type="button" class="add-suggestion" data-kind="roster" data-id="${m.id}">
+                ${escapeHtml(m.name)}<span class="hidden-pill">roster</span>
+             </button>`).join('');
+
+        const rosterIndexes = new Set(monsters.map(m => m.api_index).filter(Boolean));
+        const srdRows = srd.filter(r => !rosterIndexes.has(r.index)).slice(0, 8).map(r =>
+            `<button type="button" class="add-suggestion" data-kind="srd" data-id="${escapeHtml(r.index)}">
+                ${escapeHtml(r.name)}
+             </button>`).join('');
+
+        return (rosterRows || srdRows)
+            ? rosterRows + srdRows
+            : `<button type="button" class="add-suggestion" data-kind="custom" data-id="">
+                   Add “${escapeHtml(addState.query)}” as your own<span class="hidden-pill">custom</span>
+               </button>`;
+    }
+
+    function renderHPRows() {
+        const count = Math.max(1, Math.min(20, parseInt($('#add-count').value, 10) || 1));
+        const name = addState.picked ? addState.picked.name : 'Monster';
+
+        // One roll per creature, as the classic tracker does.
+        while (addState.rolls.length < count) addState.rolls.push(rollForOne());
+        addState.rolls.length = count;
+
+        $('#add-hp-rows').innerHTML = addState.rolls.map((hp, i) => `
+            <div class="add-hp-row">
+                <label for="hp-${i}">${escapeHtml(name)}${count > 1 ? ' ' + (i + 1) : ''}</label>
+                <input id="hp-${i}" class="add-hp" type="number" min="1" value="${hp}">
+            </div>`).join('');
+    }
+
+    function rollForOne() {
+        if (addState.detail) return rollHitPoints(addState.detail);
+        if (addState.picked && addState.picked.max_hit_points) return addState.picked.max_hit_points;
+        return 10;
+    }
+
+    let lastGroup = '';
+
+    window.openAddMonsters = async () => {
+        addState = { query: '', suggestions: [], picked: null, detail: null, rolls: [] };
+        const index = await ensureMonsterIndex();
+
+        openPanel({
+            title: 'Add monsters',
+            body: addPanelBody(),
+            onMount: panel => {
+                const search = $('#add-search', panel);
+
+                const redraw = () => {
+                    panel.innerHTML = addPanelBody();
+                    wire(panel);
+                    if (addState.picked) renderHPRows();
+                };
+
+                function wire(root) {
+                    const box = $('#add-search', root);
+                    if (box) {
+                        box.addEventListener('input', () => {
+                            addState.query = box.value;
+                            addState.picked = null;
+                            addState.detail = null;
+                            addState.rolls = [];
+                            const q = addState.query.trim().toLowerCase();
+                            addState.suggestions = q
+                                ? index.filter(r => r.name.toLowerCase().includes(q))
+                                : [];
+                            const host = $('#add-suggestions', root);
+                            const roster = monsters.filter(m =>
+                                !q || m.name.toLowerCase().includes(q));
+                            host.innerHTML = suggestionRows(roster, addState.suggestions);
+                            $('#add-config', root).classList.add('hidden');
+                            bindSuggestions(root);
+                        });
+                        if (addState.query) {
+                            box.focus();
+                            box.setSelectionRange(box.value.length, box.value.length);
+                        }
+                    }
+
+                    const count = $('#add-count', root);
+                    if (count) count.addEventListener('input', renderHPRows);
+
+                    $$('#add-swatches .swatch', root).forEach(sw => {
+                        sw.addEventListener('click', () => {
+                            $$('#add-swatches .swatch', root)
+                                .forEach(o => o.classList.toggle('is-active', o === sw));
+                        });
+                    });
+
+                    const confirm = $('#add-confirm', root);
+                    if (confirm) confirm.addEventListener('click', commitAdd);
+
+                    bindSuggestions(root);
+                }
+
+                function bindSuggestions(root) {
+                    $$('.add-suggestion', root).forEach(btn => {
+                        btn.addEventListener('click', async () => {
+                            const kind = btn.dataset.kind;
+                            if (kind === 'roster') {
+                                const m = monsters.find(x => x.id === btn.dataset.id);
+                                addState.picked = { source: 'roster', id: m.id, name: m.name,
+                                                    max_hit_points: m.max_hit_points,
+                                                    armor_class: m.armor_class, api_index: m.api_index };
+                                addState.detail = m.api_index
+                                    ? await srdDetail('monsters', m.api_index).catch(() => null) : null;
+                            } else if (kind === 'srd') {
+                                const row = index.find(r => r.index === btn.dataset.id);
+                                addState.detail = await srdDetail('monsters', row.index).catch(() => null);
+                                addState.picked = { source: 'srd', api_index: row.index, name: row.name,
+                                                    armor_class: srdArmorClass(addState.detail && addState.detail.armor_class),
+                                                    max_hit_points: addState.detail && addState.detail.hit_points };
+                            } else {
+                                addState.picked = { source: 'custom', name: addState.query.trim() || 'Monster',
+                                                    armor_class: 10, max_hit_points: 10 };
+                                addState.detail = null;
+                            }
+                            addState.rolls = [];
+                            redraw();
+                        });
                     });
                 }
-                const { error } = await db.from('encounter_combatants').insert(rows);
-                if (error) throw new Error(error.message || 'Could not add those monsters.');
-                await reload();
+
+                wire(panel);
+                if (search) search.focus();
             }
         });
     };
+
+    // Finds this campaign's roster row for the pick, creating it if needed.
+    async function resolveRosterMonster(picked) {
+        if (picked.source === 'roster') return picked.id;
+
+        const existing = monsters.find(m =>
+            (picked.api_index && m.api_index === picked.api_index) ||
+            (!picked.api_index && m.name.toLowerCase() === picked.name.toLowerCase()));
+        if (existing) return existing.id;
+
+        const detail = addState.detail;
+        const payload = picked.api_index
+            ? { source: 'srd_api', api_index: picked.api_index, statblock: null,
+                challenge_rating: detail ? detail.challenge_rating : null,
+                creature_type: detail ? detail.type : null, size: detail ? detail.size : null }
+            : { source: 'homebrew', api_index: null,
+                statblock: { description: 'Added from the tracker.' },
+                challenge_rating: null, creature_type: null, size: null };
+
+        const { data, error } = await db.from('campaign_monsters').insert({
+            campaign_id: enc.campaign_id,
+            game_world_id: session.gameWorldId,
+            name: picked.name,
+            armor_class: picked.armor_class ?? 10,
+            max_hit_points: picked.max_hit_points ?? 10,
+            ...payload
+        }).select('id').single();
+
+        if (error) throw new Error(error.message || 'Could not add that monster to the campaign.');
+        return data.id;
+    }
+
+    async function commitAdd() {
+        const picked = addState.picked;
+        if (!picked) return;
+
+        const confirm = $('#add-confirm');
+        confirm.setAttribute('aria-busy', 'true');
+
+        try {
+            const monsterId = await resolveRosterMonster(picked);
+            const hps = $$('.add-hp').map(i => Math.max(1, parseInt(i.value, 10) || 1));
+            const auto = $('#add-auto-init').checked;
+            const color = ($('#add-swatches .swatch.is-active') || {}).dataset?.color || null;
+            const group = $('#add-group').value.trim();
+            lastGroup = group;
+
+            const existing = combatants.filter(r => r.campaign_monster_id === monsterId).length;
+            const rows = hps.map((hp, i) => ({
+                encounter_id: enc.id,
+                game_world_id: session.gameWorldId,
+                combatant_type: 'monster',
+                campaign_monster_id: monsterId,
+                display_name: hps.length > 1 || existing
+                    ? `${picked.name} ${existing + i + 1}` : picked.name,
+                initiative: auto ? rollInitiativeFor(addState.detail) : null,
+                armor_class: picked.armor_class ?? 10,
+                max_hit_points: hp,
+                current_hit_points: hp,
+                color: color || null,
+                group_label: group || null,
+                sort_order: combatants.length + i
+            }));
+
+            const { error } = await db.from('encounter_combatants').insert(rows);
+            if (error) throw new Error(error.message || 'Could not add those monsters.');
+
+            closeModal();
+            await reloadAll();
+            toast(`${rows.length} added.`);
+        } catch (err) {
+            console.error('Add failed:', err);
+            toast(err.message || 'Could not add those monsters.', 'error');
+            confirm.setAttribute('aria-busy', 'false');
+        }
+    }
+
+    // Adding from the tracker can create a roster row, so refresh both.
+    async function reloadAll() {
+        const [rows, roster] = await Promise.all([
+            db.from('encounter_combatants').select('*').eq('encounter_id', enc.id).order('sort_order'),
+            db.from('campaign_monsters').select('*').eq('campaign_id', enc.campaign_id).order('name')
+        ]);
+        combatants = rows.data || [];
+        monsters = roster.data || [];
+        draw();
+    }
 
     // The party is the common case, so add the whole active roster at once.
     window.addParty = async () => {
@@ -317,6 +586,92 @@
         draw();
     };
 
+    window.setColor = async (id, color) => {
+        const row = combatants.find(r => r.id === id);
+        if (!row) return;
+        row.color = color || null;
+        draw();
+        if ((await db.from('encounter_combatants')
+            .update({ color: row.color }).eq('id', id)).error) {
+            toast('Could not save that colour.', 'error');
+        }
+    };
+
+    window.editNotes = id => {
+        const row = combatants.find(r => r.id === id);
+        if (!row) return;
+        openModal({
+            title: `Note — ${row.display_name}`,
+            submitLabel: 'Save',
+            fields: [{ name: 'notes', label: 'Note', type: 'textarea', rows: 4, value: row.notes || '' }],
+            onSubmit: async values => {
+                row.notes = values.notes || null;
+                draw();
+                await db.from('encounter_combatants').update({ notes: row.notes }).eq('id', id);
+            }
+        });
+    };
+
+    window.editAC = id => {
+        const row = combatants.find(r => r.id === id);
+        if (!row) return;
+        openModal({
+            title: `Armor class — ${row.display_name}`,
+            submitLabel: 'Save',
+            fields: [{ name: 'armor_class', label: 'Armor class', type: 'number', value: row.armor_class ?? 10 }],
+            onSubmit: async values => {
+                row.armor_class = values.armor_class;
+                draw();
+                await db.from('encounter_combatants').update({ armor_class: row.armor_class }).eq('id', id);
+            }
+        });
+    };
+
+    window.toggleGroup = label => {
+        if (collapsed.has(label)) collapsed.delete(label); else collapsed.add(label);
+        draw();
+    };
+
+    const collapsed = new Set();
+
+    // Rows carrying a group label gather under a collapsible heading, with
+    // ungrouped rows last -- the same shape as the classic tracker.
+    //
+    // Groups are shown while an encounter is being prepared. Once it is running
+    // the list goes flat in initiative order, because turn order is global: a
+    // grouped list would send the active-turn highlight jumping between
+    // headings. Waves are a planning tool; initiative is a combat one.
+    function groupedRows(list) {
+        const groups = new Map();
+        list.forEach(row => {
+            const key = row.group_label || '';
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(row);
+        });
+
+        const keys = Array.from(groups.keys()).sort((a, b) => {
+            if (a === '') return 1;
+            if (b === '') return -1;
+            return a.localeCompare(b);
+        });
+
+        return keys.map(key => {
+            const rows = groups.get(key);
+            if (!key) return `<div class="enc-group">${rows.map(initRow).join('')}</div>`;
+            const isCollapsed = collapsed.has(key);
+            const alive = rows.filter(r => !r.is_defeated).length;
+            return `
+                <div class="enc-group${isCollapsed ? ' collapsed' : ''}">
+                    <h2 onclick="toggleGroup('${escapeHtml(key)}')" role="button" tabindex="0">
+                        <span class="group-caret">${isCollapsed ? '▸' : '▾'}</span>
+                        ${escapeHtml(key)}
+                        <span class="mono group-count">${alive}/${rows.length}</span>
+                    </h2>
+                    ${isCollapsed ? '' : rows.map(initRow).join('')}
+                </div>`;
+        }).join('');
+    }
+
     // ========================================
     // Render: the tracker
     // ========================================
@@ -333,11 +688,13 @@
         if (isActive) classes.push('is-active');
         if (isParty) classes.push('is-party');
         if (row.is_defeated) classes.push('is-dead');
+        if (row.color) classes.push('has-color');
 
         const conditions = Array.isArray(row.conditions) ? row.conditions : [];
+        const styleAttr = row.color ? ` style="--row-color:${escapeHtml(row.color)}"` : '';
 
         return `
-            <div class="${classes.join(' ')}">
+            <div class="${classes.join(' ')}"${styleAttr}>
                 <div class="init-value">
                     ${isDM && enc.status !== 'completed'
                         ? `<input class="init-input mono" type="number" value="${row.initiative ?? ''}"
@@ -352,7 +709,10 @@
                         ${escapeHtml(row.display_name)}
                     </div>
                     <div class="init-sub">
-                        ${row.armor_class ? `<span class="mono">AC ${row.armor_class}</span>` : ''}
+                        ${isDM && enc.status !== 'completed'
+                            ? `<span class="mono ac-edit" role="button" tabindex="0"
+                                     onclick="editAC('${row.id}')" title="Edit armor class">AC ${row.armor_class ?? '—'}</span>`
+                            : (row.armor_class ? `<span class="mono">AC ${row.armor_class}</span>` : '')}
                         ${hideHP ? '' : `<span class="state-${hpClass(hp.current, hp.max)}">${hpStateLabel(hp.current, hp.max)}</span>`}
                         ${isParty ? '<span class="hidden-pill">party</span>' : ''}
                     </div>
@@ -385,6 +745,8 @@
                         ${conditions.map(c => `<span class="condition-tag active">${escapeHtml(c)}</span>`).join('')}
                     </div>` : ''}
 
+                ${row.notes ? `<div class="init-note">${escapeHtml(row.notes)}</div>` : ''}
+
                 ${detail === row.id ? `
                     <div class="init-detail">
                         <span class="eyebrow">Conditions</span>
@@ -395,6 +757,18 @@
                                     ${c}
                                 </button>`).join('')}
                         </div>
+                        ${isDM ? `
+                            <span class="eyebrow" style="margin-top:var(--space-sm)">Colour</span>
+                            <div class="swatches">
+                                <button class="swatch is-none${row.color ? '' : ' is-active'}"
+                                        onclick="setColor('${row.id}','')" aria-label="No colour"></button>
+                                ${['#c4452f','#d9a94a','#7fa65c','#3d5a72','#8a5fa8','#b9743a','#6b7280'].map(c => `
+                                    <button class="swatch${row.color === c ? ' is-active' : ''}"
+                                            style="background:${c}" onclick="setColor('${row.id}','${c}')"
+                                            aria-label="Colour ${c}"></button>`).join('')}
+                            </div>
+                            <button class="btn btn-quiet btn-tiny" style="align-self:flex-start;margin-top:var(--space-sm)"
+                                    onclick="editNotes('${row.id}')">${row.notes ? 'Edit note' : 'Add note'}</button>` : ''}
                     </div>` : ''}
             </div>`;
     }
@@ -413,7 +787,7 @@
             </div>
             ${enc.read_aloud ? `<p class="prose read-aloud">${escapeHtml(enc.read_aloud)}</p>` : ''}
             ${list.length
-                ? `<div class="enc-group">${list.map(initRow).join('')}</div>`
+                ? (running ? `<div class="enc-group">${list.map(initRow).join('')}</div>` : groupedRows(list))
                 : `<div class="empty-state">
                        <h3>Nobody in this encounter yet</h3>
                        <p>${isDM ? "Add the party, then monsters from this campaign's roster."
@@ -513,7 +887,7 @@
         return actions.concat([
             { label: 'Roll initiative', onclick: 'rollInitiative()' },
             { label: 'Add party', onclick: 'addParty()' },
-            { label: 'Add monsters', onclick: 'addMonsters()' },
+            { label: 'Add monsters', onclick: 'openAddMonsters()' },
             { label: 'Add NPC', onclick: 'addNPC()' },
             { label: enc.hide_monster_hp ? 'Monster HP hidden' : 'Monster HP visible',
               onclick: 'toggleHideHP()' }

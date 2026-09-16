@@ -901,6 +901,44 @@ Other behaviour worth recording:
   HP rail and the controls on a phone; below the breakpoint the row wraps and the
   HP rail takes its own line.
 
+### 11.3a2 Tracker parity with the classic version
+
+Reviewing `monster-tracker.html` against v2 found the real friction: **the
+schema was forcing a detour**. `encounter_combatants` requires a reference to a
+roster monster, an NPC or a character, so adding a creature meant visiting the
+Compendium first to create the roster row. The classic tracker just lets a DM
+type a name and add.
+
+Resolved without weakening the constraint: picking an SRD creature that is not
+on the campaign's roster **creates that roster row silently**, then adds the
+combatants against it. The roster fills itself from actual use, and the
+Compendium becomes curation rather than a required first step.
+
+What was ported across:
+
+| Classic behaviour | In v2 |
+|---|---|
+| Type-ahead monster search in the tracker | Searches the campaign roster first, then the SRD, then offers to add the typed name as your own |
+| Add several at once | Count field, one hit point row per creature, each numbered |
+| Hit points rolled from hit dice | `rollHitPoints` parses `2d6 + 2`, rolls per creature, and adds the constitution bonus per die unless `hit_points_roll` shows it is already folded in |
+| Initiative auto-rolled | d20 **plus the dexterity modifier**, per creature, not a flat d20 |
+| Border colour per combatant | Swatch palette, set when adding or per row afterwards; stored in `encounter_combatants.color` behind a hex check constraint |
+| Encounter grouping | `group_label`, rendered as a collapsible heading with a live count |
+| Notes per combatant | `encounter_combatants.notes` — specified in §4.8 but missed when the table was created; restored |
+| Inline armor class editing | Tap the AC to change it |
+| Five status tiers | HEALTHY / INJURED / BLOODIED / CRITICAL / DOWN, replacing a three-tier split. The bar colour still uses `hpClass`, so word and colour agree |
+
+**One conflict the classic version never had.** Grouping reorders the list, but
+turn order is global, so a grouped list would send the active-turn highlight
+jumping between headings. The classic tracker has no turn tracking, so it never
+met this. The rule now: **groups show while an encounter is being prepared, and
+the list goes flat in initiative order once it is running.** Waves are a
+planning tool; initiative is a combat one.
+
+SRD access, hit point rolling and armor-class normalisation moved into `core.js`
+so the tracker and Compendium share one cache — two copies would have meant two
+sets of requests to a free public API.
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:
