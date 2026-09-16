@@ -354,3 +354,25 @@ textarea:focus-visible,
 .section-head .btn-tiny { flex: none; }
 .dm-note-block { display: flex; flex-direction: column; gap: 2px; }
 .campaign-tab-body { display: flex; flex-direction: column; gap: var(--space-sm); }
+
+/* ---------- Compendium ---------- */
+.compendium-controls { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.srd-search {
+  flex: 1; min-width: 180px; padding: 9px 12px;
+  background: var(--bg-tertiary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-primary);
+  font-family: var(--font-sans); font-size: var(--fs-14);
+}
+.srd-search:focus { outline: none; border-color: var(--accent-primary); }
+.compendium-split { display: flex; flex-direction: column; gap: var(--space-md); min-height: 0; }
+.srd-list { min-width: 0; }
+.srd-list .list-row.is-selected { border-color: var(--accent-primary); background: var(--accent-soft); }
+.srd-detail { min-width: 0; }
+.srd-detail .statblock { padding: var(--space-md); background: var(--bg-secondary);
+  border: 1px solid var(--border-default); border-radius: var(--radius-lg); }
+.pane-actions { margin-top: var(--space-sm); }
+@media (min-width: 900px) {
+  .compendium-split { flex-direction: row; align-items: flex-start; }
+  .srd-list { flex: 1; max-height: calc(100vh - 220px); overflow: auto; }
+  .srd-detail { width: var(--pane-width); flex: none; max-height: calc(100vh - 220px); overflow: auto; }
+}

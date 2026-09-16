@@ -14,7 +14,7 @@
         { label: 'Character sheets',  blurb: 'Open the party roster and play from a sheet.', href: 'characters.html',      icon: 'user' },
         { label: 'Encounter tracker', blurb: 'Run initiative, HP and conditions.',           href: 'monster-tracker.html', icon: 'monster', pending: true },
         { label: 'Campaigns',         blurb: 'Storylines, areas, NPCs and encounters.',      href: 'campaigns.html',       icon: 'map' },
-        { label: 'Compendium',        blurb: 'Search monsters and spells; build homebrew.',  href: 'compendium.html',      icon: 'search',  pending: true }
+        { label: 'Compendium',        blurb: 'Search monsters and spells; build homebrew.',  href: 'compendium.html',      icon: 'search' }
     ];
 
     function tile(t) {
