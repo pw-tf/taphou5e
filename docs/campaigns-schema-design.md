@@ -574,6 +574,24 @@ back at main — no database change required.
 **The secret is not yet protected.** The hashes remain readable on `game_worlds` until step 5, so DM
 PINs are still recoverable by lookup for now. Decision 3 only takes effect when those columns drop.
 
+### 5.6a Default campaign for new worlds
+
+The §7 backfill covered the 191 worlds that existed when it ran, but nothing gave a campaign to
+worlds created afterwards -- so a newly created world would land in v2 with an empty campaign list
+while every older world had one.
+
+Fixed with an `after insert` trigger on `game_worlds` rather than inside `world_create`, so it covers
+**every** creation path: the new RPC, and the old client's direct insert, which main still uses for as
+long as the transition lasts.
+
+```sql
+create trigger ensure_default_campaign_trg
+after insert on public.game_worlds
+for each row execute function public.ensure_default_campaign();
+```
+
+Unlike the PIN sync trigger, this one is permanent -- it is not transition scaffolding.
+
 ### 5.7 Cutover checklist
 
 1. ✅ `game_world_secrets` created and populated, sync trigger live
