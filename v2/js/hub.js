@@ -11,7 +11,7 @@
     // Dice and tools is cut. `pending` tiles render disabled until their page
     // exists, so the hub shows the finished shape without linking to a 404.
     const TILES = [
-        { label: 'Character sheets',  blurb: 'Open the party roster and play from a sheet.', href: 'characters.html',      icon: 'user',    pending: true },
+        { label: 'Character sheets',  blurb: 'Open the party roster and play from a sheet.', href: 'characters.html',      icon: 'user' },
         { label: 'Encounter tracker', blurb: 'Run initiative, HP and conditions.',           href: 'monster-tracker.html', icon: 'monster', pending: true },
         { label: 'Campaigns',         blurb: 'Storylines, areas, NPCs and encounters.',      href: 'campaigns.html',       icon: 'map',     pending: true },
         { label: 'Compendium',        blurb: 'Search monsters and spells; build homebrew.',  href: 'compendium.html',      icon: 'search',  pending: true }
@@ -26,47 +26,6 @@
             : `<a class="hub-tile" href="${t.href}">${inner}</a>`;
     }
 
-    function characterCard(character) {
-        const scores = character.ability_scores || {};
-        const dex = abilityMod(scores.dexterity);
-        const wis = abilityMod(scores.wisdom);
-        const initiative = character.initiative_bonus !== null && character.initiative_bonus !== undefined
-            ? character.initiative_bonus
-            : dex;
-        const passive = 10 + wis + (character.proficiency_bonus || 2);
-
-        const conditions = Array.isArray(character.active_conditions) ? character.active_conditions : [];
-        let tag = '';
-        if (character.pending_level_up) {
-            tag = '<span class="tag tag-accent">LEVEL UP</span>';
-        } else if (conditions.length) {
-            tag = `<span class="tag tag-warning">${escapeHtml(conditions[0].toUpperCase())}</span>`;
-        }
-
-        const subclass = character.subclass ? ` ${character.subclass}` : '';
-        const meta = `Lv ${character.level || 1} ${character.class || ''}${subclass} · ${character.player_name || ''}`;
-
-        return `
-            <div class="character-card${character.pending_level_up ? ' is-flagged' : ''}"
-                 style="flex-direction:column;gap:var(--space-10)">
-                <div class="card-top">
-                    <div class="avatar">${escapeHtml((character.name || '?').charAt(0).toUpperCase())}</div>
-                    <div style="flex:1;min-width:0">
-                        <div class="card-name">${escapeHtml(character.name)}</div>
-                        <div class="card-meta">${escapeHtml(meta)}</div>
-                    </div>
-                    ${tag}
-                </div>
-                ${renderHP(character.current_hit_points, character.hit_point_maximum, character.temporary_hit_points)}
-                <div class="chipline">
-                    <div class="chip">${character.armor_class ?? 10}<span>AC</span></div>
-                    <div class="chip">${formatMod(initiative)}<span>IN</span></div>
-                    <div class="chip chip-sp">${character.speed ?? 30}<span>SP</span></div>
-                    <div class="chip">${passive}<span>PP</span></div>
-                </div>
-            </div>`;
-    }
-
     async function load() {
         const worldId = session.gameWorldId;
 
@@ -74,7 +33,7 @@
         // versions always agree about who is in the party.
         const charactersQuery = db
             .from('characters')
-            .select('id, name, player_name, class, subclass, level, armor_class, speed, initiative_bonus, proficiency_bonus, current_hit_points, hit_point_maximum, temporary_hit_points, active_conditions, pending_level_up, ability_scores(dexterity, wisdom)')
+            .select(CHARACTER_CARD_COLUMNS)
             .eq('game_world_id', worldId)
             .order('name');
 

@@ -191,6 +191,57 @@ function toast(message, kind) {
 }
 
 // ========================================
+// Character card -- shared by the hub and the roster
+// ========================================
+
+const CHARACTER_CARD_COLUMNS =
+    'id, name, player_name, class, subclass, level, armor_class, speed, initiative_bonus, ' +
+    'proficiency_bonus, current_hit_points, hit_point_maximum, temporary_hit_points, ' +
+    'active_conditions, pending_level_up, ability_scores(dexterity, wisdom)';
+
+function characterCard(character) {
+    const scores = character.ability_scores || {};
+    const dex = abilityMod(scores.dexterity);
+    const wis = abilityMod(scores.wisdom);
+    const initiative = character.initiative_bonus !== null && character.initiative_bonus !== undefined
+        ? character.initiative_bonus
+        : dex;
+    const passive = 10 + wis + (character.proficiency_bonus || 2);
+
+    const conditions = Array.isArray(character.active_conditions) ? character.active_conditions : [];
+    let tag = '';
+    if (character.pending_level_up) {
+        tag = '<span class="tag tag-accent">LEVEL UP</span>';
+    } else if (conditions.length) {
+        tag = `<span class="tag tag-warning">${escapeHtml(conditions[0].toUpperCase())}</span>`;
+    }
+
+    const subclass = character.subclass ? ` ${character.subclass}` : '';
+    const meta = `Lv ${character.level || 1} ${character.class || ''}${subclass} · ${character.player_name || ''}`;
+
+    return `
+        <a class="character-card${character.pending_level_up ? ' is-flagged' : ''}"
+           href="character-sheet.html?id=${encodeURIComponent(character.id)}"
+           style="flex-direction:column;gap:var(--space-10)">
+            <div class="card-top">
+                <div class="avatar">${escapeHtml((character.name || '?').charAt(0).toUpperCase())}</div>
+                <div style="flex:1;min-width:0">
+                    <div class="card-name">${escapeHtml(character.name)}</div>
+                    <div class="card-meta">${escapeHtml(meta)}</div>
+                </div>
+                ${tag}
+            </div>
+            ${renderHP(character.current_hit_points, character.hit_point_maximum, character.temporary_hit_points)}
+            <div class="chipline">
+                <div class="chip">${character.armor_class ?? 10}<span>AC</span></div>
+                <div class="chip">${formatMod(initiative)}<span>IN</span></div>
+                <div class="chip chip-sp">${character.speed ?? 30}<span>SP</span></div>
+                <div class="chip">${passive}<span>PP</span></div>
+            </div>
+        </a>`;
+}
+
+// ========================================
 // Icons -- copied verbatim from the v1 pages, per the handoff
 // ========================================
 
@@ -203,7 +254,10 @@ const ICONS = {
     menu:       '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
     logout:     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
     swap:       '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
-    map:        '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>'
+    map:        '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+    sword:      '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/>',
+    star:       '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    bag:        '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'
 };
 
 function icon(name, size) {
@@ -220,7 +274,7 @@ function icon(name, size) {
 // nav still shows the shape of the finished app.
 const NAV = [
     { id: 'overview',   label: 'Overview',   href: 'index.html',           icon: 'overview' },
-    { id: 'characters', label: 'Characters', href: 'characters.html',      icon: 'user',    pending: true },
+    { id: 'characters', label: 'Characters', href: 'characters.html',      icon: 'user' },
     { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map',     pending: true },
     { id: 'encounters', label: 'Encounters', href: 'monster-tracker.html', icon: 'monster', pending: true },
     { id: 'compendium', label: 'Compendium', href: 'compendium.html',      icon: 'search',  pending: true },

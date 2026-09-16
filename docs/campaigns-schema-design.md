@@ -822,12 +822,14 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 
 | Built | Not yet |
 |---|---|
-| Shell: sidebar, mobile header, drawer, topbar | Characters / roster page |
-| Tokens, `ember.css`, three-way theme control | Character sheet |
-| Login and world creation on the RPCs | Campaign screens |
-| Overview hub with live party, campaign and encounter state | Encounter tracker |
-| The single `.hp` component | Compendium |
-| Root version router | DM panel |
+| Shell: sidebar, mobile header, drawer, topbar | Campaign screens |
+| Tokens, `ember.css`, three-way theme control | Encounter tracker |
+| Login and world creation on the RPCs | Compendium |
+| Overview hub with live party, campaign and encounter state | DM panel |
+| Party roster | Character creation (still classic — it drives the level-up engine) |
+| Character sheet: six tabs, HP controls, rests, conditions, detail pane | |
+| The single `.hp` component | |
+| Root version router | |
 
 Unbuilt destinations render as inert rows marked "soon" rather than links, so
 the nav shows the shape of the finished app without pointing at a 404.
@@ -843,6 +845,16 @@ Two things worth recording from building it:
 - **`theme.js` marks its control on `DOMContentLoaded`,** but the shell rebuilds
   `document.body` after that, so the marking was lost. It now exposes
   `window.markThemeButtons()` for the shell to re-run.
+- **The sheet's rails are siblings of `.app-main`,** not children of it. Nesting
+  them made the sticky combat header stretch the full viewport and the HP amount
+  field grow to ~1000px. The handoff's own reference page has the structure; it
+  is worth reading the markup rather than inferring layout from the prose.
+
+Sheet write semantics deliberately mirror v1: HP clamps to `[0, max]`, updates
+are optimistic then persisted, and temporary hit points sit alongside rather than
+absorbing damage first. That last one departs from the rulebook, but both
+versions write the same columns and a divergence would surface as the two
+disagreeing about whether a character is alive.
 
 ### 11.4 Compendium
 
