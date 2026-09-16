@@ -605,3 +605,12 @@ a.list-row, a.list-row:hover,
 }
 a.check-row { text-decoration: none; }
 a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
+
+/* ---------- Share code ---------- */
+.share-code {
+  font-family: var(--font-mono); font-size: var(--fs-24); font-weight: 600;
+  letter-spacing: .18em; text-align: center; color: var(--accent-primary);
+  padding: var(--space-md); user-select: all;
+  background: var(--bg-tertiary); border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}

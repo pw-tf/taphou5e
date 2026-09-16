@@ -873,7 +873,8 @@
                         <h3>No encounters yet</h3>
                         <p>${isDM ? "Build one from a campaign's monster roster, then run it here."
                                   : 'Nothing is running right now.'}</p>
-                        ${isDM ? '<button class="btn btn-accent" onclick="newEncounter()">New encounter</button>' : ''}
+                        ${isDM ? `<button class="btn btn-accent" onclick="newEncounter()">New encounter</button>
+                                  <button class="btn" onclick="importEncounter()">Add a shared one</button>` : ''}
                     </div>`;
         }
 
@@ -908,6 +909,150 @@
             .select('*').eq('encounter_id', enc.id).order('sort_order');
         combatants = data || [];
         draw();
+    }
+
+    // ========================================
+    // Sharing
+    //
+    // The classic tracker shares by base64-encoding the whole monster array
+    // into a URL -- around two kilobytes for a six-creature fight, carrying
+    // live hit points and internal ids. It did that because it had no server.
+    // Here the recipe goes in a row and the shared thing is a ten-character
+    // code, so it survives being read down a phone or pasted anywhere.
+    // ========================================
+
+    window.shareEncounter = async () => {
+        const { data, error } = await db.rpc('encounter_share_create', { p_encounter_id: enc.id });
+        if (error || !data || !data.ok) {
+            console.error('Share failed:', error || data);
+            toast((data && data.error === 'not_dm')
+                ? 'Log in again as DM to share this encounter.'
+                : 'Could not share that encounter.', 'error');
+            return;
+        }
+
+        openPanel({
+            title: 'Share this encounter',
+            body: `
+                <p class="hint">Anyone with this code can add a copy to their own campaign.
+                   It carries the creatures at full health, with their colours and groups —
+                   not your party, and not the current state of the fight.</p>
+                <div class="share-code" id="share-code">${escapeHtml(data.code)}</div>
+                <p class="hint">${data.count} creature${data.count === 1 ? '' : 's'}.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeModal()">Done</button>
+                    <button type="button" class="btn btn-accent" id="copy-code">Copy code</button>
+                </div>`,
+            onMount: panel => {
+                $('#copy-code', panel).addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(data.code);
+                        toast('Code copied.');
+                    } catch (err) {
+                        // Clipboard access is refused in some browsers and over
+                        // plain http; selecting the text is the fallback.
+                        const node = $('#share-code', panel);
+                        const range = document.createRange();
+                        range.selectNodeContents(node);
+                        const sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                        toast('Select and copy the code.');
+                    }
+                });
+            }
+        });
+    };
+
+    window.importEncounter = () => {
+        if (!campaigns.length) {
+            toast('Create a campaign first.', 'error');
+            return;
+        }
+        openModal({
+            title: 'Add a shared encounter',
+            submitLabel: 'Add it',
+            fields: [
+                { name: 'code', label: 'Share code', required: true, placeholder: 'e.g. K7PQR2MWXJ',
+                  hint: 'Case does not matter.' },
+                { name: 'campaign_id', label: 'Add to', type: 'select', value: campaigns[0].id,
+                  options: campaigns.map(cm => ({ value: cm.id, label: cm.name })) }
+            ],
+            onSubmit: async values => {
+                const { data, error } = await db.rpc('encounter_share_get', { p_code: values.code });
+                if (error) throw new Error('Could not look that code up.');
+                if (!data || !data.ok) throw new Error('No encounter with that code. Check it and try again.');
+
+                const id = await buildFromRecipe(values.campaign_id, data.payload);
+                window.location.href = `monster-tracker.html?id=${encodeURIComponent(id)}`;
+            }
+        });
+    };
+
+    // Rebuilds a shared recipe in the chosen campaign, creating any roster
+    // monsters it needs -- the same rule the tracker's own add uses, so an
+    // import never asks the recipient to go and set the roster up first.
+    async function buildFromRecipe(campaignId, payload) {
+        const { data: created, error } = await db.from('encounters').insert({
+            campaign_id: campaignId,
+            game_world_id: session.gameWorldId,
+            name: payload.name || 'Shared encounter',
+            read_aloud: payload.read_aloud || null
+        }).select('id').single();
+        if (error) throw new Error(error.message || 'Could not create the encounter.');
+
+        const { data: rosterRows } = await db.from('campaign_monsters')
+            .select('id, name, api_index').eq('campaign_id', campaignId);
+        const roster = rosterRows || [];
+
+        const findOrCreate = async entry => {
+            // A shared creature is matched to the roster by its SRD reference
+            // where it has one, and by name otherwise.
+            const base = (entry.name || 'Monster').replace(/\s+\d+$/, '');
+            const hit = roster.find(m =>
+                (entry.api && m.api_index === entry.api) ||
+                (!entry.api && m.name.toLowerCase() === base.toLowerCase()));
+            if (hit) return hit.id;
+
+            const { data: made, error: makeError } = await db.from('campaign_monsters').insert({
+                campaign_id: campaignId,
+                game_world_id: session.gameWorldId,
+                name: base,
+                source: entry.api ? 'srd_api' : 'homebrew',
+                api_index: entry.api || null,
+                statblock: entry.api ? null : { description: 'Imported from a shared encounter.' },
+                armor_class: entry.ac ?? 10,
+                max_hit_points: entry.hp ?? 10
+            }).select('id, name, api_index').single();
+            if (makeError) throw new Error(makeError.message || 'Could not add a monster.');
+            roster.push(made);
+            return made.id;
+        };
+
+        const rows = [];
+        const entries = payload.combatants || [];
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            rows.push({
+                encounter_id: created.id,
+                game_world_id: session.gameWorldId,
+                combatant_type: 'monster',
+                campaign_monster_id: await findOrCreate(entry),
+                display_name: entry.name || 'Monster',
+                armor_class: entry.ac ?? 10,
+                max_hit_points: entry.hp ?? 10,
+                current_hit_points: entry.hp ?? 10,   // arrives at full health
+                color: entry.color || null,
+                group_label: entry.group || null,
+                sort_order: i
+            });
+        }
+
+        if (rows.length) {
+            const { error: rowError } = await db.from('encounter_combatants').insert(rows);
+            if (rowError) throw new Error(rowError.message || 'Could not add the creatures.');
+        }
+        return created.id;
     }
 
     // An encounter can hang off the moment in the story it belongs to, which is
@@ -963,7 +1108,10 @@
     // and the shell decides: topbar above the breakpoint, flip-up menu below.
     function trackerActions() {
         if (!isDM) return [];
-        if (!enc) return [{ label: 'New encounter', onclick: 'newEncounter()', primary: true }];
+        if (!enc) {
+            return [{ label: 'New encounter', onclick: 'newEncounter()', primary: true },
+                    { label: 'Add a shared encounter', onclick: 'importEncounter()' }];
+        }
 
         const running = enc.status === 'active';
         const anyone = combatants.length > 0;
@@ -983,6 +1131,7 @@
               onclick: 'toggleHideHP()' },
             { label: enc.storyline_beat_id ? 'Change story link' : 'Link to a beat',
               onclick: 'linkToBeat()' },
+            { label: 'Share encounter', onclick: 'shareEncounter()' },
             { label: 'Delete encounter', onclick: 'deleteEncounter()' }
         ]);
     }

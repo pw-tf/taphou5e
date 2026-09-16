@@ -818,12 +818,12 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (148 assertions):
 
 | Built | Not yet |
 |---|---|
 | Shell, tokens, theme control, root router | **Character creation and levelling up** — both still classic |
-| Login and world creation on the RPCs | Encounter sharing (the classic seed code) — awaiting a decision on whether it is wanted |
+| Login and world creation on the RPCs | |
 | Overview hub | |
 | Party roster | |
 | Character sheet: six tabs, HP controls, rests, conditions, detail pane | |
@@ -836,6 +836,7 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 | Check authoring on beats and areas | |
 | Campaign and encounter deletion | |
 | Encounter ↔ storyline beat linking | |
+| Encounter sharing by code | |
 
 Every hub tile and navigation item links to a real page.
 
@@ -1013,6 +1014,44 @@ Storylines tab lists the encounters hanging off each beat, with a live marker.
 The picker only offers beats from the same campaign: nothing in the schema stops
 a cross-campaign link, and one would be nonsense.
 
+### 11.3a5 Encounter sharing — a code, not a URL
+
+v1 shared an encounter as `btoa(JSON.stringify(monsters))` in a query parameter:
+roughly two kilobytes for six creatures, carrying live hit points and internal
+ids, and breaking outright on a non-ASCII monster name. **It did that because v1
+had no server.** v2 does, so the recipe lives in a row and the thing a person
+shares is a **ten-character code** they can read aloud.
+
+`shared_encounters` holds the code as its primary key, the world it came from,
+a name, the recipe as `jsonb`, an expiry a year out and an import counter. It
+carries no policies and no grants — nothing reaches it except the two functions:
+
+- `public.encounter_share_create(uuid)` requires a DM token, and writes a
+  recipe rather than a snapshot: **maximum** hit points, not current ones, and
+  no player characters. What travels is the monsters, their colours, their group
+  labels and their count.
+- `public.encounter_share_get(text)` needs no token at all — **the code is the
+  permission**. It trims and upper-cases what was typed, since a code that is
+  read aloud gets retyped, and bumps `import_count`.
+
+`private.share_code()` draws from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, which has
+no `O`/`0` or `I`/`1`/`l` in it, for the same reason.
+
+Importing asks only which campaign to put it in, then creates the encounter and
+resolves each creature against that campaign's roster, creating the roster row
+where it is missing — the same auto-create the tracker already does (§11.3a2),
+so a recipient never has to build a roster before they can run what they were
+sent. The instance number is stripped on the way in: "Goblin 1" is an instance,
+`Goblin` is the creature. Everything arrives at full health.
+
+**A schema bug this uncovered.** Verifying the import path turned up that
+`encounter_combatants.campaign_monster_id` and `.npc_id` were `ON DELETE SET
+NULL`, which nulls the only reference a combatant has and so violates
+`encounter_combatants_one_ref`. Deleting a roster monster that appeared in any
+encounter therefore **failed outright**, and would have broken the campaign
+deletion shipped in §11.3a4 the moment a campaign had one. Both are now
+`ON DELETE CASCADE`.
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:
@@ -1073,8 +1112,8 @@ a live encounter, and a spell only if it is already on a character sheet.
 
 ## 12. Open items
 
-1. **`login.js` change (§5.5) needs sign-off** — decision 3 cannot be delivered without it. The PIN
-   hashes must become unreadable, which means login moves to an RPC.
+1. ~~**`login.js` change (§5.5) needs sign-off**~~ — approved, shipped and merged to `main`. The PIN
+   hashes are gone from `game_worlds` and both versions log in through `world_login`.
 2. **DM token lifetime** — drafted at 12 hours. A long session runs past that; shorter is safer.
 3. **Rate limiting thresholds** for `world_login` — suggest 10 failures per world per 15 minutes.
 4. **Player tokens.** The player PIN currently grants read access to every world's data via the anon key.
