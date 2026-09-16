@@ -249,13 +249,13 @@
             const ch = byId[m.character_id];
             if (!ch) return '';
             return `
-                <div class="list-row">
+                <div class="list-row party-row">
                     <div class="avatar">${escapeHtml((ch.name || '?').charAt(0).toUpperCase())}</div>
                     <div class="who">
                         <div class="name">${escapeHtml(ch.name)}</div>
                         <div class="meta">Lv ${ch.level || 1} ${escapeHtml(ch.class || '')} · ${escapeHtml(ch.player_name || '')}</div>
                     </div>
-                    <div style="width:120px;flex:none">
+                    <div class="party-hp">
                         ${renderHP(ch.current_hit_points, ch.hit_point_maximum, ch.temporary_hit_points, 'inline')}
                     </div>
                     <div class="row-actions">
@@ -469,6 +469,14 @@
                                             ${revealToggle('storyline_beats', b, 'is_revealed', 'Visible', 'Hidden')}
                                         </div>
                                         ${b.read_aloud ? `<p class="prose">${escapeHtml(b.read_aloud)}</p>` : ''}
+                                        ${d.encounters.filter(e => e.storyline_beat_id === b.id).map(e => `
+                                            <a class="check-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}">
+                                                <span class="dc">ENCOUNTER</span>
+                                                <span style="flex:1;min-width:0">${escapeHtml(e.name)}</span>
+                                                ${e.status === 'active'
+                                                    ? '<span class="mono nav-count is-live">LIVE</span>'
+                                                    : `<span class="hidden-pill">${escapeHtml(e.status)}</span>`}
+                                            </a>`).join('')}
                                         ${bChecks.map(checkRow).join('')}
                                         ${isDM ? `<button class="btn btn-quiet btn-tiny" style="align-self:flex-start"
                                                     onclick="newCheck('storyline_beat_id','${b.id}',${
@@ -739,6 +747,49 @@
         });
     };
 
+    // Deleting a campaign takes its storylines, areas, NPCs, monsters,
+    // encounters and sessions with it, by cascade. The confirmation says so and
+    // counts them, because "delete campaign" does not look like it means all
+    // of that.
+    window.deleteCampaign = () => {
+        const cm = d.campaign;
+        const owned = [
+            [d.storylines.length, 'storyline'],
+            [d.areas.length, 'area'],
+            [d.npcs.length, 'NPC'],
+            [d.monsters.length, 'monster'],
+            [d.encounters.length, 'encounter'],
+            [d.sessions.length, 'session recap']
+        ].filter(([n]) => n > 0)
+         .map(([n, word]) => `${n} ${word}${n === 1 || word === 'NPC' && n === 1 ? '' : 's'}`);
+
+        const consequences = owned.length
+            ? `This also deletes its ${owned.join(', ')}.`
+            : 'It holds nothing else yet.';
+
+        // Characters are never deleted: they belong to the world, and only the
+        // membership rows go.
+        const party = d.members.filter(m => m.status === 'active').length;
+        const partyLine = party
+            ? ` ${party} character${party === 1 ? '' : 's'} leave the campaign but stay in the world.`
+            : '';
+
+        const lastOne = d.campaign.is_default
+            ? ' This is the world\'s default campaign.'
+            : '';
+
+        confirmModal({
+            title: `Delete ${cm.name}`,
+            message: `${consequences}${partyLine}${lastOne} This cannot be undone.`,
+            confirmLabel: 'Delete campaign',
+            onConfirm: async () => {
+                const { error } = await db.from('campaigns').delete().eq('id', cm.id);
+                if (error) throw new Error(error.message || 'Could not delete the campaign.');
+                window.location.href = 'campaigns.html';
+            }
+        });
+    };
+
     function tabBody() {
         switch (activeTab) {
             case 'party':      return partyTab();
@@ -769,7 +820,10 @@
             active: 'campaigns',
             title: cm.name,
             sub: `${session.gameWorldName} · ${cm.status}`,
-            actions: isDM ? [{ label: 'Edit campaign', onclick: 'editCampaign()' }] : []
+            actions: isDM
+                ? [{ label: 'Edit campaign', onclick: 'editCampaign()' },
+                   { label: 'Delete campaign', onclick: 'deleteCampaign()' }]
+                : []
         });
 
         $('#main-content').innerHTML = `

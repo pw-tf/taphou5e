@@ -28,6 +28,7 @@
     let characters = {};      // id -> character row, for the HP read-through
     let monsters = [];        // campaign roster
     let npcs = [];
+    let beats = [];           // this campaign's storyline beats, for linking
     let detail = null;
 
     // ========================================
@@ -817,6 +818,12 @@
                     <a class="btn btn-quiet btn-tiny" href="monster-tracker.html">← All encounters</a>
                     <span class="status-pill is-${escapeHtml(enc.status)}">${escapeHtml(enc.status)}</span>
                     ${running ? `<span class="mono round-pill">ROUND ${enc.round || 1}</span>` : ''}
+                    ${(() => {
+                        const beat = beats.find(b => b.id === enc.storyline_beat_id);
+                        return beat
+                            ? `<span class="story-link">${escapeHtml(beat.storyline_title)} — ${escapeHtml(beat.title)}</span>`
+                            : '';
+                    })()}
                 </div>
             </div>
             ${enc.read_aloud ? `<p class="prose read-aloud">${escapeHtml(enc.read_aloud)}</p>` : ''}
@@ -903,6 +910,55 @@
         draw();
     }
 
+    // An encounter can hang off the moment in the story it belongs to, which is
+    // what encounters.storyline_beat_id is for. The picker only offers beats
+    // from this campaign, since nothing in the schema stops a cross-campaign
+    // link and one would be nonsense.
+    window.linkToBeat = () => {
+        if (!beats.length) {
+            toast('This campaign has no storyline beats yet.', 'error');
+            return;
+        }
+        openModal({
+            title: 'Link to a storyline beat',
+            submitLabel: 'Save link',
+            fields: [{
+                name: 'storyline_beat_id', label: 'Beat', type: 'select',
+                value: enc.storyline_beat_id || '',
+                options: [{ value: '', label: '— not linked —' }].concat(
+                    beats.map(b => ({ value: b.id, label: `${b.storyline_title} — ${b.title}` })))
+            }],
+            onSubmit: async values => {
+                const next = values.storyline_beat_id || null;
+                const { error } = await db.from('encounters')
+                    .update({ storyline_beat_id: next }).eq('id', enc.id);
+                if (error) throw new Error(error.message || 'Could not save that link.');
+                enc.storyline_beat_id = next;
+                draw();
+            }
+        });
+    };
+
+    // Deleting an encounter takes its combatants with it by cascade. The
+    // campaign's monster roster is untouched -- those rows are the campaign's,
+    // not this fight's.
+    window.deleteEncounter = () => {
+        const count = combatants.length;
+        confirmModal({
+            title: `Delete ${enc.name}`,
+            message: count
+                ? `This removes the encounter and its ${count} combatant${count === 1 ? '' : 's'}. ` +
+                  'The campaign\'s monster roster and every character are left alone. This cannot be undone.'
+                : 'This removes the encounter. It has no combatants yet. This cannot be undone.',
+            confirmLabel: 'Delete encounter',
+            onConfirm: async () => {
+                const { error } = await db.from('encounters').delete().eq('id', enc.id);
+                if (error) throw new Error(error.message || 'Could not delete the encounter.');
+                window.location.href = 'monster-tracker.html';
+            }
+        });
+    };
+
     // Seven buttons in a row was unusable on a phone. They are declared once
     // and the shell decides: topbar above the breakpoint, flip-up menu below.
     function trackerActions() {
@@ -924,7 +980,10 @@
             { label: 'Add monsters', onclick: 'openAddMonsters()' },
             { label: 'Add NPC', onclick: 'addNPC()' },
             { label: enc.hide_monster_hp ? 'Monster HP hidden' : 'Monster HP visible',
-              onclick: 'toggleHideHP()' }
+              onclick: 'toggleHideHP()' },
+            { label: enc.storyline_beat_id ? 'Change story link' : 'Link to a beat',
+              onclick: 'linkToBeat()' },
+            { label: 'Delete encounter', onclick: 'deleteEncounter()' }
         ]);
     }
 
@@ -969,14 +1028,27 @@
             }
             enc = encRow;
 
-            const [combatantRows, monsterRows, npcRows] = await Promise.all([
+            const [combatantRows, monsterRows, npcRows, storylineRows] = await Promise.all([
                 db.from('encounter_combatants').select('*').eq('encounter_id', enc.id).order('sort_order'),
                 db.from('campaign_monsters').select('*').eq('campaign_id', enc.campaign_id).order('name'),
-                db.from('npcs').select('id, name').eq('campaign_id', enc.campaign_id).order('name')
+                db.from('npcs').select('id, name').eq('campaign_id', enc.campaign_id).order('name'),
+                db.from('storylines').select('id, title').eq('campaign_id', enc.campaign_id).order('sort_order')
             ]);
             combatants = combatantRows.data || [];
             monsters = monsterRows.data || [];
             npcs = npcRows.data || [];
+
+            // Beats carry no campaign_id, so fetch by world and keep the ones
+            // belonging to this campaign's storylines.
+            const storylines = storylineRows.data || [];
+            if (storylines.length) {
+                const byId = Object.fromEntries(storylines.map(st => [st.id, st.title]));
+                const { data: beatRows } = await db.from('storyline_beats')
+                    .select('id, title, storyline_id').eq('game_world_id', worldId).order('sort_order');
+                beats = (beatRows || [])
+                    .filter(b => byId[b.storyline_id])
+                    .map(b => ({ ...b, storyline_title: byId[b.storyline_id] }));
+            }
             draw();
         } catch (err) {
             console.error('Tracker failed to load:', err);

@@ -165,7 +165,8 @@ FIXTURES = {
     "encounters_single": {"id": "e1", "campaign_id": "cam1", "game_world_id": "w1",
                           "name": "Ambush at the Ford", "status": "planned", "round": 0,
                           "active_combatant_id": None, "hide_monster_hp": True,
-                          "read_aloud": "Mist hangs over the water.", "area_id": None},
+                          "read_aloud": "Mist hangs over the water.", "area_id": None,
+                          "storyline_beat_id": None},
     "encounter_combatants": [
         {"id": "cb1", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "character",
          "character_id": "c2", "campaign_monster_id": None, "npc_id": None,
@@ -1461,7 +1462,89 @@ async def main():
 
         await page.screenshot(path="/tmp/shot-17-colour.png", full_page=True)
 
-        # ---------- 39. Router ----------
+        # ---------- 39. Row layout, deletes and story linking ----------
+        mob2 = await browser.new_context(viewport={"width": 390, "height": 844})
+        await mob2.add_init_script(STUB)
+        m2 = await mob2.new_page()
+        watch(m2, "mobile-2")
+
+        await m2.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await m2.fill("#world-name", "Thornfell Reach")
+        await fill_pin(m2, "join", "1379")
+        await m2.click("#join-form .btn-submit")
+        await m2.wait_for_selector(".party-roster", timeout=10000)
+        await m2.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await m2.wait_for_selector(".campaign-tabs", timeout=10000)
+        await m2.click('.campaign-tabs button:has-text("Party")')
+        await m2.wait_for_selector(".party-row", timeout=5000)
+
+        # The fixed columns either side of the identity block left it almost no
+        # width, so a name broke across several lines.
+        heights = await m2.evaluate("""() => Array.from(document.querySelectorAll('.party-row .name'))
+            .map(el => Math.round(el.getBoundingClientRect().height))""")
+        assert all(h < 30 for h in heights), f"names should stay on one line: {heights}"
+        ok(f"party names stay on one line at 390px ({heights})")
+
+        meta_heights = await m2.evaluate("""() => Array.from(document.querySelectorAll('.party-row .meta'))
+            .map(el => Math.round(el.getBoundingClientRect().height))""")
+        assert all(h < 26 for h in meta_heights), meta_heights
+        ok(f"the class and player line stays on one line too ({meta_heights})")
+
+        overflow = await m2.evaluate(
+            "document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 0, overflow
+        ok("the party tab has no horizontal scroll at 390px")
+        await m2.screenshot(path="/tmp/shot-18-party-mobile.png", full_page=True)
+        await mob2.close()
+
+        # Deleting a campaign says what goes with it.
+        await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+        await page.click('.topbar button:has-text("Delete campaign")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        message = await page.locator(".modal-body .prose").inner_text()
+        assert "storyline" in message and "NPC" in message and "encounter" in message, message
+        assert "stay in the world" in message, "characters must be said to survive"
+        assert "cannot be undone" in message, message
+        ok("deleting a campaign lists what cascades and says characters survive")
+
+        # Confirming deletes and returns to the list. The write itself cannot be
+        # read back here -- navigating away resets the page's recorded writes --
+        # so the redirect is the observable outcome.
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_url("**/campaigns.html", timeout=10000)
+        ok("confirming deletes the campaign and returns to the list")
+
+        # Deleting an encounter is scoped to the encounter, not the roster.
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+        await page.click('.topbar button:has-text("Delete encounter")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        message = await page.locator(".modal-body .prose").inner_text()
+        assert "combatant" in message and "roster" in message, message
+        ok("deleting an encounter says the campaign roster is left alone")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+
+        # Linking an encounter to the moment in the story it belongs to.
+        await page.click('.topbar button:has-text("Link to a beat")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        options = [t.strip() for t in await page.locator("#mf-storyline_beat_id option").all_inner_texts()]
+        assert any("The first crossing" in o for o in options), options
+        assert any("The Toll Keeper" in o for o in options), "beats show their storyline"
+        ok(f"the beat picker offers this campaign's beats, named by storyline")
+
+        await page.select_option("#mf-storyline_beat_id", label=[o for o in options if "first crossing" in o][0])
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        link = [w for w in writes if w["table"] == "encounters"][-1]
+        assert link["payload"]["storyline_beat_id"] == "b1", link
+        ok("linking writes storyline_beat_id")
+        assert "The first crossing" in await page.locator(".story-link").inner_text()
+        ok("the encounter shows which beat it belongs to")
+
+        # ---------- 40. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

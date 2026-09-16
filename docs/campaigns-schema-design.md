@@ -823,8 +823,8 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 | Built | Not yet |
 |---|---|
 | Shell, tokens, theme control, root router | **Character creation and levelling up** — both still classic |
-| Login and world creation on the RPCs | Encounter ↔ storyline beat linking |
-| Overview hub | Encounter sharing (the classic seed code) |
+| Login and world creation on the RPCs | Encounter sharing (the classic seed code) — awaiting a decision on whether it is wanted |
+| Overview hub | |
 | Party roster | |
 | Character sheet: six tabs, HP controls, rests, conditions, detail pane | |
 | Campaigns list, campaign detail with seven tabs | |
@@ -834,6 +834,8 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 | Encounter tracker at parity with the classic version | |
 | DM panel: levelling mode, milestone and EXP grants | |
 | Check authoring on beats and areas | |
+| Campaign and encounter deletion | |
+| Encounter ↔ storyline beat linking | |
 
 Every hub tile and navigation item links to a real page.
 
@@ -988,6 +990,28 @@ Colour blocks follow the same rule as groups: they apply while preparing, and a
 running encounter goes flat in initiative order with the colour back to a
 per-row stripe. Anything that reorders the list has to stand down once turn
 order matters.
+
+### 11.3a4 Row wrapping, deletes and story links
+
+**Row wrapping.** `.list-row` puts fixed-width columns either side of the
+identity block — avatar, a 120px hit point column, two buttons — which at 390px
+left the name almost no room, so "Elowen Thorne / Lv 2 Fighter · Stacey" broke
+across four lines and tangled with the bar. Names and meta lines now truncate
+rather than wrap, and below the breakpoint the party row wraps into two tidy
+lines: identity first, hit points and buttons second.
+
+**Deletes.** Campaigns and encounters can now be deleted, and the confirmation
+says what goes with them, because "delete campaign" does not look like it means
+its storylines, areas, NPCs, monsters, encounters and session recaps as well.
+The campaign dialog counts each of those and states plainly that **characters
+survive** — only the membership rows go, since characters belong to the world.
+The encounter dialog says the campaign's monster roster is left alone.
+
+**Story links.** `encounters.storyline_beat_id` had a foreign key and no UI. An
+encounter can now be tied to the beat it belongs to, and the campaign's
+Storylines tab lists the encounters hanging off each beat, with a live marker.
+The picker only offers beats from the same campaign: nothing in the schema stops
+a cross-campaign link, and one would be nonsense.
 
 ### 11.3b Review fixes
 
