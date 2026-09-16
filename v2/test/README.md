@@ -1,7 +1,7 @@
 # v2 smoke test
 
-A Playwright pass over the v2 shell: login, hub rendering, the HP component,
-theme, responsive behaviour and the version router. 25 assertions.
+A Playwright pass over v2: login, hub, roster, character sheet, theming,
+responsive behaviour and the version router. 46 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -33,4 +33,14 @@ at it directly — edit `CHROME` at the top of the file, or run
   rebuilds `document.body`
 - 390px: no horizontal scroll, 2-up roster, drawer open/Escape-close
 - 900px+: 4-up roster, sidebar
+- The roster: ordering, the needs-attention count, links into the sheet
+- The sheet: derived modifiers and saves, expertise counted twice, passive
+  perception from the skill row, HP damage/heal/apply with clamping, death saves
+  appearing at 0 HP, condition toggles preserving existing conditions, long rest
+  restoring HP and resetting slots, and the detail pane
+- That rest buttons appear exactly once per viewport (rail above 900px, body below)
 - The root router: opted-in devices go to v2, everyone else stays on classic
+
+The stub returns the same character regardless of the id in the query string, so
+the sheet assertions always describe that one fixture even when the test arrived
+by clicking a different card.

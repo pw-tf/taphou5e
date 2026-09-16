@@ -184,3 +184,110 @@ textarea:focus-visible,
 @media (max-width: 899px) {
   .chip-sp { display: none; }
 }
+
+/* ==========================================================================
+   Character sheet
+   ember.css supplies .sheet-header/.sheet-id/.sheet-combat/.tab-bar, and the
+   .sheet-nav rail + .pane only above 900px. These fill in the page scaffold
+   and the mobile behaviour of both.
+   ========================================================================== */
+.sheet-page { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; min-width: 0; }
+.sheet-nav { display: none; }                      /* tab rail is desktop-only */
+.sheet-content { flex: 1; min-height: 0; min-width: 0; display: flex; }
+.sheet-scroll {
+  flex: 1; min-width: 0; overflow: auto;
+  padding: var(--space-md) var(--space-12) calc(var(--tab-bar-height) + var(--space-lg));
+  display: flex; flex-direction: column; gap: var(--space-sm);
+}
+
+/* Large HP readout in the sticky header */
+.hp-big { display: flex; align-items: baseline; gap: 2px; }
+.hp-big .current { font-size: var(--fs-24); font-weight: 600; color: var(--text-primary); }
+.hp-big .max { font-size: var(--fs-14); color: var(--text-tertiary); }
+.hp-big .temp { font-size: var(--fs-14); color: var(--hp-temp-text); margin-left: 4px; }
+
+/* The amount field flexes, but is capped: unbounded it stretched the width of
+   a 1280px viewport. */
+.hp-ctl { max-width: 420px; }
+.hp-ctl input {
+  flex: 1; min-width: 0; max-width: 140px; height: 36px; text-align: center;
+  background: var(--bg-primary); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md); color: var(--text-primary);
+  font-family: var(--font-mono); font-size: var(--fs-15);
+}
+.hp-ctl .btn { height: 36px; padding: 0 var(--space-md); }
+.sheet-combat .chipline { max-width: 560px; }
+
+/* Stats tab */
+.ability-box .save { cursor: pointer; }
+.ability-box .save:hover { color: var(--accent-primary); }
+.temp-row { display: flex; align-items: center; gap: var(--space-10); }
+.temp-input {
+  width: 84px; padding: 8px 10px; text-align: center;
+  background: var(--bg-tertiary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--fs-14);
+}
+.temp-input:focus { outline: none; border-color: var(--accent-primary); }
+.rest-row { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.rest-row .chip { flex: none; padding: 6px 12px; }
+.condition-tag { cursor: pointer; font-family: inherit; }
+
+.death-saves { display: flex; flex-direction: column; gap: var(--space-sm); }
+.death-row { display: flex; align-items: center; gap: var(--space-sm); }
+.death-row .label { font-size: var(--fs-12); color: var(--text-tertiary); width: 82px; }
+.death-dot {
+  width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  background: transparent; border: 2px solid var(--border-strong);
+}
+.death-dot.success.filled { background: var(--hp-high); border-color: var(--hp-high); }
+.death-dot.failure.filled { background: var(--hp-low); border-color: var(--hp-low); }
+
+/* Generic rows used by Actions / Spells / Inventory */
+.stack { display: flex; flex-direction: column; gap: var(--space-6); }
+.list-row {
+  display: flex; align-items: center; gap: var(--space-md); cursor: pointer;
+  padding: var(--space-10) var(--space-12);
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.list-row:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
+.list-row .who { flex: 1; min-width: 0; }
+.list-row .name { font-size: var(--fs-14); font-weight: 600; color: var(--text-primary); }
+.list-row .meta { font-size: var(--fs-12); color: var(--text-tertiary); margin-top: 2px; }
+.list-row .lvl { font-size: var(--fs-13); color: var(--text-secondary); flex: none; }
+.chipline.wrap { flex-wrap: wrap; }
+.chipline.wrap .chip, .slot-line .chip { flex: none; padding: 6px 12px; }
+.prose { font-family: var(--font-body); font-size: var(--fs-13); color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; }
+
+/* Detail: a bottom sheet on mobile, the right-hand pane on desktop */
+.pane { position: relative; }
+.pane-close { position: absolute; top: var(--space-sm); right: var(--space-sm); }
+@media (max-width: 899px) {
+  .pane.detail-open {
+    position: fixed; inset: auto 0 0 0; z-index: 210; max-height: 76vh; overflow: auto;
+    padding: var(--space-18) var(--space-md) calc(var(--tab-bar-height) + var(--space-md));
+    background: var(--bg-secondary); border-top: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0; box-shadow: var(--shadow-lg);
+  }
+}
+@media (min-width: 900px) {
+  .sheet-nav { display: flex; }
+  .sheet-scroll { padding: var(--space-18) var(--space-lg); }
+  /* The rail carries the rest buttons on desktop, so the body row would duplicate them. */
+  .rest-head, .rest-row { display: none; }
+  .sheet-combat { padding: 0 var(--space-lg) var(--space-14); }
+  .sheet-id { padding: 0 var(--space-lg); }
+  .pane.detail-open {
+    width: var(--pane-width); flex: none; overflow: auto;
+    padding: var(--space-18) var(--space-20);
+    background: var(--bg-sunken); border-left: 1px solid var(--border-subtle);
+  }
+}
+
+/* Icon rail + tab rail (desktop only; ember.css sizes .rail and .sheet-nav) */
+.rail-brand { font-family: var(--font-display); font-size: var(--fs-15); font-weight: 700; color: var(--accent-primary); }
+.rail .icon-btn.is-current { background: var(--bg-hover); color: var(--accent-primary); }
+.rail .icon-btn.is-pending { opacity: .4; cursor: default; pointer-events: none; }
+.sheet-nav .nav-name { font-family: var(--font-display); font-size: var(--fs-17); font-weight: 700; line-height: 1.2; }
+.sheet-nav .nav-meta { font-size: var(--fs-11); color: var(--text-tertiary); margin-top: 3px; }
+.sheet-nav .nav-rests { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-6); }
