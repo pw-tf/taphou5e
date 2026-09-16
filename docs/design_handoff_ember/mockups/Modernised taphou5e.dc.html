@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400..900&family=Spectral:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0e0c0a;font-family:'Inter',-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#e2703a;text-decoration:none}
+  a:hover{color:#f08a56;text-decoration:underline}
+</style>
+</helmet>
+
+<section style="padding:48px;display:flex;flex-wrap:wrap;gap:64px;align-items:flex-start">
+ <div id="1a" style="display:flex;flex-direction:column;gap:28px">
+  <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;max-width:1100px">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#14100d;background:#e2703a;padding:4px 8px;border-radius:4px">1a</span>
+    <h1 style="font-family:'Playfair Display',serif;font-size:32px;font-weight:700;color:#f5efe6">Ember — inked panels, ember accent</h1>
+    <p style="font-size:14px;color:#8a7b6b;max-width:620px;line-height:1.6">Persistent sidebar, a browse hub as the landing page, roster compacted to a grid, and one HP bar treatment everywhere: fixed 8px rail, mono readout, temp HP inset. Desktop in dark, mobile in light.</p>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+
+    <!-- 1a DESKTOP: HOME HUB + ROSTER -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Home hub + party roster · dark · 1440×900</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#15110e;border:1px solid #342b23;display:flex;font-family:'Inter',sans-serif">
+
+        <div style="width:240px;flex:none;background:#1a1512;border-right:1px solid #342b23;display:flex;flex-direction:column">
+          <div style="padding:20px 20px 16px;border-bottom:1px solid #2a221c">
+            <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#f5efe6;letter-spacing:.02em">TAPHOU5E</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+              <span style="width:6px;height:6px;border-radius:50%;background:#7fa65c"></span>
+              <span style="font-size:12px;color:#b6a795">Thornfell Reach</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e2703a;border:1px solid #47392e;border-radius:4px;padding:1px 5px;margin-left:auto">DM</span>
+            </div>
+          </div>
+          <nav style="padding:12px 8px;display:flex;flex-direction:column;gap:2px;flex:1">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:#2a211a;color:#f5efe6;font-size:14px;font-weight:600">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e2703a" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg>Overview
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>Characters
+              <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">4</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m12.5 17-.5-1-.5 1h1z"></path><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"></path><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="12" r="1"></circle></svg>Encounters
+              <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#15110e;background:#e2703a;border-radius:4px;padding:1px 5px">LIVE</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>Compendium
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"></rect><circle cx="8" cy="8" r="1.5" fill="currentColor"></circle><circle cx="16" cy="16" r="1.5" fill="currentColor"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor"></circle></svg>Dice &amp; tools
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>Campaign notes
+            </div>
+            <div style="height:1px;background:#2a221c;margin:10px 12px"></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>DM panel
+            </div>
+          </nav>
+          <div style="padding:12px 16px;border-top:1px solid #2a221c;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:#8a7b6b">Dave · DM</span>
+            <div style="display:flex;gap:2px;background:#221b16;border:1px solid #342b23;border-radius:999px;padding:2px">
+              <span style="width:22px;height:22px;border-radius:999px;background:#2f261f;display:flex;align-items:center;justify-content:center;color:#e2703a;font-size:11px">☾</span>
+              <span style="width:22px;height:22px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#8a7b6b;font-size:11px">☀</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="height:60px;flex:none;border-bottom:1px solid #2a221c;padding:0 28px;display:flex;align-items:center;gap:16px">
+            <h1 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#f5efe6">Overview</h1>
+            <div style="flex:1;max-width:320px;margin-left:12px;display:flex;align-items:center;gap:8px;padding:7px 12px;background:#1a1512;border:1px solid #342b23;border-radius:8px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a7b6b" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span style="font-size:13px;color:#8a7b6b">Search monsters, spells, items…</span>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <span style="padding:7px 14px;border:1px solid #47392e;border-radius:8px;color:#f5efe6;font-size:13px;font-weight:500">Long rest</span>
+              <span style="padding:7px 14px;background:#e2703a;color:#1b0f08;border-radius:8px;font-size:13px;font-weight:600">Resume encounter</span>
+            </div>
+          </div>
+
+          <div style="flex:1;overflow:hidden;padding:24px 28px;display:flex;flex-direction:column;gap:24px">
+
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:8px;color:#e2703a"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg><span style="font-size:13px;font-weight:600;color:#f5efe6">Character sheets</span></div>
+                <span style="font-size:12px;color:#8a7b6b;line-height:1.5">4 in the party · 1 pending level-up</span>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:8px;color:#e2703a"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"></path><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="12" r="1"></circle></svg><span style="font-size:13px;font-weight:600;color:#f5efe6">Encounter tracker</span></div>
+                <span style="font-size:12px;color:#8a7b6b;line-height:1.5">Ambush at the Ford · round 3</span>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:8px;color:#e2703a"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span style="font-size:13px;font-weight:600;color:#f5efe6">Compendium</span></div>
+                <span style="font-size:12px;color:#8a7b6b;line-height:1.5">Monsters, spells, feats, items</span>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:8px;color:#e2703a"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"></rect><circle cx="8" cy="8" r="1.5" fill="currentColor"></circle><circle cx="16" cy="16" r="1.5" fill="currentColor"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor"></circle></svg><span style="font-size:13px;font-weight:600;color:#f5efe6">Dice &amp; tools</span></div>
+                <span style="font-size:12px;color:#8a7b6b;line-height:1.5">Roller, 4d6 gen, rest tracker</span>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h2 style="font-family:'Playfair Display',serif;font-size:17px;font-weight:600;color:#f5efe6">The party</h2>
+                <div style="display:flex;align-items:center;gap:14px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b;letter-spacing:.08em;text-transform:uppercase">4 characters</span>
+                  <span style="padding:6px 12px;border:1px solid #47392e;border-radius:8px;color:#f5efe6;font-size:12px;font-weight:500">+ New character</span>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+
+                <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:34px;height:34px;flex:none;border-radius:8px;background:#2f261f;border:1px solid #47392e;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:16px;color:#e2703a">T</div>
+                    <div style="min-width:0;flex:1">
+                      <div style="font-size:14px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Thalric Emberfall</div>
+                      <div style="font-size:11px;color:#8a7b6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lv 5 Fighter · Dave</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6"><span style="font-weight:600">34</span><span style="color:#8a7b6b">/41</span></span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7fa65c;letter-spacing:.06em">83%</span>
+                    </div>
+                    <div style="height:8px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:83%;background:#7fa65c"></div></div>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">18<span style="color:#8a7b6b;font-size:9px;margin-left:3px">AC</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">+2<span style="color:#8a7b6b;font-size:9px;margin-left:3px">IN</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">30<span style="color:#8a7b6b;font-size:9px;margin-left:3px">SP</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">13<span style="color:#8a7b6b;font-size:9px;margin-left:3px">PP</span></span>
+                  </div>
+                </div>
+
+                <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:34px;height:34px;flex:none;border-radius:8px;background:#2f261f;border:1px solid #47392e;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:16px;color:#e2703a">N</div>
+                    <div style="min-width:0;flex:1">
+                      <div style="font-size:14px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Nyx Vale</div>
+                      <div style="font-size:11px;color:#8a7b6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lv 5 Rogue · Sam</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6"><span style="font-weight:600">19</span><span style="color:#8a7b6b">/38</span></span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#d9a94a;letter-spacing:.06em">50%</span>
+                    </div>
+                    <div style="height:8px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:50%;background:#d9a94a"></div></div>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">15<span style="color:#8a7b6b;font-size:9px;margin-left:3px">AC</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">+4<span style="color:#8a7b6b;font-size:9px;margin-left:3px">IN</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">30<span style="color:#8a7b6b;font-size:9px;margin-left:3px">SP</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">15<span style="color:#8a7b6b;font-size:9px;margin-left:3px">PP</span></span>
+                  </div>
+                </div>
+
+                <div style="background:#1a1512;border:1px solid #47392e;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:34px;height:34px;flex:none;border-radius:8px;background:#2f261f;border:1px solid #47392e;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:16px;color:#e2703a">A</div>
+                    <div style="min-width:0;flex:1">
+                      <div style="font-size:14px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Brother Aldric</div>
+                      <div style="font-size:11px;color:#8a7b6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lv 5 Cleric · Mo</div>
+                    </div>
+                    <span style="font-size:10px;font-weight:600;color:#d9a94a;border:1px solid #6a5324;background:#2a2113;border-radius:999px;padding:2px 7px">Poisoned</span>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6"><span style="font-weight:600">9</span><span style="color:#8a7b6b">/44</span><span style="color:#7aa2c4;margin-left:4px">+5</span></span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#c4452f;letter-spacing:.06em">20%</span>
+                    </div>
+                    <div style="height:8px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:20%;background:#c4452f"></div><div style="width:11%;background:#3d5a72"></div></div>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">18<span style="color:#8a7b6b;font-size:9px;margin-left:3px">AC</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">+0<span style="color:#8a7b6b;font-size:9px;margin-left:3px">IN</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">25<span style="color:#8a7b6b;font-size:9px;margin-left:3px">SP</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">16<span style="color:#8a7b6b;font-size:9px;margin-left:3px">PP</span></span>
+                  </div>
+                </div>
+
+                <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:34px;height:34px;flex:none;border-radius:8px;background:#2f261f;border:1px solid #47392e;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:16px;color:#e2703a">S</div>
+                    <div style="min-width:0;flex:1">
+                      <div style="font-size:14px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sylvaine</div>
+                      <div style="font-size:11px;color:#8a7b6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lv 4 Druid · Priya</div>
+                    </div>
+                    <span style="font-size:10px;font-weight:600;color:#e2703a;border:1px solid #6b3a1f;background:#2c1a10;border-radius:999px;padding:2px 7px">Lv up</span>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6"><span style="font-weight:600">31</span><span style="color:#8a7b6b">/31</span></span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7fa65c;letter-spacing:.06em">FULL</span>
+                    </div>
+                    <div style="height:8px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:100%;background:#7fa65c"></div></div>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">14<span style="color:#8a7b6b;font-size:9px;margin-left:3px">AC</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">+3<span style="color:#8a7b6b;font-size:9px;margin-left:3px">IN</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">35<span style="color:#8a7b6b;font-size:9px;margin-left:3px">SP</span></span>
+                    <span style="flex:1;text-align:center;padding:5px 0;background:#221b16;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5efe6">17<span style="color:#8a7b6b;font-size:9px;margin-left:3px">PP</span></span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px;flex:1;min-height:0">
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;align-items:center;justify-content:between;gap:10px">
+                  <h2 style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;color:#f5efe6">Live encounter</h2>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b;margin-left:auto">Round 3 · Goblin 2's turn</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#221b16;border-left:2px solid #e2703a;border-radius:6px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a;width:22px">18</span>
+                    <span style="font-size:13px;color:#f5efe6;flex:1">Hobgoblin Captain</span>
+                    <div style="width:110px;height:6px;background:#2a221c;border-radius:999px;overflow:hidden"><div style="width:56%;height:100%;background:#d9a94a"></div></div>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#b6a795;width:52px;text-align:right">22/39</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#221b16;border-left:2px solid #47392e;border-radius:6px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#8a7b6b;width:22px">14</span>
+                    <span style="font-size:13px;color:#f5efe6;flex:1">Goblin 2</span>
+                    <div style="width:110px;height:6px;background:#2a221c;border-radius:999px;overflow:hidden"><div style="width:29%;height:100%;background:#c4452f"></div></div>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#b6a795;width:52px;text-align:right">2/7</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#221b16;border-left:2px solid #3d5a72;border-radius:6px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#8a7b6b;width:22px">12</span>
+                    <span style="font-size:13px;color:#f5efe6;flex:1">Thalric Emberfall</span>
+                    <div style="width:110px;height:6px;background:#2a221c;border-radius:999px;overflow:hidden"><div style="width:83%;height:100%;background:#7fa65c"></div></div>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#b6a795;width:52px;text-align:right">34/41</span>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px">
+                <h2 style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;color:#f5efe6">DM panel</h2>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <span style="font-size:13px;color:#b6a795">Leveling mode</span>
+                  <div style="display:flex;background:#221b16;border:1px solid #342b23;border-radius:8px;overflow:hidden">
+                    <span style="padding:5px 12px;background:#e2703a;color:#1b0f08;font-size:12px;font-weight:600">Milestone</span>
+                    <span style="padding:5px 12px;color:#b6a795;font-size:12px">EXP</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="padding:9px 0;text-align:center;border:1px solid #47392e;border-radius:8px;color:#f5efe6;font-size:12px;font-weight:500">Grant level to entire party</span>
+                  <span style="padding:9px 0;text-align:center;border:1px solid #342b23;border-radius:8px;color:#b6a795;font-size:12px">Manage individual characters</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a DESKTOP: ENCOUNTER TRACKER -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Encounter tracker · initiative list + stat block pane · dark · 1440×900</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#15110e;border:1px solid #342b23;display:flex;font-family:'Inter',sans-serif">
+        <div style="width:64px;flex:none;background:#1a1512;border-right:1px solid #342b23;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:14px">
+          <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#e2703a">T5</div>
+          <span style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg></span>
+          <span style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg></span>
+          <span style="width:36px;height:36px;border-radius:8px;background:#2a211a;display:flex;align-items:center;justify-content:center;color:#e2703a"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"></path><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="12" r="1"></circle></svg></span>
+          <span style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+        </div>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="height:60px;flex:none;border-bottom:1px solid #2a221c;padding:0 24px;display:flex;align-items:center;gap:16px">
+            <h1 style="font-family:'Playfair Display',serif;font-size:21px;font-weight:700;color:#f5efe6">Ambush at the Ford</h1>
+            <div style="display:flex;align-items:center;gap:2px;padding:3px;background:#221b16;border:1px solid #342b23;border-radius:8px;font-size:12px">
+              <span style="padding:4px 10px;color:#8a7b6b">Simple</span>
+              <span style="padding:4px 10px;background:#2f261f;color:#f5efe6;border-radius:6px;font-weight:600">Advanced</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:2px;padding:3px;background:#221b16;border:1px solid #342b23;border-radius:8px;font-size:12px">
+              <span style="padding:4px 10px;background:#2f261f;color:#f5efe6;border-radius:6px;font-weight:600">Full</span>
+              <span style="padding:4px 10px;color:#8a7b6b">Compact</span>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+              <span style="padding:7px 12px;border:1px solid #47392e;border-radius:8px;color:#f5efe6;font-size:13px">Save encounter</span>
+              <span style="padding:7px 12px;border:1px solid #47392e;border-radius:8px;color:#f5efe6;font-size:13px">Load encounter</span>
+              <span style="padding:7px 14px;background:#e2703a;color:#1b0f08;border-radius:8px;font-size:13px;font-weight:600">+ Add monsters</span>
+            </div>
+          </div>
+
+          <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 420px">
+            <div style="overflow:hidden;padding:18px 24px;display:flex;flex-direction:column;gap:14px;border-right:1px solid #2a221c">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Initiative order</span>
+                <span style="height:1px;flex:1;background:#2a221c"></span>
+                <span style="font-size:12px;color:#8a7b6b">Sort: initiative</span>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:6px">
+
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#241c15;border:1px solid #6b3a1f;border-radius:10px">
+                  <div style="width:40px;flex:none;text-align:center">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:#e2703a;line-height:1">18</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8a7b6b;letter-spacing:.08em">INIT</div>
+                  </div>
+                  <div style="width:180px;flex:none;min-width:0">
+                    <div style="font-size:15px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hobgoblin Captain</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b6a795">AC 17</span>
+                      <span style="font-size:11px;color:#d9a94a">Injured</span>
+                    </div>
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="height:10px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:56%;background:#d9a94a"></div></div>
+                  </div>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#f5efe6;width:70px;text-align:right"><span style="font-weight:600">22</span><span style="color:#8a7b6b">/39</span></span>
+                  <div style="display:flex;align-items:center;gap:4px;flex:none">
+                    <span style="width:32px;height:30px;display:flex;align-items:center;justify-content:center;background:#2c1a15;border:1px solid #6b2f22;border-radius:6px;color:#e08a6f;font-size:17px;line-height:1">−</span>
+                    <span style="width:58px;height:30px;display:flex;align-items:center;justify-content:center;background:#15110e;border:1px solid #47392e;border-radius:6px;color:#8a7b6b;font-family:'IBM Plex Mono',monospace;font-size:12px">±</span>
+                    <span style="width:32px;height:30px;display:flex;align-items:center;justify-content:center;background:#1c2417;border:1px solid #3d5c2c;border-radius:6px;color:#9dc47c;font-size:17px;line-height:1">+</span>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#1a1512;border:1px solid #342b23;border-radius:10px">
+                  <div style="width:40px;flex:none;text-align:center">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:#b6a795;line-height:1">14</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8a7b6b;letter-spacing:.08em">INIT</div>
+                  </div>
+                  <div style="width:180px;flex:none;min-width:0">
+                    <div style="font-size:15px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Goblin 2</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b6a795">AC 15</span>
+                      <span style="font-size:11px;color:#c4452f">Critical</span>
+                    </div>
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="height:10px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:29%;background:#c4452f"></div></div>
+                  </div>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#f5efe6;width:70px;text-align:right"><span style="font-weight:600">2</span><span style="color:#8a7b6b">/7</span></span>
+                  <div style="display:flex;align-items:center;gap:4px;flex:none">
+                    <span style="width:32px;height:30px;display:flex;align-items:center;justify-content:center;background:#2c1a15;border:1px solid #6b2f22;border-radius:6px;color:#e08a6f;font-size:17px;line-height:1">−</span>
+                    <span style="width:58px;height:30px;display:flex;align-items:center;justify-content:center;background:#15110e;border:1px solid #47392e;border-radius:6px;color:#8a7b6b;font-family:'IBM Plex Mono',monospace;font-size:12px">±</span>
+                    <span style="width:32px;height:30px;display:flex;align-items:center;justify-content:center;background:#1c2417;border:1px solid #3d5c2c;border-radius:6px;color:#9dc47c;font-size:17px;line-height:1">+</span>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#1a1512;border:1px solid #342b23;border-left:3px solid #3d5a72;border-radius:10px">
+                  <div style="width:40px;flex:none;text-align:center">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:#b6a795;line-height:1">12</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8a7b6b;letter-spacing:.08em">INIT</div>
+                  </div>
+                  <div style="width:180px;flex:none;min-width:0">
+                    <div style="font-size:15px;font-weight:600;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Thalric Emberfall</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b6a795">AC 18</span>
+                      <span style="font-size:11px;color:#7aa2c4">Party</span>
+                    </div>
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="height:10px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:83%;background:#7fa65c"></div></div>
+                  </div>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#f5efe6;width:70px;text-align:right"><span style="font-weight:600">34</span><span style="color:#8a7b6b">/41</span></span>
+                  <div style="display:flex;align-items:center;gap:4px;flex:none">
+                    <span style="width:32px;height:30px;display:flex;align-items:center;justify-content:center;background:#2c1a15;border:1px solid #6b2f22;border-radius:6px;color:#e08a6f;font-size:17px;line-height:1">−</span>
+                    <span style="width:58px;height:30px;display:flex;align-items:center;justify-content:center;background:#15110e;border:1px solid #47392e;border-radius:6px;color:#8a7b6b;font-family:'IBM Plex Mono',monospace;font-size:12px">±</span>
+                    <span style="width:32px;height:30px;display:flex;align-items:center;justify-content:center;background:#1c2417;border:1px solid #3d5c2c;border-radius:6px;color:#9dc47c;font-size:17px;line-height:1">+</span>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#17130f;border:1px solid #2a221c;border-radius:10px;opacity:.55">
+                  <div style="width:40px;flex:none;text-align:center">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:#8a7b6b;line-height:1">9</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8a7b6b;letter-spacing:.08em">INIT</div>
+                  </div>
+                  <div style="width:180px;flex:none;min-width:0">
+                    <div style="font-size:15px;font-weight:600;color:#b6a795;text-decoration:line-through">Goblin 1</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">AC 15</span>
+                      <span style="font-size:11px;color:#8a7b6b">Dead</span>
+                    </div>
+                  </div>
+                  <div style="flex:1;min-width:0"><div style="height:10px;background:#2a221c;border-radius:999px"></div></div>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#8a7b6b;width:70px;text-align:right">0/7</span>
+                  <div style="width:142px;flex:none"></div>
+                </div>
+
+              </div>
+
+              <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+                <span style="height:1px;flex:1;background:#2a221c"></span>
+                <span style="padding:7px 14px;border:1px dashed #47392e;border-radius:8px;color:#b6a795;font-size:13px">+ Add monster or character</span>
+                <span style="height:1px;flex:1;background:#2a221c"></span>
+              </div>
+            </div>
+
+            <div style="overflow:hidden;padding:18px 20px;display:flex;flex-direction:column;gap:14px;background:#171310">
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Stat block</div>
+                <h2 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#f5efe6">Hobgoblin Captain</h2>
+                <p style="font-size:12px;color:#8a7b6b;font-style:italic;margin-top:2px">Medium humanoid (goblinoid), lawful evil</p>
+              </div>
+              <div style="height:1px;background:#342b23"></div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div style="background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:8px;text-align:center"><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#f5efe6">17</div><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">AC</div></div>
+                <div style="background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:8px;text-align:center"><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#f5efe6">39</div><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">HP</div></div>
+                <div style="background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:8px;text-align:center"><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#f5efe6">30</div><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">SPEED</div></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
+                <div style="text-align:center;padding:6px 2px;background:#1e1815;border-radius:6px"><div style="font-size:9px;color:#8a7b6b">STR</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">15</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#b6a795">+2</div></div>
+                <div style="text-align:center;padding:6px 2px;background:#1e1815;border-radius:6px"><div style="font-size:9px;color:#8a7b6b">DEX</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">14</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#b6a795">+2</div></div>
+                <div style="text-align:center;padding:6px 2px;background:#1e1815;border-radius:6px"><div style="font-size:9px;color:#8a7b6b">CON</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">14</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#b6a795">+2</div></div>
+                <div style="text-align:center;padding:6px 2px;background:#1e1815;border-radius:6px"><div style="font-size:9px;color:#8a7b6b">INT</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">12</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#b6a795">+1</div></div>
+                <div style="text-align:center;padding:6px 2px;background:#1e1815;border-radius:6px"><div style="font-size:9px;color:#8a7b6b">WIS</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">10</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#b6a795">+0</div></div>
+                <div style="text-align:center;padding:6px 2px;background:#1e1815;border-radius:6px"><div style="font-size:9px;color:#8a7b6b">CHA</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">13</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#b6a795">+1</div></div>
+              </div>
+              <div style="height:1px;background:#342b23"></div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#e2703a;margin-bottom:3px">Martial Advantage</div>
+                  <p style="font-size:12px;color:#b6a795;line-height:1.55">Once per turn, deal an extra 2d6 damage to a creature it hits with a weapon attack if that creature is within 5 ft of an allied hobgoblin.</p>
+                </div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#e2703a;margin-bottom:3px">Greatsword</div>
+                  <p style="font-size:12px;color:#b6a795;line-height:1.55">Melee weapon attack: +5 to hit, reach 5 ft. Hit: 2d6+3 slashing damage.</p>
+                </div>
+              </div>
+              <div style="margin-top:auto">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">DM notes</div>
+                <div style="background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:10px;font-size:12px;color:#8a7b6b;min-height:56px">Retreats across the ford at half HP…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a MOBILE: ROSTER (LIGHT) -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Mobile roster grid · light · 390×844 · all 4 players, no scroll</span>
+      <div style="width:390px;height:844px;overflow:hidden;position:relative;background:#f5efe3;border:1px solid #e0d4c0;display:flex;flex-direction:column;font-family:'Inter',sans-serif">
+        <div style="height:56px;flex:none;background:#fffaf1;border-bottom:1px solid #e0d4c0;padding:0 14px;display:flex;align-items:center;gap:12px">
+          <span style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:#5c4d3f"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#231c15;line-height:1.1">The party</div>
+            <div style="font-size:11px;color:#8a7b6b">Thornfell Reach · 4 characters</div>
+          </div>
+          <span style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:#5c4d3f"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+        </div>
+
+        <div style="flex:1;overflow:hidden;padding:14px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:8px">
+            <span style="padding:6px 12px;background:#231c15;color:#f7f1e6;border-radius:999px;font-size:12px;font-weight:600">Party</span>
+            <span style="padding:6px 12px;background:#fffaf1;border:1px solid #e0d4c0;color:#5c4d3f;border-radius:999px;font-size:12px;font-weight:500">Encounter</span>
+            <span style="padding:6px 12px;background:#fffaf1;border:1px solid #e0d4c0;color:#5c4d3f;border-radius:999px;font-size:12px;font-weight:500">Tools</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:flex-start;gap:8px">
+                <div style="width:30px;height:30px;flex:none;border-radius:8px;background:#f0e4d0;border:1px solid #e0d4c0;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:15px;color:#c85a27">T</div>
+                <div style="min-width:0;flex:1">
+                  <div style="font-size:13px;font-weight:600;color:#231c15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Thalric</div>
+                  <div style="font-size:10px;color:#8a7b6b">Lv 5 Fighter</div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#231c15"><span style="font-weight:600">34</span><span style="color:#8a7b6b">/41</span></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4e7a37">83%</span>
+                </div>
+                <div style="height:8px;background:#ece0cc;border-radius:999px;overflow:hidden;display:flex"><div style="width:83%;background:#5f9142"></div></div>
+              </div>
+              <div style="display:flex;gap:4px">
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">18<span style="color:#8a7b6b;font-size:8px;margin-left:2px">AC</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">+2<span style="color:#8a7b6b;font-size:8px;margin-left:2px">IN</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">13<span style="color:#8a7b6b;font-size:8px;margin-left:2px">PP</span></span>
+              </div>
+            </div>
+
+            <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:flex-start;gap:8px">
+                <div style="width:30px;height:30px;flex:none;border-radius:8px;background:#f0e4d0;border:1px solid #e0d4c0;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:15px;color:#c85a27">N</div>
+                <div style="min-width:0;flex:1">
+                  <div style="font-size:13px;font-weight:600;color:#231c15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Nyx Vale</div>
+                  <div style="font-size:10px;color:#8a7b6b">Lv 5 Rogue</div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#231c15"><span style="font-weight:600">19</span><span style="color:#8a7b6b">/38</span></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9a7316">50%</span>
+                </div>
+                <div style="height:8px;background:#ece0cc;border-radius:999px;overflow:hidden;display:flex"><div style="width:50%;background:#c79424"></div></div>
+              </div>
+              <div style="display:flex;gap:4px">
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">15<span style="color:#8a7b6b;font-size:8px;margin-left:2px">AC</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">+4<span style="color:#8a7b6b;font-size:8px;margin-left:2px">IN</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">15<span style="color:#8a7b6b;font-size:8px;margin-left:2px">PP</span></span>
+              </div>
+            </div>
+
+            <div style="background:#fffaf1;border:1px solid #d9b98f;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:flex-start;gap:8px">
+                <div style="width:30px;height:30px;flex:none;border-radius:8px;background:#f0e4d0;border:1px solid #e0d4c0;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:15px;color:#c85a27">A</div>
+                <div style="min-width:0;flex:1">
+                  <div style="font-size:13px;font-weight:600;color:#231c15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Aldric</div>
+                  <div style="font-size:10px;color:#8a7b6b">Lv 5 Cleric</div>
+                </div>
+                <span style="font-size:9px;font-weight:600;color:#8a5d10;background:#f7e6c2;border-radius:999px;padding:2px 6px">PSN</span>
+              </div>
+              <div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#231c15"><span style="font-weight:600">9</span><span style="color:#8a7b6b">/44</span><span style="color:#3d6d96;margin-left:3px">+5</span></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#a83521">20%</span>
+                </div>
+                <div style="height:8px;background:#ece0cc;border-radius:999px;overflow:hidden;display:flex"><div style="width:20%;background:#b83a22"></div><div style="width:11%;background:#7fa5c4"></div></div>
+              </div>
+              <div style="display:flex;gap:4px">
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">18<span style="color:#8a7b6b;font-size:8px;margin-left:2px">AC</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">+0<span style="color:#8a7b6b;font-size:8px;margin-left:2px">IN</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">16<span style="color:#8a7b6b;font-size:8px;margin-left:2px">PP</span></span>
+              </div>
+            </div>
+
+            <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:flex-start;gap:8px">
+                <div style="width:30px;height:30px;flex:none;border-radius:8px;background:#f0e4d0;border:1px solid #e0d4c0;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-size:15px;color:#c85a27">S</div>
+                <div style="min-width:0;flex:1">
+                  <div style="font-size:13px;font-weight:600;color:#231c15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sylvaine</div>
+                  <div style="font-size:10px;color:#8a7b6b">Lv 4 Druid</div>
+                </div>
+                <span style="font-size:9px;font-weight:600;color:#fffaf1;background:#c85a27;border-radius:999px;padding:2px 6px">LV</span>
+              </div>
+              <div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#231c15"><span style="font-weight:600">31</span><span style="color:#8a7b6b">/31</span></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4e7a37">FULL</span>
+                </div>
+                <div style="height:8px;background:#ece0cc;border-radius:999px;overflow:hidden;display:flex"><div style="width:100%;background:#5f9142"></div></div>
+              </div>
+              <div style="display:flex;gap:4px">
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">14<span style="color:#8a7b6b;font-size:8px;margin-left:2px">AC</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">+3<span style="color:#8a7b6b;font-size:8px;margin-left:2px">IN</span></span>
+                <span style="flex:1;text-align:center;padding:4px 0;background:#f7f0e2;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#231c15">17<span style="color:#8a7b6b;font-size:8px;margin-left:2px">PP</span></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Live encounter</span>
+              <span style="font-size:11px;color:#c85a27;font-weight:600">Round 3 →</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#c85a27;width:20px">18</span>
+              <span style="font-size:12px;color:#231c15;flex:1">Hobgoblin Captain</span>
+              <div style="width:64px;height:6px;background:#ece0cc;border-radius:999px;overflow:hidden"><div style="width:56%;height:100%;background:#c79424"></div></div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5c4d3f">22/39</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8a7b6b;width:20px">14</span>
+              <span style="font-size:12px;color:#231c15;flex:1">Goblin 2</span>
+              <div style="width:64px;height:6px;background:#ece0cc;border-radius:999px;overflow:hidden"><div style="width:29%;height:100%;background:#b83a22"></div></div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5c4d3f">2/7</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c85a27" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"></rect><circle cx="8" cy="8" r="1.5" fill="#c85a27"></circle><circle cx="16" cy="16" r="1.5" fill="#c85a27"></circle></svg>
+              <span style="font-size:11px;font-weight:600;color:#231c15">Dice</span>
+            </div>
+            <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c85a27" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span style="font-size:11px;font-weight:600;color:#231c15">Lookup</span>
+            </div>
+            <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c85a27" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              <span style="font-size:11px;font-weight:600;color:#231c15">Notes</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="position:absolute;bottom:22px;right:16px;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:#c85a27;color:#fff;border-radius:999px;box-shadow:0 8px 20px rgba(80,50,20,.28)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a MOBILE: CHARACTER SHEET (DARK) -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Mobile character sheet · sticky combat header + 6-tab bar · dark · 390×844</span>
+      <div style="width:390px;height:844px;overflow:hidden;position:relative;background:#15110e;border:1px solid #342b23;display:flex;flex-direction:column;font-family:'Inter',sans-serif">
+        <div style="flex:none;background:#1a1512;border-bottom:1px solid #342b23">
+          <div style="height:52px;padding:0 12px;display:flex;align-items:center;gap:8px">
+            <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg></span>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#f5efe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Thalric Emberfall</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e2703a;border:1px solid #47392e;border-radius:4px;padding:1px 5px;flex:none">LV 5</span>
+              </div>
+              <div style="font-size:11px;color:#8a7b6b">Human Fighter · Champion</div>
+            </div>
+            <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></span>
+          </div>
+          <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:flex-end;gap:10px">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+                  <span style="font-family:'IBM Plex Mono',monospace;color:#f5efe6"><span style="font-size:24px;font-weight:600">34</span><span style="font-size:14px;color:#8a7b6b">/41</span></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7fa65c;letter-spacing:.06em">HEALTHY · 83%</span>
+                </div>
+                <div style="height:8px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:83%;background:#7fa65c"></div></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <span style="width:46px;height:36px;display:flex;align-items:center;justify-content:center;background:#2c1a15;border:1px solid #6b2f22;border-radius:8px;color:#e08a6f;font-size:20px;line-height:1">−</span>
+              <span style="flex:1;height:36px;display:flex;align-items:center;justify-content:center;background:#15110e;border:1px solid #47392e;border-radius:8px;color:#8a7b6b;font-family:'IBM Plex Mono',monospace;font-size:13px">amount</span>
+              <span style="width:46px;height:36px;display:flex;align-items:center;justify-content:center;background:#1c2417;border:1px solid #3d5c2c;border-radius:8px;color:#9dc47c;font-size:20px;line-height:1">+</span>
+              <span style="flex:none;padding:0 14px;height:36px;display:flex;align-items:center;justify-content:center;background:#e2703a;color:#1b0f08;border-radius:8px;font-size:12px;font-weight:600">Apply</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <span style="flex:1;text-align:center;padding:6px 0;background:#221b16;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">18<span style="color:#8a7b6b;font-size:9px;margin-left:3px">AC</span></span>
+              <span style="flex:1;text-align:center;padding:6px 0;background:#221b16;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">+2<span style="color:#8a7b6b;font-size:9px;margin-left:3px">INIT</span></span>
+              <span style="flex:1;text-align:center;padding:6px 0;background:#221b16;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">30<span style="color:#8a7b6b;font-size:9px;margin-left:3px">SPD</span></span>
+              <span style="flex:1;text-align:center;padding:6px 0;background:#221b16;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">+3<span style="color:#8a7b6b;font-size:9px;margin-left:3px">PROF</span></span>
+              <span style="flex:1;text-align:center;padding:6px 0;background:#221b16;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6">13<span style="color:#8a7b6b;font-size:9px;margin-left:3px">PP</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;overflow:hidden;padding:14px 12px 76px;display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Abilities &amp; saves</span>
+              <span style="height:1px;flex:1;background:#2a221c"></span>
+              <span style="font-size:11px;color:#e2703a;font-weight:500">Edit</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1"><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">STR</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#f5efe6;line-height:1.1">18</div></div>
+                <div style="text-align:right"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a">+4</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7fa65c">S +7</div></div>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1"><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">DEX</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#f5efe6;line-height:1.1">14</div></div>
+                <div style="text-align:right"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a">+2</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">S +2</div></div>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1"><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">CON</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#f5efe6;line-height:1.1">16</div></div>
+                <div style="text-align:right"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a">+3</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7fa65c">S +6</div></div>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1"><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">INT</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#f5efe6;line-height:1.1">10</div></div>
+                <div style="text-align:right"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a">+0</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">S +0</div></div>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1"><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">WIS</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#f5efe6;line-height:1.1">12</div></div>
+                <div style="text-align:right"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a">+1</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">S +1</div></div>
+              </div>
+              <div style="background:#1a1512;border:1px solid #342b23;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px">
+                <div style="flex:1"><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">CHA</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#f5efe6;line-height:1.1">8</div></div>
+                <div style="text-align:right"><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2703a">−1</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">S −1</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Rest &amp; resources</span>
+              <span style="height:1px;flex:1;background:#2a221c"></span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <span style="flex:1;text-align:center;padding:9px 0;background:#1a1512;border:1px solid #6a5324;border-radius:8px;color:#d9a94a;font-size:12px;font-weight:600">Short rest</span>
+              <span style="flex:1;text-align:center;padding:9px 0;background:#1a1512;border:1px solid #6b3a1f;border-radius:8px;color:#e2703a;font-size:12px;font-weight:600">Long rest</span>
+              <span style="flex:1;text-align:center;padding:9px 0;background:#1a1512;border:1px solid #342b23;border-radius:8px;color:#b6a795;font-size:12px;font-weight:500">Hit dice 3/5</span>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Conditions</span>
+              <span style="height:1px;flex:1;background:#2a221c"></span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              <span style="padding:5px 11px;background:#2a2113;border:1px solid #6a5324;border-radius:999px;font-size:12px;color:#d9a94a;font-weight:500">Prone</span>
+              <span style="padding:5px 11px;background:#1a1512;border:1px solid #342b23;border-radius:999px;font-size:12px;color:#b6a795">Blinded</span>
+              <span style="padding:5px 11px;background:#1a1512;border:1px solid #342b23;border-radius:999px;font-size:12px;color:#b6a795">Charmed</span>
+              <span style="padding:5px 11px;background:#1a1512;border:1px solid #342b23;border-radius:999px;font-size:12px;color:#b6a795">Frightened</span>
+              <span style="padding:5px 11px;background:#1a1512;border:1px solid #342b23;border-radius:999px;font-size:12px;color:#b6a795">Grappled</span>
+              <span style="padding:5px 11px;background:#1a1512;border:1px solid #342b23;border-radius:999px;font-size:12px;color:#b6a795">Poisoned</span>
+              <span style="padding:5px 11px;background:#1a1512;border:1px solid #342b23;border-radius:999px;font-size:12px;color:#b6a795">Stunned</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="position:absolute;bottom:0;left:0;right:0;height:64px;background:#1a1512;border-top:1px solid #342b23;display:flex;justify-content:space-around;align-items:center;padding:0 6px">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#e2703a;font-size:10px;font-weight:600"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg><span>Stats</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#8a7b6b;font-size:10px;font-weight:500"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg><span>Skills</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#8a7b6b;font-size:10px;font-weight:500"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"></path><path d="M13 19l6-6"></path><path d="M16 16l4 4"></path></svg><span>Actions</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#8a7b6b;font-size:10px;font-weight:500"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg><span>Items</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#8a7b6b;font-size:10px;font-weight:500"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg><span>Notes</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#8a7b6b;font-size:10px;font-weight:500"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span>Tools</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a DESKTOP: CHARACTER SHEET (TAB RAIL + PANE) -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Character sheet on desktop · bottom tabs become a rail, detail opens in the right pane · dark · 1440×900</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#15110e;border:1px solid #342b23;display:flex;font-family:'Inter',sans-serif">
+        <div style="width:64px;flex:none;background:#1a1512;border-right:1px solid #342b23;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:14px">
+          <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#e2703a">T5</div>
+          <span style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg></span>
+          <span style="width:36px;height:36px;border-radius:8px;background:#2a211a;display:flex;align-items:center;justify-content:center;color:#e2703a"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg></span>
+          <span style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#b6a795"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"></path><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="12" r="1"></circle></svg></span>
+        </div>
+
+        <div style="width:212px;flex:none;border-right:1px solid #2a221c;padding:18px 12px;display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#f5efe6;line-height:1.2">Thalric Emberfall</div>
+            <div style="font-size:11px;color:#8a7b6b;margin-top:3px">Lv 5 Human Fighter · Dave</div>
+          </div>
+          <div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6"><span style="font-weight:600">34</span><span style="color:#8a7b6b">/41</span></span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7fa65c">83%</span>
+            </div>
+            <div style="height:8px;background:#2a221c;border-radius:999px;overflow:hidden;display:flex"><div style="width:83%;background:#7fa65c"></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:#b6a795;font-size:13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg>Stats</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:#2a211a;color:#f5efe6;font-size:13px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e2703a" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>Skills</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:#b6a795;font-size:13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"></path><path d="M13 19l6-6"></path><path d="M16 16l4 4"></path></svg>Actions</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:#b6a795;font-size:13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>Inventory</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:#b6a795;font-size:13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>Notes</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:#b6a795;font-size:13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>Tools</div>
+          </div>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px">
+            <span style="padding:8px 0;text-align:center;border:1px solid #6a5324;border-radius:8px;color:#d9a94a;font-size:12px;font-weight:600">Short rest</span>
+            <span style="padding:8px 0;text-align:center;border:1px solid #6b3a1f;border-radius:8px;color:#e2703a;font-size:12px;font-weight:600">Long rest</span>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:0;display:grid;grid-template-columns:1fr 360px">
+          <div style="overflow:hidden;padding:20px 24px;border-right:1px solid #2a221c;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <h1 style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#f5efe6">Skills</h1>
+              <span style="height:1px;flex:1;background:#2a221c"></span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.08em">PROF +3 · 2 EXPERTISE</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#241c15;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#e2703a"></span><span style="font-size:13px;color:#f5efe6;flex:1">Athletics</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">STR</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:#f5efe6;width:32px;text-align:right">+7</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Acrobatics</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">DEX</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+2</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#241c15;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;background:#e2703a"></span><span style="font-size:13px;color:#f5efe6;flex:1">Intimidation</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">CHA</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:#f5efe6;width:32px;text-align:right">+2</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Animal Handling</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">WIS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Arcana</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">INT</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+0</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Deception</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">CHA</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">−1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">History</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">INT</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+0</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Insight</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">WIS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Investigation</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">INT</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+0</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Medicine</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">WIS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Nature</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">INT</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+0</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Perception</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">WIS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Performance</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">CHA</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">−1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Persuasion</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">CHA</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">−1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Religion</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">INT</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+0</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Sleight of Hand</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">DEX</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+2</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Stealth</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">DEX</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+2</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid #47392e"></span><span style="font-size:13px;color:#b6a795;flex:1">Survival</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b">WIS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#b6a795;width:32px;text-align:right">+1</span></div>
+            </div>
+          </div>
+
+          <div style="overflow:hidden;padding:20px;background:#171310;display:flex;flex-direction:column;gap:14px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Detail</div>
+            <h2 style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#f5efe6">Athletics</h2>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1;background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#f5efe6">+7</div><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">TOTAL</div></div>
+              <div style="flex:1;background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#f5efe6">+4</div><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">STR MOD</div></div>
+              <div style="flex:1;background:#1e1815;border:1px solid #342b23;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:#f5efe6">+3</div><div style="font-size:9px;color:#8a7b6b;letter-spacing:.08em">PROF</div></div>
+            </div>
+            <div style="height:1px;background:#342b23"></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#1e1815;border:1px solid #47392e;border-radius:8px"><span style="font-size:13px;color:#f5efe6">Proficient</span><span style="width:34px;height:20px;border-radius:999px;background:#e2703a;display:flex;align-items:center;justify-content:flex-end;padding:2px"><span style="width:16px;height:16px;border-radius:50%;background:#1b0f08"></span></span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#1e1815;border:1px solid #342b23;border-radius:8px"><span style="font-size:13px;color:#b6a795">Expertise</span><span style="width:34px;height:20px;border-radius:999px;background:#2f261f;display:flex;align-items:center;padding:2px"><span style="width:16px;height:16px;border-radius:50%;background:#8a7b6b"></span></span></div>
+            </div>
+            <p style="font-size:12px;color:#8a7b6b;line-height:1.6">Tap any skill to see how its modifier is built and to toggle proficiency or expertise — replaces the tap-to-toggle-only row in the current build.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a DESKTOP: DM PANEL -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">DM panel · milestone mode · dark · 1000×700</span>
+      <div style="width:1000px;height:700px;overflow:hidden;background:#15110e;border:1px solid #342b23;display:flex;flex-direction:column;font-family:'Inter',sans-serif">
+        <div style="height:60px;flex:none;border-bottom:1px solid #2a221c;padding:0 24px;display:flex;align-items:center;gap:16px">
+          <h1 style="font-family:'Playfair Display',serif;font-size:21px;font-weight:700;color:#f5efe6">DM panel</h1>
+          <div style="display:flex;align-items:center;gap:2px;padding:3px;background:#221b16;border:1px solid #342b23;border-radius:8px;font-size:12px">
+            <span style="padding:5px 12px;background:#e2703a;color:#1b0f08;border-radius:6px;font-weight:600">Milestone</span>
+            <span style="padding:5px 12px;color:#8a7b6b">EXP</span>
+          </div>
+          <span style="margin-left:auto;padding:7px 14px;background:#e2703a;color:#1b0f08;border-radius:8px;font-size:13px;font-weight:600">Grant level to party</span>
+        </div>
+        <div style="flex:1;overflow:hidden;padding:20px 24px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Individual characters</span>
+            <span style="height:1px;flex:1;background:#2a221c"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:#1a1512;border:1px solid #342b23;border-radius:10px">
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#f5efe6">Thalric Emberfall</div><div style="font-size:12px;color:#8a7b6b">Human Fighter · Dave</div></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6;border:1px solid #47392e;border-radius:6px;padding:4px 10px">LV 5</span>
+            <span style="padding:7px 14px;border:1px solid #6b3a1f;border-radius:8px;color:#e2703a;font-size:12px;font-weight:600">Grant level</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:#1a1512;border:1px solid #342b23;border-radius:10px">
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#f5efe6">Nyx Vale</div><div style="font-size:12px;color:#8a7b6b">Tiefling Rogue · Sam</div></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6;border:1px solid #47392e;border-radius:6px;padding:4px 10px">LV 5</span>
+            <span style="padding:7px 14px;border:1px solid #6b3a1f;border-radius:8px;color:#e2703a;font-size:12px;font-weight:600">Grant level</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:#1a1512;border:1px solid #342b23;border-radius:10px">
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#f5efe6">Brother Aldric</div><div style="font-size:12px;color:#8a7b6b">Dwarf Cleric · Mo</div></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6;border:1px solid #47392e;border-radius:6px;padding:4px 10px">LV 5</span>
+            <span style="padding:7px 14px;border:1px solid #6b3a1f;border-radius:8px;color:#e2703a;font-size:12px;font-weight:600">Grant level</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:#1a1512;border:1px solid #47392e;border-radius:10px">
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#f5efe6">Sylvaine</div><div style="font-size:12px;color:#8a7b6b">Elf Druid · Priya</div></div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5efe6;border:1px solid #47392e;border-radius:6px;padding:4px 10px">LV 4</span>
+            <span style="padding:7px 14px;background:#e2703a;color:#1b0f08;border-radius:8px;font-size:12px;font-weight:600">Grant level</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a MOBILE: SIDE MENU + THEME TOGGLE -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Side menu · theme toggle lives here · dark · 390×844</span>
+      <div style="width:390px;height:844px;overflow:hidden;position:relative;background:#15110e;border:1px solid #342b23;display:flex;flex-direction:column;font-family:'Inter',sans-serif">
+        <div style="height:56px;flex:none;border-bottom:1px solid #342b23;padding:0 14px;display:flex;align-items:center;gap:12px">
+          <span style="color:#b6a795"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></span>
+          <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#f5efe6">The party</div>
+        </div>
+        <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:12px">
+          <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;height:120px"></div>
+          <div style="background:#1a1512;border:1px solid #342b23;border-radius:12px;height:120px"></div>
+        </div>
+        <div style="position:absolute;inset:0;background:rgba(10,7,5,.6)"></div>
+        <div style="position:absolute;top:0;left:0;bottom:0;width:288px;background:#1a1512;border-right:1px solid #342b23;display:flex;flex-direction:column">
+          <div style="padding:18px 20px;border-bottom:1px solid #2a221c">
+            <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#f5efe6;letter-spacing:.02em">TAPHOU5E</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+              <span style="width:6px;height:6px;border-radius:50%;background:#7fa65c"></span>
+              <span style="font-size:12px;color:#b6a795">Thornfell Reach</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#e2703a;border:1px solid #47392e;border-radius:4px;padding:1px 5px;margin-left:auto">DM</span>
+            </div>
+          </div>
+          <div style="padding:10px 8px;flex:1;display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg>Overview</div>
+            <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:8px;background:#2a211a;color:#f5efe6;font-size:14px;font-weight:600"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#e2703a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>Character sheets</div>
+            <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"></path><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="12" r="1"></circle></svg>Monster tracker</div>
+            <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>Player config</div>
+            <div style="height:1px;background:#2a221c;margin:8px 12px"></div>
+            <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8a7b6b;letter-spacing:.1em;text-transform:uppercase">Appearance</span>
+              <div style="display:flex;gap:4px;padding:3px;background:#221b16;border:1px solid #342b23;border-radius:8px">
+                <span style="flex:1;text-align:center;padding:6px 0;background:#2f261f;color:#f5efe6;border-radius:6px;font-size:12px;font-weight:600">Dark</span>
+                <span style="flex:1;text-align:center;padding:6px 0;color:#8a7b6b;font-size:12px">Light</span>
+                <span style="flex:1;text-align:center;padding:6px 0;color:#8a7b6b;font-size:12px">System</span>
+              </div>
+            </div>
+            <div style="height:1px;background:#2a221c;margin:8px 12px"></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:8px;color:#c4452f;font-size:14px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>Delete character</div>
+            <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:8px;color:#b6a795;font-size:14px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>Logout</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1a MOBILE: LOGIN (LIGHT) -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a7b6b">Login · light · 390×844</span>
+      <div style="width:390px;height:844px;overflow:hidden;background:#f5efe3;border:1px solid #e0d4c0;display:flex;flex-direction:column;font-family:'Inter',sans-serif">
+        <div style="padding:44px 22px 26px;text-align:center;border-bottom:1px solid #e0d4c0">
+          <h1 style="font-family:'Playfair Display',serif;font-size:30px;font-weight:700;color:#231c15;letter-spacing:.04em">TAPHOU5E</h1>
+          <p style="font-size:13px;color:#8a7b6b;margin-top:6px">Track your adventures with your party</p>
+        </div>
+        <div style="flex:1;padding:22px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;gap:4px;padding:3px;background:#ece0cc;border-radius:10px">
+            <span style="flex:1;text-align:center;padding:9px 0;background:#fffaf1;border-radius:8px;font-size:13px;font-weight:600;color:#231c15">Join game world</span>
+            <span style="flex:1;text-align:center;padding:9px 0;font-size:13px;color:#6f6656">Create</span>
+          </div>
+          <div style="background:#fffaf1;border:1px solid #e0d4c0;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <label style="font-size:12px;font-weight:600;color:#5c4d3f">Game world name</label>
+              <div style="padding:11px 12px;background:#f7f0e2;border:1px solid #e0d4c0;border-radius:8px;font-size:14px;color:#9a9083">Enter your game world name</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <label style="font-size:12px;font-weight:600;color:#5c4d3f">4-digit PIN</label>
+              <div style="display:flex;gap:10px">
+                <span style="flex:1;height:56px;display:flex;align-items:center;justify-content:center;background:#f7f0e2;border:1px solid #d9b98f;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:22px;color:#231c15">4</span>
+                <span style="flex:1;height:56px;display:flex;align-items:center;justify-content:center;background:#f7f0e2;border:1px solid #e0d4c0;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:22px;color:#231c15">•</span>
+                <span style="flex:1;height:56px;display:flex;align-items:center;justify-content:center;background:#f7f0e2;border:1px solid #e0d4c0;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:22px;color:#9a9083"></span>
+                <span style="flex:1;height:56px;display:flex;align-items:center;justify-content:center;background:#f7f0e2;border:1px solid #e0d4c0;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:22px;color:#9a9083"></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:20px;height:20px;border-radius:5px;background:#c85a27;display:flex;align-items:center;justify-content:center;color:#fffaf1;font-size:12px">✓</span>
+              <span style="font-size:13px;color:#5c4d3f">Remember me on this device</span>
+            </div>
+            <span style="padding:14px 0;text-align:center;background:#c85a27;color:#fffaf1;border-radius:10px;font-size:15px;font-weight:600">Enter game world</span>
+            <p style="text-align:center;font-size:12px;color:#8a7b6b">Don't have a game world? <a href="#1a" style="color:#c85a27;font-weight:600">Create one</a></p>
+          </div>
+        </div>
+        <div style="padding:18px 22px;text-align:center;border-top:1px solid #e0d4c0">
+          <p style="font-size:11px;color:#9a9083">Always free, open source · All data encrypted · Created by Perry</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+ </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:1000}}"></script>
+</body>
+</html>

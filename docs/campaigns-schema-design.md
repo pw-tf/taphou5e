@@ -626,28 +626,45 @@ Changing exactly once, for decision 3: `game_worlds.dm_pin_hash` and `player_pin
 
 ## 9. Running v1 and v2 side by side
 
-### 9.1 Layout
+### 9.1 Layout — v2 lives under /v2/
+
+The Ember handoff reuses v1's filenames (`index.html`, `characters.html`, `monster-tracker.html`),
+so v2 is namespaced to keep every one of them free:
 
 ```
-/index.html             login + router      (v1 file, lightly extended)
-/characters.html        v1                  (frozen)
-/monster-tracker.html   v1                  (frozen)
-/app.js, /styles.css …  v1                  (frozen)
-/v2/…                   new UI
+/index.html             v1 login + router      (v1 file, one small addition)
+/characters.html        v1                     (frozen)
+/monster-tracker.html   v1                     (frozen)
+/app.js /styles.css …   v1                     (frozen)
+
+/v2/index.html          hub (Ember)
+/v2/login.html          login (Ember)
+/v2/characters.html     world roster
+/v2/campaigns.html      campaigns
+/v2/character-sheet.html
+/v2/monster-tracker.html
+/v2/dm-panel.html
+/v2/tokens.css /v2/ember.css /v2/theme.js
 ```
 
-v1 keeps its current URLs so existing bookmarks, the PWA `start_url` and any shared links stay valid.
-Beyond the `login.js` change §5.5 forces, **no v1 file is edited** — a fallback you have been
-modifying is not a fallback, because every edit is a chance to regress the thing people fell back to.
+This matters more than it looks. Frozen `sidemenu.js` hard-codes `window.location.href = 'index.html'`
+on logout, and the PWA `start_url` plus every existing bookmark points at the same root paths. Had v2
+taken those filenames, v1's logout would land on the new hub and the fallback would be unreachable.
 
-### 9.2 Recommended flow — route after login, don't prompt before it
+Beyond the `login.js` change §5.5 forces and a small router snippet in `index.html`, **no v1 file is
+edited.** A fallback you have been modifying is not a fallback — every edit is a chance to regress the
+thing people fell back to.
 
-Your instinct (choose a version, remember it in localStorage) is right. One refinement: put the
-choice **after** authentication, not in front of it.
+### 9.2 v1 keeps its current appearance
 
-A pre-login chooser asks people to pick between two things they cannot see yet, and it adds a step to
-the one task they actually came to do. After login you can make the offer concrete, against their own
-world, and let them ignore it.
+The handoff's step 1 is "swap the `:root` block in styles.css", which would re-theme v1 wholesale.
+**We are not doing that.** `tokens.css` and `ember.css` are loaded by `/v2/` pages only; v1 keeps its
+blue-on-zinc palette untouched.
+
+The visual difference is a feature, not an oversight: when someone reports a bug, the screenshot says
+immediately which version they were on.
+
+### 9.3 Routing
 
 ```
 index.html
@@ -659,62 +676,110 @@ index.html
        unset     → characters.html, plus a one-time dismissible "Try the new layout" card
 ```
 
-Three properties that matter more than the mechanism:
+Three properties matter more than the mechanism:
 
-1. **Dismissible card, not a blocking modal.** A modal in front of a DM mid-session is a tax on
-   everyone to benefit the curious.
-2. **The switch is permanent and two-way**, living in the side menu on *both* versions. Anyone who
-   tries v2 and dislikes it must be one tap from classic, or they won't try it at all.
-3. **Default for unchosen users stays `classic` during rollout**, and flips to `next` once v2 is
-   proven. That ordering means a bug in v2 is an opt-in problem, not an incident across 191 worlds.
+1. **Dismissible card, not a blocking modal.** A modal in front of a DM mid-session taxes everyone to
+   serve the curious.
+2. **The switch is two-way and permanent**, in the side menu on both versions. Anyone who tries v2 and
+   dislikes it must be one tap from classic, or they will not try it at all.
+3. **`classic` stays the default for unchosen users during rollout**, flipping to `next` once v2 is
+   proven. That ordering makes a v2 bug an opt-in problem rather than an incident across 191 worlds.
 
-### 9.3 Why localStorage is the right store here — and its one consequence
-
-Login is world + PIN, not per-person. There is no user identity to hang a preference on, so a
-server-side preference would have to live on `game_worlds` — forcing an entire world onto one version,
-including players who never chose. Per-device localStorage is the correct granularity.
-
-The consequence: a DM on both phone and laptop chooses twice. That's the right trade, and worth a
-line of copy rather than an engineering fix.
+Two independent localStorage keys, no collision: `taphou5e-ui` (version) and `taphou5e-theme` (Ember's
+own, from `theme.js`). Both versions read the same `dnd-session` key, so switching never logs anyone out.
 
 ### 9.4 What each version sees of the other's data
 
-Because of decision 2, this stays simple. A character never leaves its world, so **v1's roster is
-never wrong — only less detailed.** A DM can build campaigns, NPCs and encounters in v2 all day and
-v1 carries on showing the same flat character list it always has.
-
-The DM token and the version choice are independent: switching versions does not log anyone out,
-since both read the same `dnd-session` key.
+Because of decision 2, this stays simple. A character never leaves its world, so **v1's roster is never
+wrong — only less detailed.** A DM can build campaigns, NPCs and encounters in v2 all day and v1 carries
+on showing the flat character list it always has.
 
 ---
 
-## 10. Navigation model (input for the UI redesign)
+## 10. Navigation model
+
+Campaigns are their own nav item. The world roster stays world-level, and characters are **pulled** from
+it into a campaign — which is exactly what `campaign_characters` is (§4.2): an additive membership row
+that never touches `characters.game_world_id`.
 
 ```
-Login (world + PIN)
-  └─ World
-       ├─ Campaigns  ← landing screen when a world has more than one
-       │    └─ Campaign
-       │         ├─ Overview      — summary, status, recent sessions
-       │         ├─ Storylines    — beats, with inline check requirements
-       │         ├─ Areas         — nested tree, descriptions, maps
-       │         ├─ NPCs          — lore cards; stat block if attached
-       │         ├─ Monsters      — roster: SRD refs + homebrew
-       │         ├─ Encounters    — builder → launches the tracker
-       │         └─ Party         — campaign_characters, join/leave within the world
-       └─ Characters              — v1-compatible world-level roster
+Login (world + PIN)  →  /v2/  hub
+  │
+  ├─ Overview        — party state, live encounter, DM panel card
+  ├─ Characters      — world roster (every character in the world)
+  ├─ Campaigns       ← own nav item
+  │    └─ Campaign
+  │         ├─ Overview     — summary, status, recent sessions
+  │         ├─ Party        — pull characters in from the world roster; set status
+  │         ├─ Storylines   — beats, with their check requirements
+  │         ├─ Areas        — nested tree, descriptions, maps
+  │         ├─ NPCs         — lore cards; stat block if attached
+  │         ├─ Monsters     — roster: SRD refs + homebrew
+  │         └─ Encounters   — this campaign's encounters
+  ├─ Encounters      — every encounter in the world, grouped by campaign, live one surfaced
+  ├─ Compendium      — SRD browse/search; the write path into campaign Monsters
+  └─ DM panel
 ```
 
-Worlds holding only the backfilled default campaign should skip the picker and land straight on that
-campaign, so existing users don't meet a new empty screen on first login.
+"Pull from world" is the core party gesture: a picker listing world characters not yet in this campaign,
+inserting `campaign_characters` rows. Removing is a `left_at` timestamp, not a delete, so a character who
+rejoins keeps their history.
+
+**Dice & tools is cut** — removed from the sidebar and from the hub tiles, which drop to 2-up.
+
+Encounters are reachable two ways against one `campaign_id`-owned table: the world-level item lists all
+of them grouped by campaign, a campaign's own tab filters to that campaign. Both open the same tracker.
 
 ---
 
-## 11. Open items
+## 11. Ember handoff integration
 
-1. **DM token lifetime** — drafted at 12 hours. A long session runs past that; shorter is safer.
-2. **Rate limiting thresholds** for `world_login` (§5.5) — suggest 10 failures per world per 15 minutes.
-3. **Player PIN** currently grants read access to everything via the anon key regardless of this
-   design. Worth deciding whether players should also carry a token, so player-tier reads can be
-   scoped to their own world rather than every world.
-4. Confirm the `login.js` change in §5.5 is acceptable — decision 3 cannot be delivered without it.
+`design_handoff_ember/` is high fidelity and its scope line is explicit: *"visual + layout only. No new
+features."* It was written without knowledge of the campaign layer, so it is authoritative on appearance
+and silent on everything in §4.
+
+### 11.1 Adopted as-is
+
+- **`tokens.css` is the token source of truth** for `/v2/`. Variable names already match v1's, so the
+  Ember pages re-theme rather than being restyled.
+- **The single `.hp` component** (§ "The HP bar" in the handoff) replaces all three current bars,
+  including the per-hit-point `div.health-segment` loop in `renderMonsters` — a 300 HP creature is
+  currently 300 hairline divs.
+- **`theme.js`**, `data-theme` on `<html>`, `taphou5e-theme` in localStorage, set before first paint.
+- The 900px breakpoint, sidebar/rail/pane shells, and the 1360px content cap replacing the 600px
+  `--max-width`.
+- `:focus-visible` outlines in the accent colour throughout — the handoff notes the current build has
+  no focus ring at all.
+
+### 11.2 What the design does not cover, and needs new work
+
+| Gap | What it needs |
+|---|---|
+| No campaign screens exist | Campaign list, campaign detail with seven tabs, all built in the Ember component language |
+| `<a href="#notes">Campaign notes</a>` is a dead anchor in three pages | Becomes the real DM notes surface, backed by §5.4 |
+| No affordance for reveal flags | `is_revealed`, `is_known_to_players`, `is_discovered` each need a DM toggle and a player-side empty state |
+| `hide_monster_hp` | Player view of an active encounter must omit monster HP when set (§4.8) |
+| No DM/player content distinction | The design shows a role pill only. Every campaign surface needs a "players can see this" state |
+| Compendium is a dead anchor | Scoped as the browse/search/homebrew front end for `campaign_monsters` — see §11.3 |
+
+### 11.3 Compendium
+
+Not a standalone reference section: it is the write path for §4.4. Browse and search SRD monsters and
+spells from `dnd5eapi.co`, "Add to campaign" inserting a `campaign_monsters` row with an `api_index`,
+and a homebrew authoring form producing `source = 'homebrew'` rows. Without it, `source = 'homebrew'` is
+unreachable and adding an SRD monster means typing an index by hand.
+
+The design already built its entry point — the topbar search field reads "Search monsters, spells,
+items…". It also closes a standing v1 gap: today a stat block can only be seen by adding the monster to
+a live encounter, and a spell only if it is already on a character sheet.
+
+---
+
+## 12. Open items
+
+1. **`login.js` change (§5.5) needs sign-off** — decision 3 cannot be delivered without it. The PIN
+   hashes must become unreadable, which means login moves to an RPC.
+2. **DM token lifetime** — drafted at 12 hours. A long session runs past that; shorter is safer.
+3. **Rate limiting thresholds** for `world_login` — suggest 10 failures per world per 15 minutes.
+4. **Player tokens.** The player PIN currently grants read access to every world's data via the anon key.
+   Worth deciding whether players should also carry a token so player-tier reads scope to their own world.
