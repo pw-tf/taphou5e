@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Ember reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ember.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="login-container">
+  <header class="login-header">
+    <h1>TAPHOU5E</h1>
+    <p>Track your adventures with your party</p>
+  </header>
+  <main style="flex:1;padding:var(--space-lg);display:flex;flex-direction:column;gap:var(--space-18);max-width:440px;width:100%;margin:0 auto">
+    <div class="segmented" style="width:100%">
+      <button class="is-active" style="flex:1">Join game world</button>
+      <button style="flex:1">Create</button>
+    </div>
+    <form class="login-card">
+      <div class="form-group">
+        <label for="world-name">Game world name</label>
+        <input id="world-name" type="text" placeholder="Enter your game world name">
+      </div>
+      <div class="form-group">
+        <label>4-digit PIN</label>
+        <div class="pin-inputs">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric">
+          <input class="pin-input" type="tel" maxlength="1" inputmode="numeric">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:var(--space-10);font-size:var(--fs-13);color:var(--text-secondary)">
+        <input type="checkbox" checked style="width:18px;height:18px;accent-color:var(--accent-primary)">
+        Remember me on this device
+      </label>
+      <button class="btn btn-accent btn-block" style="padding:14px 0;font-size:var(--fs-15)">Enter game world</button>
+      <p style="text-align:center;font-size:var(--fs-12);color:var(--text-tertiary)">Don't have a game world? <a href="#create">Create one</a></p>
+    </form>
+    <div class="segmented" style="align-self:center">
+      <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
+      <button data-theme-option="light" onclick="setTheme('light')">Light</button>
+      <button data-theme-option="system" onclick="setTheme('system')">System</button>
+    </div>
+  </main>
+  <footer style="padding:var(--space-18) var(--space-lg);text-align:center;border-top:1px solid var(--border-default)">
+    <p style="font-size:var(--fs-11);color:var(--text-muted)">Always free, open source · All data encrypted · Created by Perry</p>
+  </footer>
+</div>
+</body>
+</html>

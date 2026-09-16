@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character sheet — Ember reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ember.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="rail">
+    <div style="font-family:var(--font-display);font-size:var(--fs-15);font-weight:700;color:var(--accent-primary)">T5</div>
+    <a class="icon-btn" href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></a>
+    <a class="icon-btn" href="characters.html" style="background:var(--bg-hover);color:var(--accent-primary)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></a>
+    <a class="icon-btn" href="monster-tracker.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/></svg></a>
+    <a class="icon-btn" href="#compendium"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></a>
+  </aside>
+
+  <nav class="sheet-nav">
+    <div>
+      <div style="font-family:var(--font-display);font-size:var(--fs-17);font-weight:700;line-height:1.2">Thalric Emberfall</div>
+      <div style="font-size:var(--fs-11);color:var(--text-tertiary);margin-top:3px">Lv 5 Human Fighter · Dave</div>
+    </div>
+    <div class="hp">
+      <div class="hp-readout">
+        <span class="hp-value"><b>34</b><span class="max">/41</span></span>
+        <span class="hp-state state-high">83%</span>
+      </div>
+      <div class="hp-bar"><div class="fill high" style="width:83%"></div></div>
+    </div>
+    <div class="tabs">
+      <div class=""><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>Stats</div>
+      <div class="is-active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Skills</div>
+      <div class=""><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/></svg>Actions</div>
+      <div class=""><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Inventory</div>
+      <div class=""><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Notes</div>
+      <div class=""><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Tools</div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-rest short btn-block">Short rest</button>
+      <button class="btn btn-rest long btn-block">Long rest</button>
+    </div>
+  </nav>
+
+  <div class="app-main">
+    <header class="sheet-header">
+      <div class="sheet-id">
+        <button class="icon-btn" onclick="history.back()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <h1 style="font-family:var(--font-display);font-size:var(--fs-16);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Thalric Emberfall</h1>
+            <span class="level-badge">LV 5</span>
+          </div>
+          <div style="font-size:var(--fs-11);color:var(--text-tertiary)">Human Fighter · Champion</div>
+        </div>
+        <button class="icon-btn" onclick="document.getElementById('side-menu-overlay').classList.add('open')"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      </div>
+      <div class="sheet-combat">
+        <div class="hp">
+          <div class="hp-readout">
+            <span class="hp-value"><b style="font-size:var(--fs-24)">34</b><span class="max" style="font-size:var(--fs-14)">/41</span></span>
+            <span class="hp-state state-high">HEALTHY · 83%</span>
+          </div>
+          <div class="hp-bar"><div class="fill high" style="width:83%"></div></div>
+        </div>
+        <div class="hp-ctl">
+          <button class="hp-btn damage">−</button>
+          <input type="number" placeholder="amount" inputmode="numeric">
+          <button class="hp-btn heal">+</button>
+          <button class="btn btn-accent" style="height:36px">Apply</button>
+        </div>
+        <div class="chipline">
+          <span class="chip">18<span>AC</span></span>
+          <span class="chip">+2<span>INIT</span></span>
+          <span class="chip">30<span>SPD</span></span>
+          <span class="chip">+3<span>PROF</span></span>
+          <span class="chip">13<span>PP</span></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="split">
+      <main class="list main-content" style="padding-bottom:calc(var(--tab-bar-height) + var(--space-lg))">
+        <section>
+          <div class="section-head"><span class="eyebrow">Abilities &amp; saves</span><span class="rule"></span><button class="btn btn-quiet" style="padding:4px 10px;font-size:var(--fs-11)">Edit</button></div>
+          <div class="ability-grid">
+            <div class="ability-box">
+              <div style="flex:1"><div class="label">STR</div><div class="score">18</div></div>
+              <div style="text-align:right"><div class="mod">+4</div><div class="save is-prof">S +7</div></div>
+            </div>
+            <div class="ability-box">
+              <div style="flex:1"><div class="label">DEX</div><div class="score">14</div></div>
+              <div style="text-align:right"><div class="mod">+2</div><div class="save">S +2</div></div>
+            </div>
+            <div class="ability-box">
+              <div style="flex:1"><div class="label">CON</div><div class="score">16</div></div>
+              <div style="text-align:right"><div class="mod">+3</div><div class="save is-prof">S +6</div></div>
+            </div>
+            <div class="ability-box">
+              <div style="flex:1"><div class="label">INT</div><div class="score">10</div></div>
+              <div style="text-align:right"><div class="mod">+0</div><div class="save">S +0</div></div>
+            </div>
+            <div class="ability-box">
+              <div style="flex:1"><div class="label">WIS</div><div class="score">12</div></div>
+              <div style="text-align:right"><div class="mod">+1</div><div class="save">S +1</div></div>
+            </div>
+            <div class="ability-box">
+              <div style="flex:1"><div class="label">CHA</div><div class="score">8</div></div>
+              <div style="text-align:right"><div class="mod">−1</div><div class="save">S −1</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-head"><span class="eyebrow">Skills</span><span class="rule"></span><span class="mono" style="font-size:var(--fs-10);color:var(--text-tertiary)">PROF +3</span></div>
+          <div class="skills-grid">
+            <div class="skill-row proficient"><span class="skill-dot"></span><span class="skill-name">Athletics</span><span class="skill-ability">STR</span><span class="skill-mod">+7</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Acrobatics</span><span class="skill-ability">DEX</span><span class="skill-mod">+2</span></div>
+            <div class="skill-row proficient"><span class="skill-dot"></span><span class="skill-name">Intimidation</span><span class="skill-ability">CHA</span><span class="skill-mod">+2</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Animal Handling</span><span class="skill-ability">WIS</span><span class="skill-mod">+1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Arcana</span><span class="skill-ability">INT</span><span class="skill-mod">+0</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Deception</span><span class="skill-ability">CHA</span><span class="skill-mod">−1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">History</span><span class="skill-ability">INT</span><span class="skill-mod">+0</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Insight</span><span class="skill-ability">WIS</span><span class="skill-mod">+1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Investigation</span><span class="skill-ability">INT</span><span class="skill-mod">+0</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Medicine</span><span class="skill-ability">WIS</span><span class="skill-mod">+1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Nature</span><span class="skill-ability">INT</span><span class="skill-mod">+0</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Perception</span><span class="skill-ability">WIS</span><span class="skill-mod">+1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Performance</span><span class="skill-ability">CHA</span><span class="skill-mod">−1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Persuasion</span><span class="skill-ability">CHA</span><span class="skill-mod">−1</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Religion</span><span class="skill-ability">INT</span><span class="skill-mod">+0</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Sleight of Hand</span><span class="skill-ability">DEX</span><span class="skill-mod">+2</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Stealth</span><span class="skill-ability">DEX</span><span class="skill-mod">+2</span></div>
+            <div class="skill-row"><span class="skill-dot"></span><span class="skill-name">Survival</span><span class="skill-ability">WIS</span><span class="skill-mod">+1</span></div>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-head"><span class="eyebrow">Conditions</span><span class="rule"></span></div>
+          <div class="conditions-grid">
+            <span class="condition-tag active">Prone</span>
+            <span class="condition-tag">Blinded</span>
+            <span class="condition-tag">Charmed</span>
+            <span class="condition-tag">Deafened</span>
+            <span class="condition-tag">Frightened</span>
+            <span class="condition-tag">Grappled</span>
+            <span class="condition-tag">Incapacitated</span>
+            <span class="condition-tag">Invisible</span>
+            <span class="condition-tag">Paralyzed</span>
+            <span class="condition-tag">Petrified</span>
+            <span class="condition-tag">Poisoned</span>
+            <span class="condition-tag">Restrained</span>
+            <span class="condition-tag">Stunned</span>
+            <span class="condition-tag">Unconscious</span>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-head"><span class="eyebrow">Rest &amp; resources</span><span class="rule"></span></div>
+          <div class="chipline">
+            <button class="btn btn-rest short" style="flex:1">Short rest</button>
+            <button class="btn btn-rest long" style="flex:1">Long rest</button>
+            <span class="chip" style="padding:9px 0">3/5<span>HIT DICE</span></span>
+          </div>
+        </section>
+      </main>
+
+      <aside class="pane">
+        <div class="statblock">
+          <div>
+            <div class="eyebrow">Detail</div>
+            <h2 style="font-size:var(--fs-19);margin-top:6px">Athletics</h2>
+          </div>
+          <div class="stat-trio">
+            <div><b>+7</b><span>TOTAL</span></div>
+            <div><b>+4</b><span>STR MOD</span></div>
+            <div><b>+3</b><span>PROF</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:var(--radius-md)">
+              <span style="font-size:var(--fs-13)">Proficient</span>
+              <span style="width:34px;height:20px;border-radius:999px;background:var(--accent-primary);display:flex;align-items:center;justify-content:flex-end;padding:2px"><span style="width:16px;height:16px;border-radius:50%;background:var(--accent-on)"></span></span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--radius-md)">
+              <span style="font-size:var(--fs-13);color:var(--text-secondary)">Expertise</span>
+              <span style="width:34px;height:20px;border-radius:999px;background:var(--bg-hover);display:flex;align-items:center;padding:2px"><span style="width:16px;height:16px;border-radius:50%;background:var(--text-tertiary)"></span></span>
+            </div>
+          </div>
+          <p>Under 900px this pane is a bottom sheet; above it, it is pinned beside the list. Actions,
+          Inventory, Notes and Tools reuse the same list + pane pair — only the row content differs.</p>
+        </div>
+      </aside>
+    </div>
+
+    <nav class="tab-bar">
+      <button class="tab-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg><span>Stats</span></button>
+      <button class="tab-btn active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Skills</span></button>
+      <button class="tab-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/></svg><span>Actions</span></button>
+      <button class="tab-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span>Inventory</span></button>
+      <button class="tab-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Notes</span></button>
+      <button class="tab-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>Tools</span></button>
+    </nav>
+  </div>
+</div>
+
+  <div class="side-menu-overlay" id="side-menu-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="side-menu">
+      <div class="side-menu-header">
+        <div class="brand">TAPHOU5E</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--hp-high)"></span>
+          <span style="font-size:var(--fs-12);color:var(--text-secondary)">Thornfell Reach</span>
+          <span class="mono" style="margin-left:auto;font-size:var(--fs-10);color:var(--accent-primary);border:1px solid var(--border-strong);border-radius:4px;padding:1px 5px">DM</span>
+        </div>
+      </div>
+      <nav style="padding:10px 0;flex:1;display:flex;flex-direction:column;gap:2px">
+        <a class="side-menu-item" href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>Overview</a>
+        <a class="side-menu-item is-active" href="characters.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>Character sheets</a>
+        <a class="side-menu-item" href="monster-tracker.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/></svg>Monster tracker</a>
+        <a class="side-menu-item" href="dm-panel.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>Player config</a>
+        <div class="side-menu-divider"></div>
+        <div class="theme-switch">
+          <span class="eyebrow">Appearance</span>
+          <div class="segmented">
+            <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
+            <button data-theme-option="light" onclick="setTheme('light')">Light</button>
+            <button data-theme-option="system" onclick="setTheme('system')">System</button>
+          </div>
+        </div>
+        <div class="side-menu-divider"></div>
+        <a class="side-menu-item side-menu-item-danger" href="#delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>Delete character</a>
+        <a class="side-menu-item" href="login.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Logout</a>
+      </nav>
+    </div>
+  </div>
+</body>
+</html>

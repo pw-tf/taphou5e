@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encounter tracker — Ember reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ember.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="rail">
+    <div style="font-family:var(--font-display);font-size:var(--fs-15);font-weight:700;color:var(--accent-primary)">T5</div>
+    <a class="icon-btn" href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></a>
+    <a class="icon-btn" href="characters.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></a>
+    <a class="icon-btn" href="monster-tracker.html" style="background:var(--bg-hover);color:var(--accent-primary)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/></svg></a>
+    <a class="icon-btn" href="#compendium"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></a>
+  </aside>
+
+  <div class="app-main">
+    <header class="header">
+      <button class="icon-btn" onclick="document.getElementById('side-menu-overlay').classList.add('open')"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <div class="header-title">Ambush at the Ford</div>
+        <div class="header-sub">4 combatants · advanced mode</div>
+      </div>
+      <button class="icon-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+    </header>
+
+    <div class="topbar">
+      <h1>Ambush at the Ford</h1>
+      <div class="segmented"><button>Simple</button><button class="is-active">Advanced</button></div>
+      <div class="segmented"><button class="is-active">Full</button><button>Compact</button></div>
+      <div class="spacer">
+        <button class="btn">Save encounter</button>
+        <button class="btn">Load encounter</button>
+        <button class="btn btn-accent">+ Add monsters</button>
+      </div>
+    </div>
+
+    <div class="split">
+      <main class="list">
+        <div class="section-head"><span class="eyebrow">Initiative order</span><span class="rule"></span><span style="font-size:var(--fs-12);color:var(--text-tertiary)">Sort: initiative</span></div>
+        <div class="enc-group">
+          
+          <div class="init-row is-active">
+            <div class="init-value"><b>18</b><span>INIT</span></div>
+            <div class="init-id">
+              <div class="init-name">Hobgoblin Captain</div>
+              <div class="init-sub"><span class="mono" style="color:var(--text-secondary)">AC 17</span><span class="state-mid" >Injured</span></div>
+            </div>
+            <div class="init-hp"><div class="hp-bar row"><div class="fill mid" style="width:56%"></div></div></div>
+            <span class="init-total"><b>22</b><span style="color:var(--text-tertiary)">/39</span></span>
+            <div class="init-actions">
+              <button class="hp-btn damage">−</button><input type="number" placeholder="±" inputmode="numeric"><button class="hp-btn heal">+</button>
+            </div>
+          </div>
+          <div class="init-row ">
+            <div class="init-value"><b>14</b><span>INIT</span></div>
+            <div class="init-id">
+              <div class="init-name">Goblin 2</div>
+              <div class="init-sub"><span class="mono" style="color:var(--text-secondary)">AC 15</span><span class="state-low" >Critical</span></div>
+            </div>
+            <div class="init-hp"><div class="hp-bar row"><div class="fill low" style="width:29%"></div></div></div>
+            <span class="init-total"><b>2</b><span style="color:var(--text-tertiary)">/7</span></span>
+            <div class="init-actions">
+              <button class="hp-btn damage">−</button><input type="number" placeholder="±" inputmode="numeric"><button class="hp-btn heal">+</button>
+            </div>
+          </div>
+          <div class="init-row is-party">
+            <div class="init-value"><b>12</b><span>INIT</span></div>
+            <div class="init-id">
+              <div class="init-name">Thalric Emberfall</div>
+              <div class="init-sub"><span class="mono" style="color:var(--text-secondary)">AC 18</span><span class="" style="color:var(--text-tertiary)">Party · Dave</span></div>
+            </div>
+            <div class="init-hp"><div class="hp-bar row"><div class="fill high" style="width:83%"></div></div></div>
+            <span class="init-total"><b>34</b><span style="color:var(--text-tertiary)">/41</span></span>
+            <div class="init-actions">
+              <button class="hp-btn damage">−</button><input type="number" placeholder="±" inputmode="numeric"><button class="hp-btn heal">+</button>
+            </div>
+          </div>
+          <div class="init-row is-dead">
+            <div class="init-value"><b>9</b><span>INIT</span></div>
+            <div class="init-id">
+              <div class="init-name">Goblin 1</div>
+              <div class="init-sub"><span class="mono" style="color:var(--text-secondary)">AC 15</span><span class="" style="color:var(--text-tertiary)">Dead</span></div>
+            </div>
+            <div class="init-hp"><div class="hp-bar row"><div class="fill low" style="width:0%"></div></div></div>
+            <span class="init-total"><b>0</b><span style="color:var(--text-tertiary)">/7</span></span>
+            <div class="init-actions">
+              
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-10);margin-top:var(--space-md)">
+          <span class="rule"></span>
+          <button class="btn btn-quiet" style="border-style:dashed">+ Add monster or character</button>
+          <span class="rule"></span>
+        </div>
+      </main>
+
+      <aside class="pane">
+        <div class="statblock">
+          <div>
+            <div class="eyebrow">Stat block</div>
+            <h2 style="margin-top:6px">Hobgoblin Captain</h2>
+            <p class="flavour">Medium humanoid (goblinoid), lawful evil</p>
+          </div>
+          <div class="stat-trio">
+            <div><b>17</b><span>AC</span></div>
+            <div><b>39</b><span>HP</span></div>
+            <div><b>30</b><span>SPEED</span></div>
+          </div>
+          <div class="abilities">
+            <div><div class="eyebrow" style="font-size:var(--fs-9)">STR</div><div class="mono">15</div><div class="mono" style="font-size:var(--fs-10);color:var(--text-secondary)">+2</div></div>
+            <div><div class="eyebrow" style="font-size:var(--fs-9)">DEX</div><div class="mono">14</div><div class="mono" style="font-size:var(--fs-10);color:var(--text-secondary)">+2</div></div>
+            <div><div class="eyebrow" style="font-size:var(--fs-9)">CON</div><div class="mono">14</div><div class="mono" style="font-size:var(--fs-10);color:var(--text-secondary)">+2</div></div>
+            <div><div class="eyebrow" style="font-size:var(--fs-9)">INT</div><div class="mono">12</div><div class="mono" style="font-size:var(--fs-10);color:var(--text-secondary)">+1</div></div>
+            <div><div class="eyebrow" style="font-size:var(--fs-9)">WIS</div><div class="mono">10</div><div class="mono" style="font-size:var(--fs-10);color:var(--text-secondary)">+0</div></div>
+            <div><div class="eyebrow" style="font-size:var(--fs-9)">CHA</div><div class="mono">13</div><div class="mono" style="font-size:var(--fs-10);color:var(--text-secondary)">+1</div></div>
+          </div>
+          <div>
+            <div class="trait-name">Martial Advantage</div>
+            <p>Once per turn, deal an extra 2d6 damage to a creature it hits with a weapon attack if that creature is within 5 ft of an allied hobgoblin.</p>
+          </div>
+          <div>
+            <div class="trait-name">Greatsword</div>
+            <p>Melee weapon attack: +5 to hit, reach 5 ft. Hit: 2d6+3 slashing damage.</p>
+          </div>
+          <div>
+            <div class="eyebrow">DM notes</div>
+            <textarea placeholder="Enter notes…" style="margin-top:6px;width:100%;min-height:64px;background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--radius-md);color:var(--text-primary);padding:10px;font-family:var(--font-body);font-size:var(--fs-12)"></textarea>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+  <div class="side-menu-overlay" id="side-menu-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="side-menu">
+      <div class="side-menu-header">
+        <div class="brand">TAPHOU5E</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--hp-high)"></span>
+          <span style="font-size:var(--fs-12);color:var(--text-secondary)">Thornfell Reach</span>
+          <span class="mono" style="margin-left:auto;font-size:var(--fs-10);color:var(--accent-primary);border:1px solid var(--border-strong);border-radius:4px;padding:1px 5px">DM</span>
+        </div>
+      </div>
+      <nav style="padding:10px 0;flex:1;display:flex;flex-direction:column;gap:2px">
+        <a class="side-menu-item" href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>Overview</a>
+        <a class="side-menu-item is-active" href="characters.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>Character sheets</a>
+        <a class="side-menu-item" href="monster-tracker.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/></svg>Monster tracker</a>
+        <a class="side-menu-item" href="dm-panel.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>Player config</a>
+        <div class="side-menu-divider"></div>
+        <div class="theme-switch">
+          <span class="eyebrow">Appearance</span>
+          <div class="segmented">
+            <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
+            <button data-theme-option="light" onclick="setTheme('light')">Light</button>
+            <button data-theme-option="system" onclick="setTheme('system')">System</button>
+          </div>
+        </div>
+        <div class="side-menu-divider"></div>
+        <a class="side-menu-item side-menu-item-danger" href="#delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>Delete character</a>
+        <a class="side-menu-item" href="login.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Logout</a>
+      </nav>
+    </div>
+  </div>
+</body>
+</html>

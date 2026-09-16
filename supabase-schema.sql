@@ -169,3 +169,304 @@ CREATE TABLE public.weapons (
   CONSTRAINT weapons_pkey PRIMARY KEY (id),
   CONSTRAINT weapons_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
+-- ============================================================================
+-- CAMPAIGN LAYER  (applied 2026-09-16, migrations 20260916111102-20260916111336)
+-- Full annotated DDL and rationale: docs/campaigns-schema-design.md
+--
+-- Two conventions run through every table here:
+--   1. game_world_id is carried on every campaign-owned table and tied to its
+--      parent by composite foreign key, so the security policy is one indexed
+--      column comparison and cross-world drift is structurally impossible.
+--   2. No table has a dm_notes column. Row level security is row-level, so it
+--      cannot protect a DM-only column on a player-readable row. All DM prose
+--      lives in public.dm_notes; secret rows use the reveal flags.
+-- ============================================================================
+
+CREATE TABLE public.campaigns (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  game_world_id uuid NOT NULL,
+  name text NOT NULL,
+  summary text,
+  status text NOT NULL DEFAULT 'active' CHECK (status = ANY (ARRAY['planning','active','paused','completed','archived'])),
+  is_default boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  started_at date,
+  ended_at date,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT campaigns_pkey PRIMARY KEY (id),
+  CONSTRAINT campaigns_game_world_id_name_key UNIQUE (game_world_id, name),
+  CONSTRAINT campaigns_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT campaigns_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE
+);
+
+-- Characters never leave their world. Both foreign keys below share the same
+-- game_world_id column, so a character cannot join another world's campaign.
+CREATE TABLE public.campaign_characters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  character_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'active' CHECK (status = ANY (ARRAY['active','inactive','retired','dead','guest'])),
+  joined_at timestamp with time zone NOT NULL DEFAULT now(),
+  left_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT campaign_characters_pkey PRIMARY KEY (id),
+  CONSTRAINT campaign_characters_campaign_id_character_id_key UNIQUE (campaign_id, character_id),
+  CONSTRAINT campaign_characters_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE,
+  CONSTRAINT campaign_characters_character_fkey FOREIGN KEY (character_id, game_world_id) REFERENCES public.characters(id, game_world_id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.areas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  parent_area_id uuid,
+  name text NOT NULL,
+  area_type text NOT NULL DEFAULT 'location' CHECK (area_type = ANY (ARRAY['region','settlement','dungeon','landmark','building','plane','location','other'])),
+  description text,
+  read_aloud text,
+  map_url text,
+  is_discovered boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT areas_pkey PRIMARY KEY (id),
+  CONSTRAINT areas_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT areas_parent_area_id_fkey FOREIGN KEY (parent_area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
+  CONSTRAINT areas_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.campaign_monsters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  name text NOT NULL,
+  source text NOT NULL CHECK (source = ANY (ARRAY['srd_api','homebrew'])),
+  api_index text,
+  statblock jsonb,
+  challenge_rating numeric,
+  creature_type text,
+  size text,
+  armor_class integer,
+  max_hit_points integer,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT campaign_monsters_pkey PRIMARY KEY (id),
+  CONSTRAINT campaign_monsters_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT campaign_monsters_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE,
+  CONSTRAINT campaign_monsters_source_shape CHECK (
+    (source = 'srd_api' AND api_index IS NOT NULL) OR (source = 'homebrew' AND statblock IS NOT NULL))
+);
+
+CREATE TABLE public.storylines (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  title text NOT NULL,
+  player_summary text,
+  body text,
+  status text NOT NULL DEFAULT 'planned' CHECK (status = ANY (ARRAY['planned','active','completed','abandoned'])),
+  is_revealed boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT storylines_pkey PRIMARY KEY (id),
+  CONSTRAINT storylines_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT storylines_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE
+);
+
+-- is_revealed is deliberately separate from status: a beat can be completed and
+-- still secret, or pending and already revealed. Two independent axes.
+CREATE TABLE public.storyline_beats (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  storyline_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  area_id uuid,
+  title text NOT NULL,
+  body text,
+  read_aloud text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status = ANY (ARRAY['pending','in_progress','completed','skipped'])),
+  is_revealed boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT storyline_beats_pkey PRIMARY KEY (id),
+  CONSTRAINT storyline_beats_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT storyline_beats_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
+  CONSTRAINT storyline_beats_storyline_fkey FOREIGN KEY (storyline_id, game_world_id) REFERENCES public.storylines(id, game_world_id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.npcs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  area_id uuid,
+  monster_id uuid,
+  name text NOT NULL,
+  title text,
+  faction text,
+  description text,
+  disposition text NOT NULL DEFAULT 'neutral' CHECK (disposition = ANY (ARRAY['friendly','neutral','hostile','unknown'])),
+  status text NOT NULL DEFAULT 'alive' CHECK (status = ANY (ARRAY['alive','dead','missing','unknown'])),
+  is_known_to_players boolean NOT NULL DEFAULT false,
+  portrait_url text,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT npcs_pkey PRIMARY KEY (id),
+  CONSTRAINT npcs_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT npcs_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
+  CONSTRAINT npcs_monster_id_fkey FOREIGN KEY (monster_id) REFERENCES public.campaign_monsters(id) ON DELETE SET NULL,
+  CONSTRAINT npcs_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.encounters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  area_id uuid,
+  storyline_beat_id uuid,
+  name text NOT NULL,
+  description text,
+  read_aloud text,
+  difficulty text CHECK (difficulty = ANY (ARRAY['trivial','easy','medium','hard','deadly'])),
+  status text NOT NULL DEFAULT 'planned' CHECK (status = ANY (ARRAY['planned','active','completed','abandoned'])),
+  round integer NOT NULL DEFAULT 0,
+  active_combatant_id uuid,
+  hide_monster_hp boolean NOT NULL DEFAULT true,
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT encounters_pkey PRIMARY KEY (id),
+  CONSTRAINT encounters_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT encounters_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
+  CONSTRAINT encounters_storyline_beat_id_fkey FOREIGN KEY (storyline_beat_id) REFERENCES public.storyline_beats(id) ON DELETE SET NULL,
+  CONSTRAINT encounters_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE,
+  CONSTRAINT encounters_active_combatant_fkey FOREIGN KEY (active_combatant_id) REFERENCES public.encounter_combatants(id) ON DELETE SET NULL
+);
+
+-- Player character hit points live on public.characters and nowhere else, so v1
+-- and v2 can never disagree about whether a character is alive.
+CREATE TABLE public.encounter_combatants (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  encounter_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  combatant_type text NOT NULL CHECK (combatant_type = ANY (ARRAY['monster','npc','character'])),
+  campaign_monster_id uuid,
+  npc_id uuid,
+  character_id uuid,
+  display_name text NOT NULL,
+  initiative integer,
+  armor_class integer,
+  max_hit_points integer,
+  current_hit_points integer,
+  temporary_hit_points integer,
+  conditions ARRAY NOT NULL DEFAULT '{}'::text[],
+  concentrating_on text,
+  is_defeated boolean NOT NULL DEFAULT false,
+  has_acted boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT encounter_combatants_pkey PRIMARY KEY (id),
+  CONSTRAINT encounter_combatants_campaign_monster_id_fkey FOREIGN KEY (campaign_monster_id) REFERENCES public.campaign_monsters(id) ON DELETE SET NULL,
+  CONSTRAINT encounter_combatants_npc_id_fkey FOREIGN KEY (npc_id) REFERENCES public.npcs(id) ON DELETE SET NULL,
+  CONSTRAINT encounter_combatants_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id) ON DELETE CASCADE,
+  CONSTRAINT encounter_combatants_encounter_fkey FOREIGN KEY (encounter_id, game_world_id) REFERENCES public.encounters(id, game_world_id) ON DELETE CASCADE,
+  CONSTRAINT encounter_combatants_one_ref CHECK (num_nonnulls(campaign_monster_id, npc_id, character_id) = 1),
+  CONSTRAINT encounter_combatants_pc_hp_passthrough CHECK (
+    combatant_type <> 'character' OR (max_hit_points IS NULL AND current_hit_points IS NULL))
+);
+
+CREATE TABLE public.campaign_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  session_number integer,
+  title text,
+  played_on date,
+  recap text,
+  is_published boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT campaign_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT campaign_sessions_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT campaign_sessions_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE
+);
+
+-- Attaches to exactly one of a beat, area, NPC or encounter.
+-- skill_name reuses the 18-value vocabulary already in public.skills.
+CREATE TABLE public.campaign_checks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL,
+  game_world_id uuid NOT NULL,
+  storyline_beat_id uuid,
+  area_id uuid,
+  npc_id uuid,
+  encounter_id uuid,
+  label text NOT NULL,
+  check_type text NOT NULL CHECK (check_type = ANY (ARRAY['ability_check','skill_check','saving_throw','contested'])),
+  ability text CHECK (ability = ANY (ARRAY['str','dex','con','int','wis','cha'])),
+  skill_name text,
+  dc integer NOT NULL CHECK (dc >= 1 AND dc <= 40),
+  success_text text,
+  failure_text text,
+  is_group_check boolean NOT NULL DEFAULT false,
+  is_secret boolean NOT NULL DEFAULT false,
+  is_repeatable boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT campaign_checks_pkey PRIMARY KEY (id),
+  CONSTRAINT campaign_checks_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE,
+  CONSTRAINT campaign_checks_storyline_beat_id_fkey FOREIGN KEY (storyline_beat_id) REFERENCES public.storyline_beats(id) ON DELETE CASCADE,
+  CONSTRAINT campaign_checks_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE CASCADE,
+  CONSTRAINT campaign_checks_npc_id_fkey FOREIGN KEY (npc_id) REFERENCES public.npcs(id) ON DELETE CASCADE,
+  CONSTRAINT campaign_checks_encounter_id_fkey FOREIGN KEY (encounter_id) REFERENCES public.encounters(id) ON DELETE CASCADE,
+  CONSTRAINT campaign_checks_one_parent CHECK (num_nonnulls(storyline_beat_id, area_id, npc_id, encounter_id) = 1),
+  CONSTRAINT campaign_checks_shape CHECK (
+    (check_type = 'skill_check' AND skill_name IS NOT NULL) OR
+    (check_type = ANY (ARRAY['ability_check','saving_throw']) AND ability IS NOT NULL) OR
+    (check_type = 'contested'))
+);
+
+-- All DM prose, in the one table players cannot reach. Real foreign keys per
+-- parent type so deleting an NPC takes its notes with it.
+-- Partial unique indexes give one note per entity, like the column it replaces.
+CREATE TABLE public.dm_notes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  game_world_id uuid NOT NULL,
+  campaign_id uuid,
+  area_id uuid,
+  storyline_id uuid,
+  storyline_beat_id uuid,
+  npc_id uuid,
+  encounter_id uuid,
+  campaign_session_id uuid,
+  body text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT dm_notes_pkey PRIMARY KEY (id),
+  CONSTRAINT dm_notes_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_storyline_id_fkey FOREIGN KEY (storyline_id) REFERENCES public.storylines(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_storyline_beat_id_fkey FOREIGN KEY (storyline_beat_id) REFERENCES public.storyline_beats(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_npc_id_fkey FOREIGN KEY (npc_id) REFERENCES public.npcs(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_encounter_id_fkey FOREIGN KEY (encounter_id) REFERENCES public.encounters(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_campaign_session_id_fkey FOREIGN KEY (campaign_session_id) REFERENCES public.campaign_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_one_parent CHECK (num_nonnulls(campaign_id, area_id, storyline_id, storyline_beat_id, npc_id, encounter_id, campaign_session_id) = 1)
+);
+
+-- Request-scoped DM identity. No policies and no grants: unreachable via the API.
+-- private.current_dm_world() reads the x-dm-token request header and is used by
+-- every dm_all policy on the tables above.
+CREATE TABLE public.dm_sessions (
+  token_hash bytea NOT NULL,
+  game_world_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL DEFAULT (now() + '12:00:00'::interval),
+  CONSTRAINT dm_sessions_pkey PRIMARY KEY (token_hash),
+  CONSTRAINT dm_sessions_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE
+);
