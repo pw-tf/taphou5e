@@ -270,7 +270,7 @@ const NAV = [
     { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map' },
     { id: 'encounters', label: 'Encounters', href: 'monster-tracker.html', icon: 'monster' },
     { id: 'compendium', label: 'Compendium', href: 'compendium.html',      icon: 'search' },
-    { id: 'dm',         label: 'DM panel',   href: 'dm-panel.html',        icon: 'user',    pending: true, dmOnly: true }
+    { id: 'dm',         label: 'DM panel',   href: 'dm-panel.html',        icon: 'user',    dmOnly: true }
 ];
 
 function visibleNav() {
@@ -560,7 +560,9 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
             await onSubmit(values);
             closeModal();
         } catch (err) {
-            console.error('Modal submit failed:', err);
+            // Handled: the message goes in the banner. A rejected DC is not a
+            // fault, so this is a warning rather than an error.
+            console.warn('Modal submit rejected:', err && err.message);
             errorBox.textContent = (err && err.message) || 'Could not save that. Please try again.';
             errorBox.hidden = false;
             submit.setAttribute('aria-busy', 'false');
@@ -695,4 +697,36 @@ function rollHitPoints(detail) {
 function rollInitiativeFor(detail) {
     const dex = detail && detail.dexterity ? abilityMod(detail.dexterity) : 0;
     return Math.floor(Math.random() * 20) + 1 + dex;
+}
+
+// ---- Levelling ----
+// 5e experience thresholds, index 0 = level 1. Copied from the classic app so
+// both versions agree about when a character levels.
+const EXP_THRESHOLDS = [
+    0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000,
+    85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000
+];
+
+function levelForExp(exp) {
+    for (let i = EXP_THRESHOLDS.length - 1; i >= 0; i--) {
+        if ((exp || 0) >= EXP_THRESHOLDS[i]) return i + 1;
+    }
+    return 1;
+}
+
+function expForNextLevel(level) {
+    return level >= 20 ? null : EXP_THRESHOLDS[level];
+}
+
+// The classic level-up wizard reads the character's level from before the
+// grant out of localStorage, so it knows the range to walk. v2 has no wizard of
+// its own yet -- a granted level is completed in the classic app -- so it
+// writes the same key. It is per-device, so it only helps when the same browser
+// grants and then runs the wizard; that limitation is the classic app's, not
+// something introduced here.
+function rememberPreGrantLevel(character) {
+    if (character.pending_level_up) return;   // an earlier grant already set it
+    try {
+        localStorage.setItem(`preGrantLevel_${character.id}`, character.level);
+    } catch (e) { /* private mode */ }
 }

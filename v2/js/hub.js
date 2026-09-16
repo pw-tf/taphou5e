@@ -132,14 +132,13 @@
                 </a>
                 ${
                     isDM
-                        ? `<div class="summary-card is-pending" aria-disabled="true">
+                        ? `<a class="summary-card" href="dm-panel.html">
                                ${icon('user', 18)}
                                <div class="body">
                                    <div class="title">DM panel</div>
-                                   <div class="meta">Leveling mode, grant levels and EXP</div>
+                                   <div class="meta">Levelling mode, grant levels and EXP</div>
                                </div>
-                               <span class="nav-soon">soon</span>
-                           </div>`
+                           </a>`
                         : ''
                 }
             </section>`);

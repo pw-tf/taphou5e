@@ -553,3 +553,22 @@ a.list-row, a.list-row:hover,
 }
 #add-config.hidden { display: none; }
 #add-search { width: 100%; }
+
+/* ---------- DM panel ---------- */
+.dm-row-exp { align-items: flex-start; }
+.dm-row .exp-text { font-size: var(--fs-11); color: var(--text-tertiary); margin-top: 3px; }
+.exp-grant { display: flex; gap: var(--space-sm); align-items: center; flex: none; }
+.exp-grant input {
+  width: 110px; min-width: 0; padding: 8px 10px; text-align: center;
+  background: var(--bg-tertiary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-primary); font-family: var(--font-mono);
+}
+.exp-grant input:focus { outline: none; border-color: var(--accent-primary); }
+@media (max-width: 899px) {
+  .dm-row { flex-wrap: wrap; }
+  .dm-row .who { flex-basis: 100%; }
+  .exp-grant { margin-left: auto; }
+}
+
+/* The party amount field carries a longer placeholder than the per-row ones. */
+#party-exp { width: 170px; }
