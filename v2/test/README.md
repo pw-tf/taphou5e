@@ -1,7 +1,7 @@
 # v2 smoke test
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
-responsive behaviour and the version router. 46 assertions.
+campaigns, responsive behaviour and the version router. 63 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -39,6 +39,13 @@ at it directly — edit `CHROME` at the top of the file, or run
   appearing at 0 HP, condition toggles preserving existing conditions, long rest
   restoring HP and resetting slots, and the detail pane
 - That rest buttons appear exactly once per viewport (rail above 900px, body below)
+- Campaigns: the list and its counts, the seven-tab detail, nested areas, beat
+  checks with their DC and secret marker
+- Party membership: the picker excluding characters already in the campaign,
+  inserts carrying `game_world_id`, and re-adding a former member updating their
+  row rather than inserting a duplicate
+- Reveal flags: the DM-facing hidden/visible markers and the writes they make
+- The player view: no DM notes, no editing actions, no reveal toggles
 - The root router: opted-in devices go to v2, everyone else stays on classic
 
 The stub returns the same character regardless of the id in the query string, so

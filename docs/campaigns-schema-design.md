@@ -822,14 +822,14 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (25 assertio
 
 | Built | Not yet |
 |---|---|
-| Shell: sidebar, mobile header, drawer, topbar | Campaign screens |
-| Tokens, `ember.css`, three-way theme control | Encounter tracker |
+| Shell, tokens, theme control, root router | Encounter tracker |
 | Login and world creation on the RPCs | Compendium |
-| Overview hub with live party, campaign and encounter state | DM panel |
+| Overview hub | DM panel |
 | Party roster | Character creation (still classic — it drives the level-up engine) |
-| Character sheet: six tabs, HP controls, rests, conditions, detail pane | |
-| The single `.hp` component | |
-| Root version router | |
+| Character sheet: six tabs, HP controls, rests, conditions, detail pane | Campaign checks: created in SQL, no authoring UI yet |
+| Campaigns list, campaign detail with seven tabs | Monster roster writes (waiting on the Compendium) |
+| Party membership: pull from world, remove, re-add | |
+| Reveal toggles and DM notes on every hideable row | |
 
 Unbuilt destinations render as inert rows marked "soon" rather than links, so
 the nav shows the shape of the finished app without pointing at a 404.
@@ -849,6 +849,16 @@ Two things worth recording from building it:
   them made the sticky combat header stretch the full viewport and the HP amount
   field grow to ~1000px. The handoff's own reference page has the structure; it
   is worth reading the markup rather than inferring layout from the prose.
+
+Two more worth recording from the campaign screens:
+
+- **Reveal state needs to be visible to the DM.** Hidden rows are invisible to
+  players *at the database level*, so without an explicit marker on each row a DM
+  can only discover what is hidden by logging in as a player. Every hideable row
+  carries a visibility pill that doubles as the toggle.
+- **Re-adding a former party member must update, not insert.**
+  `unique (campaign_id, character_id)` means a character who left already has a
+  row; inserting a second one fails. The party picker reactivates it instead.
 
 Sheet write semantics deliberately mirror v1: HP clamps to `[0, max]`, updates
 are optimistic then persisted, and temporary hit points sit alongside rather than

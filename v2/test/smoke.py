@@ -90,6 +90,52 @@ FIXTURES = {
     },
     "encounters": [{"id": "e1", "name": "Ambush at the Ford", "status": "active",
                     "round": 3, "campaign_id": "cam1"}],
+    "campaigns_single": {"id": "cam1", "game_world_id": "w1", "name": "The Drowned Road",
+                         "summary": "Something is stopping the barges.", "status": "active",
+                         "is_default": True, "sort_order": 0},
+    "campaign_characters": [
+        {"id": "mem1", "campaign_id": "cam1", "character_id": "c1", "game_world_id": "w1",
+         "status": "active", "left_at": None},
+        {"id": "mem2", "campaign_id": "cam1", "character_id": "c2", "game_world_id": "w1",
+         "status": "inactive", "left_at": "2026-08-01T00:00:00Z"}],
+    "storylines": [{"id": "st1", "campaign_id": "cam1", "game_world_id": "w1",
+                    "title": "The Toll Keeper", "player_summary": "Someone is taxing the ford.",
+                    "body": "It is the harbourmaster.", "status": "active",
+                    "is_revealed": True, "sort_order": 0}],
+    "storyline_beats": [
+        {"id": "b1", "storyline_id": "st1", "game_world_id": "w1", "title": "The first crossing",
+         "read_aloud": "Mist hangs over the water.", "body": "", "status": "in_progress",
+         "is_revealed": True, "sort_order": 0},
+        {"id": "b2", "storyline_id": "st1", "game_world_id": "w1", "title": "Who pays the toll",
+         "read_aloud": "", "body": "The truth.", "status": "pending",
+         "is_revealed": False, "sort_order": 1}],
+    "campaign_checks": [{"id": "ck1", "campaign_id": "cam1", "game_world_id": "w1",
+                         "storyline_beat_id": "b1", "label": "Spot the tripwire",
+                         "check_type": "skill_check", "ability": None, "skill_name": "Perception",
+                         "dc": 14, "is_secret": True, "sort_order": 0}],
+    "areas": [
+        {"id": "a1", "campaign_id": "cam1", "game_world_id": "w1", "parent_area_id": None,
+         "name": "The Drowned Road", "area_type": "region", "description": "Flooded lowland.",
+         "is_discovered": True, "sort_order": 0},
+        {"id": "a2", "campaign_id": "cam1", "game_world_id": "w1", "parent_area_id": "a1",
+         "name": "Sel", "area_type": "settlement", "description": "A barge town.",
+         "is_discovered": False, "sort_order": 1}],
+    "npcs": [{"id": "n1", "campaign_id": "cam1", "game_world_id": "w1", "area_id": "a2",
+              "monster_id": None, "name": "Harbourmaster Vell", "title": "Harbourmaster of Sel",
+              "faction": "The Guild", "description": "Weathered and watchful.",
+              "disposition": "neutral", "status": "alive", "is_known_to_players": False,
+              "sort_order": 0}],
+    "campaign_monsters": [{"id": "m1", "campaign_id": "cam1", "game_world_id": "w1",
+                           "name": "Bog Lurker", "source": "homebrew", "api_index": None,
+                           "challenge_rating": 2, "armor_class": 13, "max_hit_points": 44}],
+    "campaign_sessions": [{"id": "sess1", "campaign_id": "cam1", "game_world_id": "w1",
+                           "session_number": 4, "title": "The bridge at dusk",
+                           "played_on": "2026-09-01", "recap": "They met Vell.",
+                           "is_published": True}],
+    "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
+                  "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
+                  "encounter_id": None, "campaign_session_id": None,
+                  "body": "Vell is the villain."}],
 }
 
 STUB = """
@@ -105,14 +151,26 @@ STUB = """
     q.then = (res, rej) => Promise.resolve({ data: FIXTURES[table] || [], error: null }).then(res, rej);
     return q;
   }
-  function writer(table) {
+  function writer(table, verb) {
     return (payload) => {
-      window.__writes.push({ table, payload });
-      // Keep the fixture in step so a re-read reflects the write.
+      window.__writes.push({ table, verb, payload: payload || null });
       const single = FIXTURES[table + '_single'];
-      if (single) Object.assign(single, payload);
+      if (verb === 'update' && single) Object.assign(single, payload);
+      // Mirror an update onto the list fixture too, so a re-read reflects it.
+      if (verb === 'update' && Array.isArray(FIXTURES[table]) && window.__lastEq) {
+        const row = FIXTURES[table].find(r => r.id === window.__lastEq);
+        if (row) Object.assign(row, payload);
+      }
       const w = {};
-      ['eq','in','match'].forEach(m => { w[m] = () => w; });
+      ['in','match'].forEach(m => { w[m] = () => w; });
+      w.eq = (_col, val) => { window.__lastEq = val;
+        if (verb === 'update' && Array.isArray(FIXTURES[table])) {
+          const row = FIXTURES[table].find(r => r.id === val);
+          if (row) Object.assign(row, payload);
+        }
+        return w; };
+      w.select = () => w;
+      w.single = () => Promise.resolve({ data: { id: 'new-id' }, error: null });
       w.then = (res, rej) => Promise.resolve({ data: null, error: null }).then(res, rej);
       return w;
     };
@@ -121,7 +179,11 @@ STUB = """
     createClient(url, key, opts) {
       window.__capturedHeaders = (opts && opts.global && opts.global.headers) || {};
       return {
-        from: (table) => Object.assign(query(table), { update: writer(table) }),
+        from: (table) => Object.assign(query(table), {
+          update: writer(table, 'update'),
+          insert: writer(table, 'insert'),
+          delete: () => writer(table, 'delete')()
+        }),
         rpc(fn, params) {
           if (fn === 'world_login') {
             if (params.p_pin === '0000') return Promise.resolve({ data: { ok:false, error:'bad_pin' }, error:null });
@@ -267,9 +329,9 @@ async def main():
 
         # ---------- 4. Pending destinations are inert ----------
         pending = await page.locator(".hub-tile.is-pending").count()
-        assert pending == 3, pending                       # character sheets is built
+        assert pending == 2, pending                       # sheets + campaigns are built
         assert await page.locator('.hub-tile[href="characters.html"]').count() == 1
-        assert await page.locator('.sidebar-nav a[href="campaigns.html"]').count() == 0
+        assert await page.locator('.sidebar-nav a[href="compendium.html"]').count() == 0
         ok(f"{pending} unbuilt destinations inert; built ones link normally")
 
         # ---------- 5. Mobile ----------
@@ -520,7 +582,127 @@ async def main():
         ok("sheet on desktop: tab rail replaces the bottom tabs")
         await page.screenshot(path="/tmp/shot-08-sheet-desktop.png", full_page=True)
 
-        # ---------- 17. Router ----------
+        # ---------- 17. Campaigns list ----------
+        await page.set_viewport_size({"width": 1280, "height": 900})
+        await page.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-grid", timeout=10000)
+        assert await page.locator(".campaign-card").count() == 1
+        assert "The Drowned Road" in await page.locator(".campaign-card h3").inner_text()
+        ok("campaigns list renders the world's campaigns")
+
+        assert await page.locator('button:has-text("New campaign")').count() >= 1
+        ok("DM sees the create-campaign action")
+
+        stats = await page.locator(".campaign-card .stats").inner_text()
+        assert "PARTY" in stats and "NPCS" in stats, stats
+        ok("campaign cards carry per-section counts")
+
+        # ---------- 18. Campaign detail ----------
+        await page.click(".campaign-card")
+        await page.wait_for_url("**/campaign.html*", timeout=10000)
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+        tabs = [t.strip() for t in await page.locator(".campaign-tabs button").all_inner_texts()]
+        assert len(tabs) == 7, tabs
+        ok(f"campaign detail shows seven tabs ({[t.split(chr(10))[0] for t in tabs]})")
+
+        assert "Vell is the villain." in await page.locator(".dm-note").inner_text()
+        ok("DM note renders on the overview, read from the protected table")
+
+        # ---------- 19. Party: pull from world ----------
+        await page.click('.campaign-tabs button:has-text("Party")')
+        await page.wait_for_timeout(400)
+        assert await page.locator('.list-row:has-text("Brannor Hale")').count() == 1
+        assert await page.locator('.section-head:has-text("Former members")').count() == 1
+        ok("party splits active members from former ones")
+
+        await page.click('button:has-text("Add from world")')
+        await page.wait_for_selector(".modal", timeout=5000)
+        options = await page.locator("#mf-character_id option").all_inner_texts()
+        # c1 is already active, so only the other three are offered.
+        assert len(options) == 3, options
+        assert not any("Brannor" in o for o in options), options
+        ok(f"pull-from-world offers only characters not already in the campaign ({len(options)})")
+
+        await page.select_option("#mf-character_id", label=[o for o in options if "Korr" in o][0])
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        membership = [w for w in writes if w["table"] == "campaign_characters"][-1]
+        assert membership["verb"] == "insert", membership
+        assert membership["payload"]["game_world_id"] == "w1", membership
+        assert membership["payload"]["campaign_id"] == "cam1", membership
+        ok("adding a character writes a membership row carrying game_world_id")
+
+        # Re-adding someone who left must reactivate, not insert: the
+        # (campaign_id, character_id) pair is unique.
+        await page.click('button:has-text("Re-add")')
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        rejoin = [w for w in writes if w["table"] == "campaign_characters"][-1]
+        assert rejoin["verb"] == "update", rejoin
+        assert rejoin["payload"]["status"] == "active" and rejoin["payload"]["left_at"] is None, rejoin
+        ok("re-adding a former member updates their row rather than inserting a duplicate")
+
+        # ---------- 20. Reveal toggles ----------
+        await page.click('.campaign-tabs button:has-text("NPCs")')
+        await page.wait_for_timeout(400)
+        pill = page.locator('.list-row:has-text("Harbourmaster Vell") .status-pill:has-text("Unknown")')
+        assert await pill.count() == 1, "hidden NPC should be marked Unknown to the DM"
+        ok("DM sees which NPCs are still hidden from players")
+
+        await pill.click()
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        reveal = [w for w in writes if w["table"] == "npcs"][-1]
+        assert reveal["payload"]["is_known_to_players"] is True, reveal
+        ok("toggling visibility writes the reveal flag")
+
+        # ---------- 21. Storylines, checks, areas ----------
+        await page.click('.campaign-tabs button:has-text("Storylines")')
+        await page.wait_for_timeout(400)
+        check = await page.locator(".check-row").inner_text()
+        assert "DC 14" in check and "Perception" in check, check
+        assert await page.locator('.check-row .hidden-pill:has-text("secret")').count() == 1
+        ok(f"beat checks render with their DC and secret marker ({check.split(chr(10))[0].strip()})")
+
+        assert await page.locator('.beat-list .status-pill:has-text("Hidden")').count() == 1
+        ok("an unrevealed beat is marked hidden for the DM")
+
+        await page.click('.campaign-tabs button:has-text("Areas")')
+        await page.wait_for_timeout(400)
+        assert await page.locator(".tree-child").count() >= 1, "Sel nests inside The Drowned Road"
+        ok("areas nest inside their parent")
+
+        await page.screenshot(path="/tmp/shot-09-campaign.png", full_page=True)
+
+        # ---------- 22. Player view of a campaign ----------
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "5555")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+
+        assert await page.locator(".dm-note").count() == 0, "players must not see DM notes"
+        assert await page.locator(".dm-note-block").count() == 0
+        ok("a player sees no DM note block at all")
+
+        assert await page.locator('button:has-text("Edit campaign")').count() == 0
+        await page.click('.campaign-tabs button:has-text("Party")')
+        await page.wait_for_timeout(400)
+        assert await page.locator('button:has-text("Add from world")').count() == 0
+        assert await page.locator('button:has-text("Remove")').count() == 0
+        ok("a player gets no campaign editing actions")
+
+        await page.click('.campaign-tabs button:has-text("NPCs")')
+        await page.wait_for_timeout(400)
+        assert await page.locator('.status-pill:has-text("Unknown")').count() == 0
+        assert await page.locator('.status-pill:has-text("Known")').count() == 0
+        ok("reveal toggles are DM-only")
+
+        # ---------- 23. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)
