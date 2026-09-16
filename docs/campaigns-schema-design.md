@@ -549,30 +549,31 @@ would have broken that `select('*')`, which is why relocation is the better shap
 UPDATE and DELETE from anyone, and the 11 character tables remain fully open. Neither is new, and
 neither is made worse by this design.
 
-### 5.6 Transition state (applied 2026-09-16)
+### 5.6 Cutover — complete (2026-09-16)
 
-The PIN relocation is deliberately **half-applied**, and stays that way until the new `login.js` is
-confirmed live. What is in place now:
+Decision 3 is in effect. `game_worlds.dm_pin_hash` and `player_pin_hash` are **dropped**; the hashes
+live only in `game_world_secrets`, which has no policies and no grants:
 
-- `game_world_secrets` exists and holds all 191 rows.
-- **`game_worlds.dm_pin_hash` and `player_pin_hash` still exist and are still populated.**
-- A trigger, `sync_game_world_secrets_trg`, mirrors any write to those columns into
-  `game_world_secrets`.
-- `world_login` and `world_create` are live; `world_create` writes the legacy columns too.
-
-This makes the cutover **bidirectionally safe**. Both clients work at once:
-
-| | reads | works? |
+| Table | anon privileges | policies |
 |---|---|---|
-| Old `login.js` (on main) | `game_worlds.*_pin_hash` | yes — columns still there |
-| New `login.js` (on the branch) | `world_login` RPC → `game_world_secrets` | yes |
+| `game_world_secrets` | NONE | 0 |
+| `dm_sessions` | NONE | 0 |
+| `pin_attempts` | NONE | 0 |
 
-A world created by either client is loginable from the other: the old path inserts the columns and the
-trigger mirrors them; the new path writes both directly. Rolling back is just pointing GitHub Pages
-back at main — no database change required.
+The transition scaffolding is gone: `sync_game_world_secrets_trg` and its function were dropped in the
+same transaction as the columns, and `world_create` was rewritten first — in that same transaction —
+so it writes `game_world_secrets` directly instead of the columns it used to fill. There was never a
+moment where creation was broken.
 
-**The secret is not yet protected.** The hashes remain readable on `game_worlds` until step 5, so DM
-PINs are still recoverable by lookup for now. Decision 3 only takes effect when those columns drop.
+Verified after the drop, against a throwaway world: creation, DM login, player login, wrong PIN, the
+secrets row landing without a trigger to place it, and the default campaign still being created.
+Final state: 191 worlds, 191 secrets rows, 0 missing secrets, 0 missing campaigns, 264 characters,
+264 memberships, no test data left behind.
+
+**What this does and does not fix.** DM PINs are no longer recoverable by looking up a readable hash,
+and DM-only campaign content is unreadable without a valid token. Two pre-existing holes remain,
+neither new nor worsened: `game_worlds` still accepts UPDATE and DELETE from anyone, and the 11
+character tables are still fully open. See §12.
 
 ### 5.6a Default campaign for new worlds
 
@@ -597,14 +598,10 @@ Unlike the PIN sync trigger, this one is permanent -- it is not transition scaff
 1. ✅ `game_world_secrets` created and populated, sync trigger live
 2. ✅ `world_login` / `world_create` created, rate limited, round-trip tested
 3. ✅ New `login.js` written to the branch
-4. ⬜ **Deploy**: point GitHub Pages at the branch, **root folder — not `/docs`**, which now exists
-5. ⬜ **Verify** against the live site: DM login, player login, wrong PIN, world creation, and a login
-   from a world created on main during the window
-6. ⬜ Merge the branch to main and point Pages back
-7. ⬜ **Only then**: drop the two columns, the sync trigger, and its function
-
-Step 7 is the irreversible one and the only step that must not run early. Dropping those columns while
-main still serves the old `login.js` locks every user out of all 191 worlds.
+4. ✅ Deployed to GitHub Pages from the branch
+5. ✅ Verified live: DM login, player login, wrong PIN, and world creation
+6. ✅ Merged to main (PR #12); every `.js`/`.html` on main swept for the old column reads — zero hits
+7. ✅ Columns, sync trigger and function dropped; `world_create` rewritten; re-verified after
 
 ---
 

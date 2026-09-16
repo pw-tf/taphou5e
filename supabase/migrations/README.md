@@ -14,6 +14,11 @@ not a pending queue. Do not re-run them against that project.
 | 20260916111146 | campaign_layer_backfill |
 | 20260916111258 | campaign_layer_hardening_and_triggers |
 | 20260916111336 | verify_cross_world_membership_rejected |
+| 20260916112*   | pin_relocation_transition |
+| 20260916112*   | verify_world_login_rpcs |
+| 20260916113*   | default_campaign_for_new_worlds |
+| 20260916114*   | cutover_drop_legacy_pin_columns |
+| 20260916114*   | verify_post_cutover_login |
+| 20260916114*   | cleanup_test_worlds_and_prune_attempts |
 
-Still to come, gated on a deploy (see `docs/campaigns-schema-design.md` §5.5):
-PIN hash relocation and the RPC login functions.
+The PIN cutover is complete. See `docs/campaigns-schema-design.md` §5.6-5.7.

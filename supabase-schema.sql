@@ -90,13 +90,14 @@ CREATE TABLE public.features_traits (
   CONSTRAINT features_traits_pkey PRIMARY KEY (id),
   CONSTRAINT features_traits_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
+-- PIN hashes moved out to public.game_world_secrets at the 2026-09-16 cutover.
+-- They are no longer readable through the API: a 4-digit PIN is only 10,000
+-- values, so a readable hash was a readable PIN.
 CREATE TABLE public.game_worlds (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   name text NOT NULL UNIQUE,
-  dm_pin_hash text NOT NULL,
-  player_pin_hash text NOT NULL,
   is_active boolean DEFAULT true,
   description text,
   leveling_mode text DEFAULT 'milestone'::text,
@@ -469,4 +470,33 @@ CREATE TABLE public.dm_sessions (
   expires_at timestamp with time zone NOT NULL DEFAULT (now() + '12:00:00'::interval),
   CONSTRAINT dm_sessions_pkey PRIMARY KEY (token_hash),
   CONSTRAINT dm_sessions_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- AUTH  (cutover 2026-09-16)
+-- Verified server-side by public.world_login / public.world_create, both
+-- SECURITY DEFINER. The tables below have no policies and no grants to anon,
+-- so they are reachable only from those functions.
+-- Triggers on game_worlds: ensure_default_campaign_trg (permanent).
+-- ============================================================================
+
+CREATE TABLE public.game_world_secrets (
+  game_world_id uuid NOT NULL,
+  dm_pin_hash text NOT NULL,
+  player_pin_hash text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT game_world_secrets_pkey PRIMARY KEY (game_world_id),
+  CONSTRAINT game_world_secrets_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE
+);
+
+-- A 4-digit PIN is 10,000 guesses, so world_login throttles: 10 failures per
+-- address per 15 minutes, with a per-world backstop of 60 so one actor cannot
+-- lock a DM out of their own world. Rows older than an hour are pruned on login.
+CREATE TABLE public.pin_attempts (
+  id bigserial NOT NULL,
+  game_world_name text NOT NULL,
+  ip text,
+  attempted_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT pin_attempts_pkey PRIMARY KEY (id)
 );
