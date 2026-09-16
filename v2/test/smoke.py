@@ -187,7 +187,13 @@ FIXTURES = {
          "display_name": "Gargoyle 2", "initiative": 8, "armor_class": 15,
          "max_hit_points": 48, "current_hit_points": 30, "temporary_hit_points": 0,
          "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 3,
-         "color": "#3d5a72", "group_label": "Wave 2", "notes": "Holds the far bank."}],
+         "color": "#3d5a72", "group_label": "Wave 2", "notes": "Holds the far bank."},
+        {"id": "cb5", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "monster",
+         "character_id": None, "campaign_monster_id": "m2", "npc_id": None,
+         "display_name": "Gargoyle 3", "initiative": 7, "armor_class": 15,
+         "max_hit_points": 48, "current_hit_points": 48, "temporary_hit_points": 0,
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 4,
+         "color": "#3d5a72", "group_label": "Wave 2"}],
     "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
                   "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
                   "encounter_id": None, "campaign_session_id": None,
@@ -901,7 +907,7 @@ async def main():
 
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        assert await page.locator(".init-row").count() == 4
+        assert await page.locator(".init-row").count() == 5
         ok("tracker renders every combatant")
 
         # Sorted by initiative descending; the one with none sorts last.
@@ -1217,7 +1223,7 @@ async def main():
         # ungrouped rows last, as the classic tracker does.
         head = page.locator('.enc-group h2:has-text("Wave 2")')
         assert await head.count() == 1, "grouped rows need a heading"
-        assert "1/1" in await head.inner_text()
+        assert "2/2" in await head.inner_text()
         ok("grouped combatants gather under a collapsible heading with a live count")
 
         await head.click()
@@ -1229,9 +1235,12 @@ async def main():
 
         coloured = page.locator('.init-row:has-text("Gargoyle 2")')
         assert "has-color" in await coloured.get_attribute("class")
-        border = await coloured.evaluate("el => getComputedStyle(el).borderLeftColor")
+        # While preparing, the colour boxes the whole set rather than striping
+        # each row -- see the dedicated block assertions further down.
+        border = await page.locator(".colour-block").evaluate(
+            "el => getComputedStyle(el).borderTopColor")
         assert border == "rgb(61, 90, 114)", border      # #3d5a72
-        ok(f"an assigned colour renders as a left stripe ({border})")
+        ok(f"an assigned colour renders on the block containing its set ({border})")
 
         assert "Holds the far bank." in await coloured.locator(".init-note").inner_text()
         ok("a combatant note renders on its row")
@@ -1400,7 +1409,59 @@ async def main():
         assert area_check["payload"]["skill_name"] is None, area_check
         ok("a saving throw on an area stores its ability and leaves the skill null")
 
-        # ---------- 38. Router ----------
+        # ---------- 38. Encounter quick fixes ----------
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+
+        # A colour marks a set, so the two Gargoyles sharing one sit inside a
+        # single bordered block rather than each carrying its own stripe.
+        block = page.locator(".colour-block")
+        assert await block.count() == 1, await block.count()
+        assert await block.locator(".init-row").count() == 2
+        border = await block.evaluate("el => getComputedStyle(el).borderTopColor")
+        assert border == "rgb(61, 90, 114)", border
+        ok("combatants sharing a colour box together under one border")
+
+        inner = await block.locator(".init-row").first.evaluate(
+            "el => getComputedStyle(el).borderLeftWidth")
+        assert inner == "1px", f"rows inside the block should drop their own stripe: {inner}"
+        ok("rows inside a colour block drop their individual stripe")
+
+        # Picking a suggestion must put the chosen name in the box, not leave
+        # the fragment that was typed.
+        await page.click('.topbar button:has-text("Add monsters")')
+        await page.wait_for_selector("#add-search", timeout=5000)
+        await page.fill("#add-search", "gob")
+        await page.wait_for_timeout(400)
+        await page.click('.add-suggestion:has-text("Goblin")')
+        await page.wait_for_selector("#add-config:not(.hidden)", timeout=5000)
+        assert (await page.input_value("#add-search")) == "Goblin", \
+            await page.input_value("#add-search")
+        ok("picking a suggestion fills the search box with the chosen name")
+
+        # A single creature is not numbered; numbering starts at two.
+        assert (await page.locator(".add-hp-row label").first.inner_text()).strip() == "Goblin"
+        await page.fill("#add-count", "2")
+        await page.wait_for_timeout(300)
+        labels = [t.strip() for t in await page.locator(".add-hp-row label").all_inner_texts()]
+        assert labels == ["Goblin 1", "Goblin 2"], labels
+        ok("the hit point rows use the chosen name, numbered only when there are several")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+
+        # Once running, the list goes flat and the colour returns to a stripe,
+        # so turn order is never reshuffled by a colour.
+        await page.click('.topbar button:has-text("Roll initiative")')
+        await page.wait_for_timeout(500)
+        await page.click('.topbar button:has-text("Start encounter")')
+        await page.wait_for_timeout(700)
+        assert await page.locator(".colour-block").count() == 0, "colour blocks are a planning view"
+        assert await page.locator(".init-row.has-color").count() == 2
+        ok("a running encounter keeps flat initiative order with per-row colour stripes")
+
+        await page.screenshot(path="/tmp/shot-17-colour.png", full_page=True)
+
+        # ---------- 39. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

@@ -572,3 +572,13 @@ a.list-row, a.list-row:hover,
 
 /* The party amount field carries a longer placeholder than the per-row ones. */
 #party-exp { width: 170px; }
+
+/* A colour marks a set of combatants, so it boxes the whole set. Rows inside
+   the box drop their own stripe -- one border, not five. */
+.colour-block {
+  display: flex; flex-direction: column; gap: var(--space-6);
+  padding: var(--space-6);
+  border: 2px solid var(--block-color);
+  border-radius: var(--radius-lg);
+}
+.colour-block .init-row.has-color { border-left: 1px solid var(--border-default); }

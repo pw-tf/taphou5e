@@ -974,6 +974,21 @@ SRD access, hit point rolling and armor-class normalisation moved into `core.js`
 so the tracker and Compendium share one cache — two copies would have meant two
 sets of requests to a free public API.
 
+### 11.3a3 Encounter fixes before merge
+
+- **The search box kept the fragment that was typed.** Picking Bandit after
+  typing "ban" added the right creature but left the box reading "ban", which
+  looked like the pick had not registered. It now shows the chosen name.
+- **A colour marks a set, not a row.** Four monsters added in one colour were
+  drawing four separate stripes. Same-coloured combatants now gather into one
+  bordered block, and rows inside it drop their individual stripe — one border,
+  not four. A lone coloured combatant gets no box, since there is no set to mark.
+
+Colour blocks follow the same rule as groups: they apply while preparing, and a
+running encounter goes flat in initiative order with the colour back to a
+per-row stripe. Anything that reorders the list has to stand down once turn
+order matters.
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:

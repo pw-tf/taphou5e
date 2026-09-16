@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 127 assertions.
+version router. 132 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
