@@ -132,14 +132,6 @@ function hpClass(current, max) {
     return 'low';
 }
 
-function hpStateLabel(current, max) {
-    const cls = hpClass(current, max);
-    if (current <= 0) return 'DOWN';
-    if (cls === 'high') return 'HEALTHY';
-    if (cls === 'mid') return 'WOUNDED';
-    return 'CRITICAL';
-}
-
 // The single HP component from the design handoff. One fixed-height rail
 // everywhere -- never one element per hit point, which is what the v1 tracker
 // does today (a 300 HP creature renders 300 divs).
@@ -588,4 +580,119 @@ function confirmModal({ title, message, confirmLabel = 'Delete', onConfirm }) {
     // 'static' has no control; show the message as prose instead.
     const group = $('#modal-form .form-group');
     if (group) group.innerHTML = `<p class="prose">${escapeHtml(message)}</p>`;
+}
+
+// A modal with hand-written contents, for forms the declared-field version
+// cannot express -- a type-ahead whose body changes as you search, say.
+function openPanel({ title, body, onMount, wide }) {
+    closeModal();
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal-host" class="modal-host">
+            <div class="modal${wide ? ' modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+                <div class="modal-head">
+                    <h2>${escapeHtml(title)}</h2>
+                    <button class="icon-btn" id="modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-body" id="panel-body">${body}</div>
+            </div>
+        </div>`);
+    document.body.style.overflow = 'hidden';
+
+    const host = $('#modal-host');
+    $('#modal-close').addEventListener('click', closeModal);
+    host.addEventListener('click', e => { if (e.target === host) closeModal(); });
+    document.addEventListener('keydown', function esc(e) {
+        if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', esc); }
+    });
+    if (onMount) onMount($('#panel-body'));
+}
+
+// Finer than the roster's three tiers, matching the classic tracker's wording.
+// The fill colour still uses hpClass, so the bar and the word agree.
+function hpStateLabel(current, max) {
+    const cur = Number(current) || 0;
+    const mx = Number(max) || 0;
+    if (cur <= 0) return 'DOWN';
+    if (!mx) return 'HEALTHY';
+    const ratio = cur / mx;
+    if (ratio > 0.75) return 'HEALTHY';
+    if (ratio > 0.5) return 'INJURED';
+    if (ratio > 0.25) return 'BLOODIED';
+    return 'CRITICAL';
+}
+
+// ---- Shared SRD access (tracker and compendium both search it) ----
+const SRD_API = 'https://www.dnd5eapi.co';
+const SRD_CACHE = 'taphou5e-srd-';
+
+function srdCacheGet(key) {
+    try {
+        const raw = sessionStorage.getItem(SRD_CACHE + key);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+
+function srdCacheSet(key, value) {
+    try { sessionStorage.setItem(SRD_CACHE + key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+}
+
+async function srdIndex(which) {
+    const cached = srdCacheGet(which);
+    if (cached) return cached;
+    const response = await fetch(`${SRD_API}/api/${which}`);
+    if (!response.ok) throw new Error(`SRD returned ${response.status}`);
+    const results = (await response.json()).results || [];
+    srdCacheSet(which, results);
+    return results;
+}
+
+async function srdDetail(which, apiIndex) {
+    const key = `${which}-${apiIndex}`;
+    const cached = srdCacheGet(key);
+    if (cached) return cached;
+    const response = await fetch(`${SRD_API}/api/${which}/${apiIndex}`);
+    if (!response.ok) throw new Error(`SRD returned ${response.status}`);
+    const body = await response.json();
+    srdCacheSet(key, body);
+    return body;
+}
+
+// The SRD has shipped armor_class as both a number and an array of
+// {type, value}; normalise to an integer.
+function srdArmorClass(value) {
+    if (Array.isArray(value)) return value.length ? Number(value[0].value) : null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+// Roll hit points from the creature's hit dice, as the classic tracker does,
+// rather than using the average. Two goblins in the same fight should not have
+// identical hit points.
+function rollHitPoints(detail) {
+    if (!detail || !detail.hit_dice) {
+        return (detail && detail.hit_points) || Math.max(1, Math.floor(Math.random() * 10) + 1);
+    }
+    const parts = String(detail.hit_dice).match(/(\d+)d(\d+)\s*([+-]\s*\d+)?/);
+    if (!parts) return detail.hit_points || 1;
+
+    const count = parseInt(parts[1], 10);
+    const die = parseInt(parts[2], 10);
+    const bonus = parts[3] ? parseInt(parts[3].replace(/\s/g, ''), 10) : 0;
+
+    let total = 0;
+    for (let i = 0; i < count; i++) total += Math.floor(Math.random() * die) + 1;
+    total += bonus;
+
+    // The SRD sometimes folds the constitution bonus into hit_dice and
+    // sometimes does not; hit_points_roll marks the former.
+    if (!detail.hit_points_roll && detail.constitution) {
+        total += abilityMod(detail.constitution) * count;
+    }
+    return Math.max(1, total);
+}
+
+// d20 plus the creature's dexterity modifier, as the classic tracker does.
+function rollInitiativeFor(detail) {
+    const dex = detail && detail.dexterity ? abilityMod(detail.dexterity) : 0;
+    return Math.floor(Math.random() * 20) + 1 + dex;
 }

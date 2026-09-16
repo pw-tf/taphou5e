@@ -144,7 +144,7 @@ FIXTURES = {
     "srd_monster_goblin": {
         "index": "goblin", "name": "Goblin", "size": "Small", "type": "humanoid",
         "alignment": "neutral evil", "armor_class": [{"type": "armor", "value": 15}],
-        "hit_points": 7, "challenge_rating": 0.25,
+        "hit_points": 7, "hit_dice": "2d6", "challenge_rating": 0.25,
         "strength": 8, "dexterity": 14, "constitution": 10,
         "intelligence": 10, "wisdom": 8, "charisma": 8,
         "speed": {"walk": "30 ft."},
@@ -178,7 +178,13 @@ FIXTURES = {
          "character_id": None, "campaign_monster_id": "m1", "npc_id": None,
          "display_name": "Bog Lurker", "initiative": None, "armor_class": 13,
          "max_hit_points": 44, "current_hit_points": 44, "temporary_hit_points": 0,
-         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 2}],
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 2},
+        {"id": "cb4", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "monster",
+         "character_id": None, "campaign_monster_id": "m2", "npc_id": None,
+         "display_name": "Gargoyle 2", "initiative": 8, "armor_class": 15,
+         "max_hit_points": 48, "current_hit_points": 30, "temporary_hit_points": 0,
+         "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 3,
+         "color": "#3d5a72", "group_label": "Wave 2", "notes": "Holds the far bank."}],
     "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
                   "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
                   "encounter_id": None, "campaign_session_id": None,
@@ -352,10 +358,10 @@ async def main():
         ok(f"HP bars use {fills} fill elements for 4 characters (not one per hit point)")
 
         # Korr 22/52 -> mid ; Brannor 44/44 -> high ; Wisp 0/33 -> DOWN
-        assert (await cards.nth(2).locator(".hp-state").inner_text()).strip() == "WOUNDED"
+        assert (await cards.nth(2).locator(".hp-state").inner_text()).strip() == "BLOODIED"
         assert (await cards.nth(0).locator(".hp-state").inner_text()).strip() == "HEALTHY"
         assert (await cards.nth(3).locator(".hp-state").inner_text()).strip() == "DOWN"
-        ok("HP thresholds match v1: HEALTHY / WOUNDED / CRITICAL / DOWN")
+        ok("HP labels match the classic tracker's five tiers (HEALTHY/INJURED/BLOODIED/CRITICAL/DOWN)")
 
         assert (await cards.nth(2).locator(".tag-accent").inner_text()).strip() == "LEVEL UP"
         assert (await cards.nth(1).locator(".tag-warning").inner_text()).strip() == "POISONED"
@@ -892,14 +898,17 @@ async def main():
 
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        assert await page.locator(".init-row").count() == 3
+        assert await page.locator(".init-row").count() == 4
         ok("tracker renders every combatant")
 
         # Sorted by initiative descending; the one with none sorts last.
-        names = [n.strip() for n in await page.locator(".init-name").all_inner_texts()]
-        assert names[0].startswith("Sythra") and names[1].startswith("Gargoyle"), names
-        assert names[2] == "Bog Lurker", names
-        ok(f"combatants sort by initiative, unrolled last ({[n[:9] for n in names]})")
+        # While an encounter is being prepared, grouped rows sit under their
+        # heading and ungrouped rows follow, sorted by initiative within each.
+        ungrouped = [n.strip() for n in
+                     await page.locator(".enc-group:not(:has(h2)) .init-name").all_inner_texts()]
+        assert ungrouped[0].startswith("Sythra") and ungrouped[1] == "Gargoyle 1", ungrouped
+        assert ungrouped[-1] == "Bog Lurker", ungrouped
+        ok(f"combatants sort by initiative, unrolled last ({[n[:9] for n in ungrouped]})")
 
         assert await page.locator(".init-row.is-party").count() == 1
         ok("the party member is marked")
@@ -923,7 +932,7 @@ async def main():
         ok("the tracker reflects the character record immediately")
 
         # --- A monster's HP lives on the combatant row ---
-        mob = page.locator('.init-row:has-text("Gargoyle")')
+        mob = page.locator('.init-row:has-text("Gargoyle 1")')
         await mob.locator("#amt-cb2").fill("60")
         await mob.locator(".hp-btn.damage").click()
         await page.wait_for_timeout(500)
@@ -938,7 +947,7 @@ async def main():
         ok("a downed combatant dims rather than disappearing")
 
         # ---------- 29. Turn order ----------
-        await page.click('button:has-text("Roll initiative")')
+        await page.click('.topbar button:has-text("Roll initiative")')
         await page.wait_for_timeout(600)
         writes = await page.evaluate("window.__writes")
         rolled = [w for w in writes if w["table"] == "encounter_combatants"
@@ -947,7 +956,7 @@ async def main():
         assert 1 <= rolled[-1]["payload"]["initiative"] <= 20, rolled[-1]
         ok("rolling initiative only fills the blanks")
 
-        await page.click('button:has-text("Start encounter")')
+        await page.click('.topbar button:has-text("Start encounter")')
         await page.wait_for_timeout(600)
         writes = await page.evaluate("window.__writes")
         started = [w for w in writes if w["table"] == "encounters"][-1]
@@ -959,16 +968,26 @@ async def main():
         assert "ROUND 1" in await page.locator(".round-pill").inner_text()
         ok("the active combatant is highlighted and the round shows")
 
-        # Two live combatants remain (the Gargoyle is down), so the second
-        # Next turn wraps and increments the round.
-        await page.click('button:has-text("Next turn")')
-        await page.wait_for_timeout(500)
-        await page.click('button:has-text("Next turn")')
-        await page.wait_for_timeout(500)
+        # Turn order is global, so a running encounter drops the group headings
+        # rather than sending the highlight jumping between them.
+        assert await page.locator(".enc-group h2").count() == 0, "groups are a planning view"
+        running_order = [n.strip() for n in await page.locator(".init-name").all_inner_texts()]
+        assert running_order[0].startswith("Sythra"), running_order
+        ok(f"a running encounter shows one flat initiative order ({running_order[0][:9]} first)")
+
+        # Advancing past the last live combatant wraps and increments the round.
+        # The downed one must never take a turn.
+        live = await page.locator(".init-row:not(.is-dead)").count()
+        seen = []
+        for _ in range(live):
+            await page.click('.topbar button:has-text("Next turn")')
+            await page.wait_for_timeout(400)
+            seen.append(await page.locator(".init-row.is-active .init-name").inner_text())
         writes = await page.evaluate("window.__writes")
         turn = [w for w in writes if w["table"] == "encounters"][-1]
         assert turn["payload"]["round"] == 2, turn
-        ok("the turn order skips the downed combatant and wraps into round 2")
+        assert not any("Gargoyle 1" in n for n in seen), f"downed combatant took a turn: {seen}"
+        ok(f"the turn order skips the downed combatant and wraps into round 2 after {live} turns")
 
         # ---------- 30. Conditions ----------
         await page.locator('.init-row:has-text("Sythra") .init-name').click()
@@ -1004,7 +1023,7 @@ async def main():
 
         # hide_monster_hp is on, so a player sees the order but not monster HP --
         # and still sees their own party's, which is never hidden.
-        mob = page.locator('.init-row:has-text("Gargoyle")')
+        mob = page.locator('.init-row:has-text("Gargoyle 1")')
         assert await mob.locator(".hp-value").count() == 0, "monster HP must be hidden from players"
         assert "hidden" in (await mob.locator(".init-hp").inner_text()).lower()
         pc = page.locator('.init-row:has-text("Sythra")')
@@ -1114,7 +1133,124 @@ async def main():
 
         await mob.close()
 
-        # ---------- 34. Router ----------
+        # ---------- 34. Tracker parity with the classic version ----------
+        await page.evaluate("localStorage.clear(); sessionStorage.clear();")
+        await page.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page, "join", "1379")
+        await page.click("#join-form .btn-submit")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+
+        # Adding a monster must not require a trip to the Compendium first.
+        await page.click('.topbar button:has-text("Add monsters")')
+        await page.wait_for_selector("#add-search", timeout=5000)
+        await page.fill("#add-search", "gob")
+        await page.wait_for_timeout(400)
+        suggestions = [t.strip() for t in await page.locator(".add-suggestion").all_inner_texts()]
+        assert any("Goblin" in t for t in suggestions), suggestions
+        ok("the tracker searches the SRD directly, no Compendium round-trip")
+
+        await page.click('.add-suggestion:has-text("Goblin")')
+        await page.wait_for_selector("#add-config:not(.hidden)", timeout=5000)
+        assert await page.locator(".add-hp-row").count() == 1
+        ok("picking a monster reveals the count, colour and hit point fields")
+
+        # Bulk: four goblins, each with its own rolled hit points.
+        await page.fill("#add-count", "4")
+        await page.wait_for_timeout(300)
+        rows = await page.locator(".add-hp-row").count()
+        assert rows == 4, rows
+        values = await page.evaluate(
+            "Array.from(document.querySelectorAll('.add-hp')).map(i => Number(i.value))")
+        assert all(2 <= v <= 12 for v in values), f"2d6 should roll 2-12: {values}"
+        ok(f"bulk add rolls hit points per creature from hit dice ({values})")
+
+        labels = [t.strip() for t in await page.locator(".add-hp-row label").all_inner_texts()]
+        assert labels == ["Goblin 1", "Goblin 2", "Goblin 3", "Goblin 4"], labels
+        ok("each creature in the group is numbered")
+
+        # Colour assignment.
+        await page.fill("#add-group", "Wave 1")
+        await page.locator("#add-swatches .swatch").nth(1).click()
+        chosen = await page.locator("#add-swatches .swatch.is-active").get_attribute("data-color")
+        assert chosen.startswith("#"), chosen
+        await page.click("#add-confirm")
+        await page.wait_for_timeout(900)
+
+        writes = await page.evaluate("window.__writes")
+        # The Goblin is not on this campaign's roster, so the roster row is
+        # created silently rather than making the DM go and add it first.
+        roster_write = [w for w in writes if w["table"] == "campaign_monsters" and w["verb"] == "insert"][-1]
+        assert roster_write["payload"]["api_index"] == "goblin", roster_write
+        assert roster_write["payload"]["source"] == "srd_api", roster_write
+        ok("adding an unknown SRD monster creates its campaign roster row automatically")
+
+        combat_write = [w for w in writes if w["table"] == "encounter_combatants"
+                        and w["verb"] == "insert"][-1]
+        payload = combat_write["payload"]
+        assert isinstance(payload, list) and len(payload) == 4, payload
+        assert payload[0]["color"] == chosen, payload[0]
+        assert payload[0]["group_label"] == "Wave 1", payload[0]
+        assert all(r["campaign_monster_id"] == "new-id" for r in payload), payload
+        assert len({r["max_hit_points"] for r in payload}) >= 1, payload
+        assert all(r["initiative"] is not None for r in payload), "auto initiative should roll"
+        ok("four combatants inserted in one write, with colour, group and rolled initiative")
+
+        # Initiative is d20 + DEX, not a flat d20. Goblin DEX 14 gives +2, so
+        # the range is 3..22.
+        inits = [r["initiative"] for r in payload]
+        assert all(3 <= i <= 22 for i in inits), inits
+        ok(f"initiative rolls include the dexterity modifier ({inits})")
+
+        await page.screenshot(path="/tmp/shot-14-add.png", full_page=True)
+
+        # ---------- 35. Groups, colour and notes ----------
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+
+        # Rows carrying a group label gather under a collapsible heading, with
+        # ungrouped rows last, as the classic tracker does.
+        head = page.locator('.enc-group h2:has-text("Wave 2")')
+        assert await head.count() == 1, "grouped rows need a heading"
+        assert "1/1" in await head.inner_text()
+        ok("grouped combatants gather under a collapsible heading with a live count")
+
+        await head.click()
+        await page.wait_for_timeout(350)
+        assert await page.locator('.init-row:has-text("Gargoyle 2")').count() == 0
+        ok("a group collapses")
+        await page.locator('.enc-group h2:has-text("Wave 2")').click()
+        await page.wait_for_timeout(350)
+
+        coloured = page.locator('.init-row:has-text("Gargoyle 2")')
+        assert "has-color" in await coloured.get_attribute("class")
+        border = await coloured.evaluate("el => getComputedStyle(el).borderLeftColor")
+        assert border == "rgb(61, 90, 114)", border      # #3d5a72
+        ok(f"an assigned colour renders as a left stripe ({border})")
+
+        assert "Holds the far bank." in await coloured.locator(".init-note").inner_text()
+        ok("a combatant note renders on its row")
+
+        # 30/48 is 62%, so the finer scale reads INJURED rather than a blunt
+        # healthy/wounded split.
+        assert (await coloured.locator(".init-sub .state-high, .init-sub .state-mid").inner_text()).strip() == "INJURED"
+        ok("the five-tier status scale is in use on the tracker")
+
+        await coloured.locator(".ac-edit").click()
+        await page.wait_for_selector(".modal", timeout=5000)
+        assert (await page.input_value("#mf-armor_class")) == "15"
+        await page.fill("#mf-armor_class", "17")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        assert writes[-1]["payload"]["armor_class"] == 17, writes[-1]
+        ok("armor class is editable inline, as in the classic tracker")
+
+        await page.screenshot(path="/tmp/shot-15-groups.png", full_page=True)
+
+        # ---------- 36. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

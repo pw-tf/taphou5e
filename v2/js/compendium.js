@@ -14,9 +14,6 @@
 (function () {
     if (!requireSession()) return;
 
-    const API = 'https://www.dnd5eapi.co';
-    const CACHE_PREFIX = 'taphou5e-srd-';
-
     let kind = 'monsters';       // 'monsters' | 'spells'
     let index = { monsters: null, spells: null };
     let query = '';
@@ -27,57 +24,12 @@
     let roster = [];             // campaign_monsters already added, for "in roster" marks
     let loadError = null;
 
-    // ========================================
-    // SRD access
-    // ========================================
-
-    // The index lists are small and static; cache them for the tab session so
-    // switching between monsters and spells is instant and we are not hammering
-    // a free public API.
-    function readCache(key) {
-        try {
-            const raw = sessionStorage.getItem(CACHE_PREFIX + key);
-            return raw ? JSON.parse(raw) : null;
-        } catch (e) { return null; }
-    }
-
-    function writeCache(key, value) {
-        try { sessionStorage.setItem(CACHE_PREFIX + key, JSON.stringify(value)); } catch (e) { /* full or private */ }
-    }
-
-    async function fetchIndex(which) {
-        if (index[which]) return index[which];
-        const cached = readCache(which);
-        if (cached) { index[which] = cached; return cached; }
-
-        const response = await fetch(`${API}/api/${which}`);
-        if (!response.ok) throw new Error(`SRD returned ${response.status}`);
-        const body = await response.json();
-        const results = body.results || [];
-        index[which] = results;
-        writeCache(which, results);
-        return results;
-    }
-
-    async function fetchDetail(which, apiIndex) {
-        const key = `${which}-${apiIndex}`;
-        const cached = readCache(key);
-        if (cached) return cached;
-
-        const response = await fetch(`${API}/api/${which}/${apiIndex}`);
-        if (!response.ok) throw new Error(`SRD returned ${response.status}`);
-        const body = await response.json();
-        writeCache(key, body);
-        return body;
-    }
-
-    // The SRD has shipped armor_class as both a plain number and an array of
-    // {type, value}. Normalise so the roster always stores an integer.
-    function normaliseAC(value) {
-        if (Array.isArray(value)) return value.length ? Number(value[0].value) : null;
-        const n = Number(value);
-        return Number.isFinite(n) ? n : null;
-    }
+    // SRD access, hit point rolling and armor-class normalisation live in
+    // core.js: the tracker searches the same index, and two copies of the cache
+    // would mean two sets of requests to a free public API.
+    const fetchIndex = which => srdIndex(which);
+    const fetchDetail = (which, apiIndex) => srdDetail(which, apiIndex);
+    const normaliseAC = srdArmorClass;
 
     function crLabel(cr) {
         if (cr === null || cr === undefined) return '—';
@@ -350,7 +302,7 @@
     async function ensureIndex() {
         if (index[kind]) { draw(); return; }
         try {
-            await fetchIndex(kind);
+            index[kind] = await fetchIndex(kind);
             loadError = null;
         } catch (err) {
             console.error('SRD index failed:', err);

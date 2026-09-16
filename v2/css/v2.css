@@ -495,3 +495,61 @@ a.list-row, a.list-row:hover,
   .srd-close { position: absolute; top: var(--space-sm); right: var(--space-sm); }
 }
 @media (min-width: 900px) { .srd-close { display: none; } }
+
+/* ---------- Tracker parity with the classic version ---------- */
+
+/* A combatant's assigned colour, as a left stripe. is-party uses the same
+   channel, so an explicit colour wins. */
+.init-row.has-color { border-left: 3px solid var(--row-color); }
+.init-note {
+  flex-basis: 100%; margin-top: 4px;
+  font-family: var(--font-body); font-size: var(--fs-12); color: var(--text-tertiary);
+  white-space: pre-wrap;
+}
+.ac-edit { cursor: pointer; border-bottom: 1px dotted var(--border-strong); }
+.ac-edit:hover { color: var(--accent-primary); }
+
+.enc-group > h2 {
+  display: flex; align-items: center; gap: var(--space-sm); cursor: pointer;
+  padding: var(--space-6) 0;
+}
+.enc-group .group-caret { color: var(--text-tertiary); font-size: var(--fs-12); }
+.enc-group .group-count { margin-left: auto; font-size: var(--fs-11); color: var(--text-tertiary); }
+
+/* Colour swatches, used both when adding and per row */
+.swatches { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.swatch {
+  width: 28px; height: 28px; border-radius: var(--radius-full); cursor: pointer;
+  border: 2px solid transparent; box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.swatch.is-none { background: var(--bg-tertiary); position: relative; }
+.swatch.is-none::after {
+  content: ''; position: absolute; inset: 40% 12% auto; height: 2px;
+  background: var(--text-muted); transform: rotate(-45deg);
+}
+.swatch.is-active { border-color: var(--text-primary); }
+
+/* Add-monsters panel */
+.modal-wide { max-width: 620px; }
+.add-suggestions { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
+.add-suggestions .eyebrow { margin-top: var(--space-6); }
+.add-suggestion {
+  display: flex; align-items: center; gap: var(--space-sm); text-align: left;
+  padding: var(--space-10) var(--space-12);
+  background: var(--bg-tertiary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-primary);
+  font: inherit; font-size: var(--fs-14); cursor: pointer;
+}
+.add-suggestion:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+.add-suggestion .hidden-pill { margin-left: auto; }
+.add-row { display: flex; gap: var(--space-sm); align-items: flex-start; }
+.add-hp-rows { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; }
+.add-hp-row { display: flex; align-items: center; gap: var(--space-sm); }
+.add-hp-row label { flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--text-secondary); }
+.add-hp-row input {
+  width: 86px; flex: none; padding: 7px 10px; text-align: center;
+  background: var(--bg-tertiary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-primary); font-family: var(--font-mono);
+}
+#add-config.hidden { display: none; }
+#add-search { width: 100%; }
