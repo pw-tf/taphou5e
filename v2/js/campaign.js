@@ -691,7 +691,7 @@
             active: 'campaigns',
             title: cm.name,
             sub: `${session.gameWorldName} · ${cm.status}`,
-            topbarExtra: isDM ? '<button class="btn" onclick="editCampaign()">Edit campaign</button>' : ''
+            actions: isDM ? [{ label: 'Edit campaign', onclick: 'editCampaign()' }] : []
         });
 
         $('#main-content').innerHTML = `

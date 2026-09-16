@@ -901,6 +901,27 @@ Other behaviour worth recording:
   HP rail and the controls on a phone; below the breakpoint the row wraps and the
   HP rail takes its own line.
 
+### 11.3b Review fixes
+
+Five problems found by using it on a phone, and what each turned out to be:
+
+| Reported | Cause |
+|---|---|
+| Tapping a character underlined all its text | `ember.css` sets `a:hover { text-decoration: underline }`. A card is a block-level `<a>`, so the rule propagates to every descendant — and on touch the hover state sticks after a tap |
+| No way to add a campaign on mobile | **Systemic**: the topbar is `display: none` below 900px, so every action rendered only there was unreachable. It affected new campaign, edit campaign, new homebrew, new encounter and add character |
+| Compendium details unreadable on mobile | The detail pane sat *below* a list of up to 150 rows, so picking something looked like nothing happened |
+| PIN boxes overflowed the page | An `<input>` carries an intrinsic width from its default `size="20"`, and a flex item's `min-width` is `auto` — so at 22px mono they refused to shrink below ~207px each. The same class of bug as the grid blowout, and no test covered the login page |
+| Encounter buttons too crowded | Seven buttons in one row |
+
+The topbar and crowded-buttons problems share a fix: actions are now **declared
+once** as `renderShell({ actions: [...] })` and rendered twice — as topbar
+buttons above the breakpoint, as a floating button with a flip-up menu below it.
+That removes the whole class of "action only exists on desktop" bug rather than
+patching the campaigns screen alone.
+
+The FAB menu hides with `visibility`, not `opacity` alone: a transparent menu
+still sits in the tab order and the accessibility tree.
+
 ### 11.4 Compendium — built
 
 The write path for §4.4, as scoped. Browse and search SRD monsters and spells,

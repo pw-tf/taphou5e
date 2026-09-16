@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 91 assertions.
+version router. 100 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -59,6 +59,9 @@ at it directly — edit `CHROME` at the top of the file, or run
   `encounter_combatants`
 - `hide_monster_hp`: players see the order and their own party's HP, not the
   monsters'
+- Mobile: the login page fitting at 390px with shrunk PIN boxes, cards not
+  underlining on hover, topbar actions reachable through the FAB, the compendium
+  detail opening as a dismissible bottom sheet, and the FAB hiding above 900px
 - The root router: opted-in devices go to v2, everyone else stays on classic
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no

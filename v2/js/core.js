@@ -391,9 +391,62 @@ function wireSideMenu() {
     });
 }
 
+// Page actions.
+//
+// The topbar is desktop-only, so anything rendered there alone is unreachable
+// on a phone -- which is how "New campaign" went missing below 900px. Actions
+// are declared once and rendered twice: as topbar buttons above the breakpoint,
+// and as a floating button that flips up a menu below it.
+//
+// actions: [{ label, onclick?, href?, primary? }]
+function renderActions(actions) {
+    if (!actions || !actions.length) return { topbar: '', fab: '' };
+
+    const attrs = a => a.href
+        ? `href="${a.href}"` : `onclick="${a.onclick}"`;
+    const tag = a => a.href ? 'a' : 'button';
+
+    const topbar = actions.map(a =>
+        `<${tag(a)} class="btn ${a.primary ? 'btn-accent' : ''}" ${attrs(a)}>${escapeHtml(a.label)}</${tag(a)}>`
+    ).join('');
+
+    const fab = `
+        <div class="fab-wrap" id="fab-wrap">
+            <div class="fab-menu" id="fab-menu">
+                ${actions.map(a =>
+                    `<${tag(a)} class="fab-item ${a.primary ? 'is-primary' : ''}" ${attrs(a)}>${escapeHtml(a.label)}</${tag(a)}>`
+                ).join('')}
+            </div>
+            <button class="fab" id="fab-toggle" aria-expanded="false" aria-label="Actions">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+        </div>`;
+
+    return { topbar, fab };
+}
+
+function wireFab() {
+    const wrap = $('#fab-wrap');
+    if (!wrap) return;
+    const toggle = $('#fab-toggle');
+    const close = () => { wrap.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); };
+
+    toggle.addEventListener('click', e => {
+        e.stopPropagation();
+        const open = wrap.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    // Any action closes the menu, and so does tapping away from it.
+    $$('.fab-item', wrap).forEach(item => item.addEventListener('click', close));
+    document.addEventListener('click', e => { if (!wrap.contains(e.target)) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+}
+
 // Builds the whole chrome for a page: sidebar, mobile header, drawer, topbar.
 function renderShell(options) {
-    const { active, title, sub, topbarExtra, counts } = options;
+    const { active, title, sub, topbarExtra, counts, actions } = options;
+    const { topbar, fab } = renderActions(actions);
     document.body.innerHTML = `
         <div class="app-shell">
             ${renderSidebar(active, counts)}
@@ -401,13 +454,15 @@ function renderShell(options) {
                 ${renderHeader(title, sub)}
                 <div class="topbar">
                     <h1>${escapeHtml(title)}</h1>
-                    <div class="spacer">${topbarExtra || ''}</div>
+                    <div class="spacer">${topbar}${topbarExtra || ''}</div>
                 </div>
                 <div class="main-content" id="main-content"></div>
             </div>
         </div>
+        ${fab}
         ${renderSideMenu(active)}`;
     wireSideMenu();
+    wireFab();
     if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
     return $('#main-content');
 }

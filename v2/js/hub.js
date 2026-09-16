@@ -71,9 +71,10 @@
                 characters: data.characters.length,
                 campaigns: data.campaigns.length
             },
-            topbarExtra: data.liveEncounter
-                ? `<a class="btn btn-accent" href="monster-tracker.html?id=${encodeURIComponent(data.liveEncounter.id)}">Resume encounter</a>`
-                : ''
+            actions: data.liveEncounter
+                ? [{ label: 'Resume encounter', primary: true,
+                     href: `monster-tracker.html?id=${encodeURIComponent(data.liveEncounter.id)}` }]
+                : []
         });
 
         const parts = [];

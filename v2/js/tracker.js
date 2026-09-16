@@ -403,22 +403,6 @@
         const list = ordered();
         const running = enc.status === 'active';
 
-        const controls = isDM ? `
-            <div class="tracker-controls">
-                ${running
-                    ? `<button class="btn btn-accent" onclick="nextTurn()">Next turn</button>
-                       <button class="btn" onclick="endEncounter()">End encounter</button>`
-                    : `<button class="btn btn-accent" onclick="startEncounter()"
-                               ${list.length ? '' : 'disabled'}>Start encounter</button>`}
-                <button class="btn" onclick="rollInitiative()">Roll initiative</button>
-                <button class="btn" onclick="addParty()">Add party</button>
-                <button class="btn" onclick="addMonsters()">Add monsters</button>
-                <button class="btn" onclick="addNPC()">Add NPC</button>
-                <button class="btn btn-quiet" onclick="toggleHideHP()">
-                    ${enc.hide_monster_hp ? 'Monster HP hidden' : 'Monster HP visible'}
-                </button>
-            </div>` : '';
-
         return `
             <div class="campaign-head">
                 <div class="title-row">
@@ -427,7 +411,6 @@
                     ${running ? `<span class="mono round-pill">ROUND ${enc.round || 1}</span>` : ''}
                 </div>
             </div>
-            ${controls}
             ${enc.read_aloud ? `<p class="prose read-aloud">${escapeHtml(enc.read_aloud)}</p>` : ''}
             ${list.length
                 ? `<div class="enc-group">${list.map(initRow).join('')}</div>`
@@ -512,15 +495,38 @@
         draw();
     }
 
+    // Seven buttons in a row was unusable on a phone. They are declared once
+    // and the shell decides: topbar above the breakpoint, flip-up menu below.
+    function trackerActions() {
+        if (!isDM) return [];
+        if (!enc) return [{ label: 'New encounter', onclick: 'newEncounter()', primary: true }];
+
+        const running = enc.status === 'active';
+        const anyone = combatants.length > 0;
+        const actions = running
+            ? [{ label: 'Next turn', onclick: 'nextTurn()', primary: true },
+               { label: 'End encounter', onclick: 'endEncounter()' }]
+            : anyone
+                ? [{ label: 'Start encounter', onclick: 'startEncounter()', primary: true }]
+                : [];
+
+        return actions.concat([
+            { label: 'Roll initiative', onclick: 'rollInitiative()' },
+            { label: 'Add party', onclick: 'addParty()' },
+            { label: 'Add monsters', onclick: 'addMonsters()' },
+            { label: 'Add NPC', onclick: 'addNPC()' },
+            { label: enc.hide_monster_hp ? 'Monster HP hidden' : 'Monster HP visible',
+              onclick: 'toggleHideHP()' }
+        ]);
+    }
+
     function draw() {
         renderShell({
             active: 'encounters',
             title: enc ? enc.name : 'Encounters',
             sub: session.gameWorldName || '',
             counts: enc ? undefined : { encounters: encounters.length },
-            topbarExtra: !enc && isDM
-                ? '<button class="btn btn-accent" onclick="newEncounter()">New encounter</button>'
-                : ''
+            actions: trackerActions()
         });
         $('#main-content').innerHTML = enc ? trackerView() : listView();
     }

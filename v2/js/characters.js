@@ -28,7 +28,7 @@
             // Character creation still lives in the classic app: it drives the
             // level-up engine and feature registry, which v2 has not taken on
             // yet. Linking out is honest; a half-built form would not be.
-            topbarExtra: '<a class="btn" href="../characters.html">Add character (classic)</a>'
+            actions: [{ label: 'Add character (classic)', href: '../characters.html' }]
         });
 
         const main = $('#main-content');

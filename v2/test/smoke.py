@@ -1015,7 +1015,106 @@ async def main():
         assert await page.locator('button:has-text("Next turn")').count() == 0
         ok("players get no combat controls")
 
-        # ---------- 33. Router ----------
+        # ---------- 33. Review fixes ----------
+        mob = await browser.new_context(viewport={"width": 390, "height": 844})
+        await mob.add_init_script(STUB)
+        mp = await mob.new_page()
+        watch(mp, "mobile")
+
+        # (4) The login page overflowed at phone width and was never asserted:
+        # an <input> carries an intrinsic size="20" width and a flex item's
+        # min-width is auto, so the PIN boxes refused to shrink.
+        await mp.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await mp.wait_for_timeout(500)
+        overflow = await mp.evaluate(
+            "document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 0, f"login overflows at 390px by {overflow}px"
+        widths = await mp.evaluate(
+            "Array.from(document.querySelectorAll('.pin-input')).map(e => Math.round(e.getBoundingClientRect().width))")
+        assert all(w < 100 for w in widths), widths
+        ok(f"login fits at 390px; PIN boxes shrink to {widths[0]}px each")
+
+        await mp.fill("#world-name", "Thornfell Reach")
+        await fill_pin(mp, "join", "1379")
+        await mp.click("#join-form .btn-submit")
+        await mp.wait_for_selector(".character-card", timeout=10000)
+
+        # (1) A block-level <a> inherits ember.css's a:hover underline, and on
+        # touch the hover state sticks after a tap.
+        await mp.locator(".character-card").first.hover()
+        await mp.wait_for_timeout(200)
+        decorations = await mp.evaluate("""() => {
+            const card = document.querySelector('.character-card');
+            return [card, card.querySelector('.card-name'), card.querySelector('.card-meta')]
+                .map(el => getComputedStyle(el).textDecorationLine);
+        }""")
+        assert all(d == "none" for d in decorations), decorations
+        ok("hovering a character card underlines nothing")
+
+        # (2) Topbar actions are desktop-only, so the FAB carries them on mobile.
+        await mp.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".campaign-grid", timeout=10000)
+        assert not await mp.locator(".topbar").is_visible(), "topbar is desktop-only"
+        assert await mp.locator("#fab-toggle").is_visible(), "no way to add a campaign on mobile"
+        assert not await mp.locator(".fab-item").first.is_visible(), "menu starts closed"
+        await mp.click("#fab-toggle")
+        await mp.wait_for_timeout(400)
+        labels = [t.strip() for t in await mp.locator(".fab-item").all_inner_texts()]
+        assert "New campaign" in labels, labels
+        ok(f"mobile reaches topbar actions through the FAB ({labels})")
+
+        await mp.click('.fab-item:has-text("New campaign")')
+        await mp.wait_for_selector(".modal", timeout=5000)
+        ok("the FAB action opens the new-campaign form")
+        await mp.click("#modal-cancel")
+        await mp.wait_for_timeout(300)
+
+        # (5) The tracker had seven buttons in a row; they move into the FAB.
+        await mp.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".init-row", timeout=10000)
+        assert await mp.locator(".tracker-controls").count() == 0, "the crowded row is gone"
+        await mp.click("#fab-toggle")
+        await mp.wait_for_timeout(400)
+        labels = [t.strip() for t in await mp.locator(".fab-item").all_inner_texts()]
+        for expected in ("Roll initiative", "Add party", "Add monsters", "Add NPC"):
+            assert expected in labels, (expected, labels)
+        ok(f"tracker actions live in the flip-up menu ({len(labels)} of them)")
+
+        overflow = await mp.evaluate(
+            "document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 0, f"tracker overflows at 390px by {overflow}px"
+        ok("tracker still fits at 390px with the FAB")
+        await mp.screenshot(path="/tmp/shot-13-fab.png")
+        await mp.keyboard.press("Escape")
+
+        # (3) The compendium detail sat under a 150-row list, so picking
+        # something looked like nothing happened.
+        await mp.goto(f"{BASE}/v2/compendium.html", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".srd-list .list-row", timeout=10000)
+        assert not await mp.locator(".srd-detail").is_visible(), "no detail before picking"
+        await mp.click('.srd-list .list-row:has-text("Goblin")')
+        await mp.wait_for_selector(".srd-detail.has-detail", timeout=8000)
+        assert await mp.locator(".srd-detail").is_visible()
+        box = await mp.locator(".srd-detail").bounding_box()
+        assert box["y"] + box["height"] <= 850, f"detail should sit at the bottom of the screen: {box}"
+        assert "Nimble Escape" in await mp.locator(".srd-detail").inner_text()
+        ok("compendium detail opens as a bottom sheet on mobile, description readable")
+
+        await mp.click(".srd-close")
+        await mp.wait_for_timeout(300)
+        assert not await mp.locator(".srd-detail").is_visible()
+        ok("the compendium bottom sheet dismisses")
+
+        # The FAB must not appear above the breakpoint, where the topbar shows.
+        await mp.set_viewport_size({"width": 1280, "height": 900})
+        await mp.wait_for_timeout(400)
+        assert not await mp.locator("#fab-toggle").is_visible(), "FAB should hide on desktop"
+        assert await mp.locator(".topbar .btn").count() >= 1, "topbar should carry the actions"
+        ok("above 900px the FAB hides and the topbar carries the actions")
+
+        await mob.close()
+
+        # ---------- 34. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
         await page.wait_for_timeout(700)

@@ -215,6 +215,8 @@
         if (list) list.innerHTML = resultRows();
     };
 
+    window.clearPick = () => { selected = null; detail = null; detailError = false; draw(); };
+
     window.pick = async apiIndex => {
         const row = (index[kind] || []).find(r => r.index === apiIndex);
         if (!row) return;
@@ -362,9 +364,9 @@
             active: 'compendium',
             title: 'Compendium',
             sub: session.gameWorldName || '',
-            topbarExtra: isDM
-                ? '<button class="btn btn-accent" onclick="newHomebrew()">New homebrew monster</button>'
-                : ''
+            actions: isDM
+                ? [{ label: 'New homebrew monster', onclick: 'newHomebrew()', primary: true }]
+                : []
         });
 
         $('#main-content').innerHTML = `
@@ -386,7 +388,10 @@
             <div class="compendium-split">
                 <div id="srd-list" class="srd-list">${
                     index[kind] ? resultRows() : '<div class="skeleton"></div>'}</div>
-                <aside class="srd-detail">${detailPane()}</aside>
+                <aside class="srd-detail${selected ? ' has-detail' : ''}">
+                    ${selected ? '<button class="icon-btn srd-close" onclick="clearPick()" aria-label="Close">&times;</button>' : ''}
+                    ${detailPane()}
+                </aside>
             </div>`;
 
         const search = $('#srd-search');
