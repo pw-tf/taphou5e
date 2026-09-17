@@ -785,6 +785,36 @@ the invite lands a DM in v2 already signed in. v1 stores `dmToken` but not
 does store, so a DM whose token has aged out still gets told rather than
 silently seeing empty campaign data.
 
+### 9.3b Switching, and the shared look
+
+The prompt (§9.3a) is the offer; these are the doors that stay open after it
+has been answered or turned off.
+
+- **The classic sidebar** carries "Switch to V2.0" on both pages that have a
+  side menu.
+- **The classic login** carries a button under the form.
+
+Both go through `Taphou5eInvite.switchToV2()`, so the storage key is written in
+one place and cannot drift. `sidemenu.js` falls back to the same two lines
+inline, because it also loads on pages where the invite file might not.
+
+The prompt's copy now leads with **"TAPHOU5E V2.0 now available!"** over a short
+list of what is new, rather than a paragraph.
+
+**The logo.** The mark sits beside the wordmark on the v2 login screen, and
+again beside it in the sidebar and the mobile drawer. There is deliberately
+**no background watermark**: v1 fades the logo behind every page, and it was
+tried here, but it reads as noise on a light theme and washes over the accent
+button on a dark one. The mark earns its place in the chrome instead.
+
+One thing the classic CSS could take for granted and v2 cannot: **the art is
+black on transparent.** v1 only ever renders on a dark shell, so it inverts the
+logo to white unconditionally. v2 has a light theme, so the filter is a token
+that resolves per theme -- and the selector has to cover *both* an explicit
+`data-theme` and the system preference, because `theme.js` **removes** the
+attribute for "system". `[data-theme="light"]` alone would never match the most
+common case, and the logo would render white on cream.
+
 ### 9.4 What each version sees of the other's data
 
 Because of decision 2, this stays simple. A character never leaves its world, so **v1's roster is never
@@ -861,7 +891,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (234 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (244 assertions):
 
 | Built | Not yet |
 |---|---|

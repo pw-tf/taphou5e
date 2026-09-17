@@ -297,7 +297,7 @@ function renderSidebar(activeId, counts) {
     return `
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <div class="brand">TAPHOU5E</div>
+                <div class="brand"><img src="../taphou5e.png" alt="" class="brand-logo">TAPHOU5E</div>
                 <div class="world-row">
                     <span class="world-dot"></span>
                     <span class="world-name">${escapeHtml(worldName)}</span>
@@ -339,7 +339,7 @@ function renderSideMenu(activeId) {
         <div id="side-menu-overlay" class="side-menu-overlay">
             <div class="side-menu">
                 <div class="side-menu-header">
-                    <div class="brand">TAPHOU5E</div>
+                    <div class="brand"><img src="../taphou5e.png" alt="" class="brand-logo">TAPHOU5E</div>
                     <div class="world-row">
                         <span class="world-dot"></span>
                         <span class="world-name">${escapeHtml(worldName)}</span>

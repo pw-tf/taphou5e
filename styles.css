@@ -385,6 +385,30 @@
             border-top: 1px solid var(--border-subtle);
         }
 
+        /* The deliberate way across to the new layout, for anyone who
+           dismissed the prompt or never saw it. */
+        .v2-switch {
+            padding: var(--space-lg) var(--space-lg) 0;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .v2-switch button {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+
+        .v2-switch p {
+            color: var(--text-tertiary);
+            font-size: 12px;
+            max-width: 320px;
+            line-height: 1.5;
+        }
+
 /* ========================================
     Styles for Character.html
 ======================================== */

@@ -56,8 +56,27 @@
         document.body.style.overflow = '';
     }
 
+    // The classic stylesheet has no list styles, and this is the only place
+    // the classic app shows a bulleted list, so it brings its own.
+    function injectStyles() {
+        if (document.getElementById('v2-invite-styles')) return;
+        var style = document.createElement('style');
+        style.id = 'v2-invite-styles';
+        style.textContent =
+            '#v2-invite .modal-content { max-width: 440px; }' +
+            '.v2-invite-list { list-style: none; margin: 0 0 var(--space-md); padding: 0;' +
+                ' display: flex; flex-direction: column; gap: 10px; }' +
+            '.v2-invite-list li { position: relative; padding-left: 18px; font-size: 13px;' +
+                ' line-height: 1.5; color: var(--text-secondary); }' +
+            '.v2-invite-list li::before { content: ""; position: absolute; left: 0; top: 8px;' +
+                ' width: 6px; height: 6px; border-radius: 50%; background: var(--accent-primary); }' +
+            '.v2-invite-list b { color: var(--text-primary); font-weight: 600; }';
+        document.head.appendChild(style);
+    }
+
     function show() {
         if (document.getElementById('v2-invite')) return;
+        injectStyles();
 
         var host = document.createElement('div');
         host.id = 'v2-invite';
@@ -68,10 +87,16 @@
         host.innerHTML =
             '<div class="modal-backdrop"></div>' +
             '<div class="modal-content">' +
-                '<h2>Try the new layout?</h2>' +
-                '<p>TAPHOU5E has a new version with campaigns, a rebuilt encounter tracker ' +
-                'and a character sheet you can play from on a phone. Your world, characters ' +
-                'and encounters are the same in both &mdash; nothing is copied or moved.</p>' +
+                '<h2>TAPHOU5E V2.0 now available!</h2>' +
+                '<ul class="v2-invite-list">' +
+                    '<li><b>Campaigns</b> &mdash; storylines, areas, NPCs and session recaps in one place</li>' +
+                    '<li><b>A rebuilt encounter tracker</b> &mdash; bulk-add monsters, colour-code groups, share an encounter with a code</li>' +
+                    '<li><b>A character sheet you can play from</b> &mdash; spells, inventory, currency and charges, all editable</li>' +
+                    '<li><b>Character creation and levelling</b> &mdash; point buy, standard array, and a level-up wizard</li>' +
+                    '<li><b>Built for a phone</b> &mdash; hold any card to edit or delete it</li>' +
+                '</ul>' +
+                '<p>Your world, characters and encounters are the same in both &mdash; ' +
+                'nothing is copied or moved, and you can switch back whenever you like.</p>' +
                 '<label style="display:flex;align-items:center;gap:8px;font-size:13px;' +
                        'color:var(--text-secondary);margin-bottom:var(--space-lg);cursor:pointer">' +
                     '<input type="checkbox" id="v2-invite-never"> Don’t show this again' +
@@ -87,12 +112,9 @@
 
         var never = host.querySelector('#v2-invite-never');
 
-        host.querySelector('#v2-invite-yes').addEventListener('click', function () {
-            // Set the flag before navigating: the router on the classic login
-            // reads it, so this is also what stops us asking again.
-            write(UI_KEY, 'next');
-            window.location.href = 'v2/';
-        });
+        // Setting the flag is also what stops us asking again: the router on
+        // the classic login reads it.
+        host.querySelector('#v2-invite-yes').addEventListener('click', switchToV2);
 
         host.querySelector('#v2-invite-no').addEventListener('click', function () {
             dismiss(host, never.checked);
@@ -148,15 +170,35 @@
         if (document.getElementById('join-form')) show();   // the classic login
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', start);
-    } else {
+    // The deliberate switch on the classic login, which is always available
+    // whether or not the prompt is due to appear.
+    function wireLoginButton() {
+        var button = document.getElementById('try-v2-btn');
+        if (button) button.addEventListener('click', switchToV2);
+    }
+
+    function boot() {
+        wireLoginButton();
         start();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
+
+    // Taking the offer, from the prompt or from either of the deliberate
+    // switches on the classic pages. One place, so they cannot drift.
+    function switchToV2() {
+        write(UI_KEY, 'next');
+        window.location.href = 'v2/';
     }
 
     // Exposed for the test suite, and for anyone who wants to see it again.
     window.Taphou5eInvite = {
         show: show,
+        switchToV2: switchToV2,
         reset: function () {
             try { localStorage.removeItem(INVITE_KEY); } catch (e) { /* ignore */ }
         }
