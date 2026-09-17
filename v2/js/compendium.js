@@ -14,15 +14,24 @@
 (function () {
     if (!requireSession()) return;
 
-    let kind = 'monsters';       // 'monsters' | 'spells'
-    let index = { monsters: null, spells: null };
+    let kind = 'monsters';       // 'monsters' | 'spells' | 'equipment'
+    let index = { monsters: null, spells: null, equipment: null };
     let query = '';
     let selected = null;         // { kind, index, name }
     let detail = null;           // fetched payload for `selected`
     let detailError = false;
     let campaigns = [];
     let roster = [];             // campaign_monsters already added, for "in roster" marks
+    let worldCharacters = [];    // who an item can be handed to
     let loadError = null;
+
+    // The same list the sheet's add-item form offers, so an item lands under
+    // the type someone would look for it under.
+    const ITEM_TYPES = ['Gear', 'Weapon', 'Armor', 'Consumable', 'Treasure', 'Other'];
+
+    // The SRD calls the items endpoint "equipment"; nobody searching for a
+    // rope thinks of it that way.
+    const KIND_LABEL = { monsters: 'monsters', spells: 'spells', equipment: 'items' };
 
     // SRD access, hit point rolling and armor-class normalisation live in
     // core.js: the tracker searches the same index, and two copies of the cache
@@ -133,6 +142,83 @@
             <p class="hint">Spells are added to a character from their sheet. This is reference only.</p>`;
     }
 
+    // The SRD splits an item's numbers across a few shapes depending on what
+    // it is, so this reads whichever ones are present rather than assuming.
+    function itemDetail(i) {
+        const category = (i.equipment_category || {}).name || 'Gear';
+        const damage = i.damage || {};
+        const cost = i.cost ? `${i.cost.quantity} ${i.cost.unit}` : null;
+        const armour = i.armor_class || {};
+
+        const facts = [
+            cost ? [cost, 'COST'] : null,
+            i.weight ? [`${i.weight} lb`, 'WEIGHT'] : null,
+            damage.damage_dice
+                ? [`${damage.damage_dice} ${(damage.damage_type || {}).name || ''}`.trim(), 'DAMAGE']
+                : (armour.base ? [`${armour.base}${armour.dex_bonus ? ' + DEX' : ''}`, 'AC'] : null)
+        ].filter(Boolean);
+
+        return `
+            <span class="eyebrow">Item</span>
+            <h2>${escapeHtml(i.name)}</h2>
+            <p class="flavour">${escapeHtml(category)}${
+                i.gear_category && i.gear_category.name ? ' · ' + escapeHtml(i.gear_category.name) : ''}</p>
+            ${facts.length ? `<div class="stat-trio">${facts.map(([v, k]) =>
+                `<div><b>${escapeHtml(String(v))}</b><span>${k}</span></div>`).join('')}</div>` : ''}
+            ${(i.properties || []).length ? `<p class="mono" style="font-size:var(--fs-12)">${
+                escapeHtml(i.properties.map(pr => pr.name).join(', '))}</p>` : ''}
+            ${[].concat(i.desc || []).map(line => `<p>${escapeHtml(line)}</p>`).join('')}
+            <div class="pane-actions">
+                <button class="btn btn-accent btn-block" onclick="addItemToCharacter()">Add to a character</button>
+            </div>`;
+    }
+
+    window.addItemToCharacter = () => {
+        if (!detail) return;
+        if (!worldCharacters.length) {
+            toast('This world has no characters yet.', 'error');
+            return;
+        }
+
+        const damage = detail.damage || {};
+        const category = (detail.equipment_category || {}).name || '';
+        const isWeapon = category.toLowerCase() === 'weapon' || !!damage.damage_dice;
+
+        openModal({
+            title: `Add ${detail.name}`,
+            submitLabel: 'Add to inventory',
+            fields: [
+                { name: 'character_id', label: 'Character', type: 'select',
+                  value: worldCharacters[0].id,
+                  options: worldCharacters.map(c => ({ value: c.id, label: c.name })) },
+                { name: 'quantity', label: 'Quantity', type: 'number', value: 1 },
+                { name: 'equipped', type: 'checkbox', label: '',
+                  checkboxLabel: isWeapon ? 'Equipped — a carried weapon only counts as an action while equipped'
+                                          : 'Equipped',
+                  value: false }
+            ],
+            onSubmit: async values => {
+                const quantity = Number(values.quantity);
+                if (!Number.isInteger(quantity) || quantity < 1) {
+                    throw new Error('Quantity must be at least 1.');
+                }
+                const { error } = await db.from('inventory_items').insert({
+                    character_id: values.character_id,
+                    name: detail.name,
+                    description: [].concat(detail.desc || []).join('\n\n') || null,
+                    quantity,
+                    weight: detail.weight ?? null,
+                    item_type: ITEM_TYPES.find(t => t.toLowerCase() === category.toLowerCase()) || 'Gear',
+                    equipped: values.equipped,
+                    attuned: false
+                });
+                if (error) throw new Error(error.message || 'Could not add that item.');
+                const who = worldCharacters.find(c => c.id === values.character_id);
+                toast(`${detail.name} added to ${who ? who.name : 'the character'}.`);
+            }
+        });
+    };
+
     function detailPane() {
         if (!selected) {
             return `<div class="empty-state"><p>Pick something on the left to see its details.</p></div>`;
@@ -141,8 +227,10 @@
             return `<div class="error-banner">Could not load ${escapeHtml(selected.name)} from the SRD.</div>`;
         }
         if (!detail) return '<div class="skeleton"></div>';
-        return `<div class="statblock">${
-            kind === 'monsters' ? monsterDetail(detail) : spellDetail(detail)}</div>`;
+        const body = kind === 'monsters' ? monsterDetail(detail)
+                   : kind === 'spells'   ? spellDetail(detail)
+                   : itemDetail(detail);
+        return `<div class="statblock">${body}</div>`;
     }
 
     // ========================================
@@ -326,9 +414,10 @@
                 <div class="segmented">
                     <button class="${kind === 'monsters' ? 'is-active' : ''}" onclick="setKind('monsters')">Monsters</button>
                     <button class="${kind === 'spells' ? 'is-active' : ''}" onclick="setKind('spells')">Spells</button>
+                    <button class="${kind === 'equipment' ? 'is-active' : ''}" onclick="setKind('equipment')">Items</button>
                 </div>
                 <input id="srd-search" type="search" class="srd-search"
-                       placeholder="Search ${escapeHtml(kind)}…" value="${escapeHtml(query)}"
+                       placeholder="Search ${KIND_LABEL[kind] || kind}…" value="${escapeHtml(query)}"
                        oninput="setQuery(this.value)" aria-label="Search the SRD">
             </div>
             ${loadError
@@ -360,6 +449,11 @@
         const { data } = await db.from('campaigns')
             .select('id, name').eq('game_world_id', session.gameWorldId).order('name');
         campaigns = data || [];
+
+        const { data: party } = await db.from('characters')
+            .select('id, name').eq('game_world_id', session.gameWorldId).order('name');
+        worldCharacters = party || [];
+
         await loadRoster();
         await ensureIndex();
     })();

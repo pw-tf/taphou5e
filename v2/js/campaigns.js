@@ -14,12 +14,12 @@
     async function load() {
         const worldId = session.gameWorldId;
 
-        const [campaigns, members, npcs, areas, storylines, encounters] = await Promise.all([
+        const [campaigns, members, npcs, areas, chapters, encounters] = await Promise.all([
             db.from('campaigns').select('*').eq('game_world_id', worldId).order('sort_order').order('name'),
             db.from('campaign_characters').select('campaign_id, status').eq('game_world_id', worldId),
             db.from('npcs').select('campaign_id').eq('game_world_id', worldId),
             db.from('areas').select('campaign_id').eq('game_world_id', worldId),
-            db.from('storylines').select('campaign_id').eq('game_world_id', worldId),
+            db.from('chapters').select('campaign_id').eq('game_world_id', worldId),
             db.from('encounters').select('campaign_id, status').eq('game_world_id', worldId)
         ]);
 
@@ -40,7 +40,7 @@
             party: tally(members.data, m => m.status === 'active'),
             npcs: tally(npcs.data),
             areas: tally(areas.data),
-            storylines: tally(storylines.data),
+            chapters: tally(chapters.data),
             live: tally(encounters.data, e => e.status === 'active')
         };
     }
@@ -49,7 +49,7 @@
         const status = campaign.status || 'active';
         const counts = [
             ['party', data.party[campaign.id] || 0, 'PARTY'],
-            ['storylines', data.storylines[campaign.id] || 0, 'STORY'],
+            ['chapters', data.chapters[campaign.id] || 0, 'STORY'],
             ['areas', data.areas[campaign.id] || 0, 'AREAS'],
             ['npcs', data.npcs[campaign.id] || 0, 'NPCS']
         ];
@@ -109,12 +109,12 @@
         return {
             title: campaign.name,
             actions: [
-                { label: 'Open', hint: 'Storylines, areas, NPCs and encounters',
+                { label: 'Open', hint: 'Chapters, areas, NPCs and encounters',
                   run: () => { window.location.href = href; } },
                 { label: 'Edit', hint: 'Name, summary and status',
                   run: () => editCampaign(campaign) },
                 { label: 'Delete', danger: true,
-                  hint: 'Its storylines, areas, NPCs and encounters go too',
+                  hint: 'Its chapters, areas, NPCs and encounters go too',
                   run: () => deleteCampaign(campaign) }
             ]
         };
@@ -150,7 +150,7 @@
     function deleteCampaign(campaign) {
         confirmModal({
             title: `Delete ${campaign.name}`,
-            message: 'This also deletes its storylines, areas, NPCs, monsters, encounters '
+            message: 'This also deletes its chapters, areas, NPCs, monsters, encounters '
                    + 'and session recaps. Characters leave the campaign but stay in the world. '
                    + 'This cannot be undone.',
             confirmLabel: 'Delete campaign',
@@ -187,7 +187,7 @@
                 <div class="empty-state">
                     <h3>No campaigns yet</h3>
                     <p>${isDM
-                        ? 'Create a campaign to gather its storylines, areas, NPCs, monsters and encounters in one place.'
+                        ? 'Create a campaign to gather its chapters, areas, NPCs, monsters and encounters in one place.'
                         : 'Your DM has not opened a campaign in this world yet.'}</p>
                     ${isDM ? '<button class="btn btn-accent" onclick="newCampaign()">New campaign</button>' : ''}
                 </div>`;

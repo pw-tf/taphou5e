@@ -18,12 +18,16 @@
 
     const campaignId = new URLSearchParams(window.location.search).get('id');
     const STATUSES = ['planning', 'active', 'paused', 'completed', 'archived'];
+    // These two mirror the check constraints on chapters.status and
+    // chapter_beats.status; anything else is rejected by the database.
+    const CHAPTER_STATUSES = ['planned', 'active', 'completed', 'abandoned'];
+    const BEAT_STATUSES = ['pending', 'in_progress', 'completed', 'skipped'];
     const AREA_TYPES = ['region', 'settlement', 'dungeon', 'landmark', 'building', 'plane', 'location', 'other'];
 
     const TABS = [
         { id: 'overview',   label: 'Overview' },
         { id: 'party',      label: 'Party' },
-        { id: 'storylines', label: 'Storylines' },
+        { id: 'chapters', label: 'Chapters' },
         { id: 'areas',      label: 'Areas' },
         { id: 'npcs',       label: 'NPCs' },
         { id: 'monsters',   label: 'Monsters' },
@@ -38,14 +42,14 @@
     // ========================================
 
     async function load() {
-        const [campaign, members, worldChars, storylines, beats, checks,
+        const [campaign, members, worldChars, chapters, beats, checks,
                areas, npcs, monsters, encounters, sessions, notes] = await Promise.all([
             db.from('campaigns').select('*').eq('id', campaignId).single(),
             db.from('campaign_characters').select('*').eq('campaign_id', campaignId),
             db.from('characters').select('id, name, player_name, class, level, current_hit_points, hit_point_maximum, temporary_hit_points')
               .eq('game_world_id', session.gameWorldId).order('name'),
-            db.from('storylines').select('*').eq('campaign_id', campaignId).order('sort_order'),
-            db.from('storyline_beats').select('*').eq('game_world_id', session.gameWorldId).order('sort_order'),
+            db.from('chapters').select('*').eq('campaign_id', campaignId).order('sort_order'),
+            db.from('chapter_beats').select('*').eq('game_world_id', session.gameWorldId).order('sort_order'),
             db.from('campaign_checks').select('*').eq('campaign_id', campaignId).order('sort_order'),
             db.from('areas').select('*').eq('campaign_id', campaignId).order('sort_order').order('name'),
             db.from('npcs').select('*').eq('campaign_id', campaignId).order('sort_order').order('name'),
@@ -58,16 +62,16 @@
         if (campaign.error || !campaign.data) throw new Error('Campaign not found');
         if (campaign.data.game_world_id !== session.gameWorldId) throw new Error('Wrong world');
 
-        const storylineIds = new Set((storylines.data || []).map(s => s.id));
+        const chapterIds = new Set((chapters.data || []).map(s => s.id));
 
         return {
             campaign: campaign.data,
             members: members.data || [],
             worldChars: worldChars.data || [],
-            storylines: storylines.data || [],
+            chapters: chapters.data || [],
             // Beats are fetched per world (they carry no campaign_id) then
-            // filtered to this campaign's storylines.
-            beats: (beats.data || []).filter(b => storylineIds.has(b.storyline_id)),
+            // filtered to this campaign's chapters.
+            beats: (beats.data || []).filter(b => chapterIds.has(b.chapter_id)),
             checks: checks.data || [],
             areas: areas.data || [],
             npcs: npcs.data || [],
@@ -178,7 +182,7 @@
             </div>
             <div class="chipline wrap">
                 <div class="chip">${d.members.filter(m => m.status === 'active').length}<span>PARTY</span></div>
-                <div class="chip">${d.storylines.length}<span>STORYLINES</span></div>
+                <div class="chip">${d.chapters.length}<span>STORYLINES</span></div>
                 <div class="chip">${d.areas.length}<span>AREAS</span></div>
                 <div class="chip">${d.npcs.length}<span>NPCS</span></div>
                 <div class="chip">${d.monsters.length}<span>MONSTERS</span></div>
@@ -342,7 +346,7 @@
     };
 
     // ========================================
-    // Storylines
+    // Chapters
     // ========================================
 
     const SKILL_NAMES = ['Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
@@ -352,31 +356,43 @@
 
     // campaign_checks can hang off a beat, an area, an NPC or an encounter --
     // exactly one, enforced by check constraint. The caller says which.
-    window.newCheck = (parentColumn, parentId, contextLabel) => {
+    // One form for creating and editing a check, so the two can never drift
+    // apart on which fields exist or how a type maps onto them.
+    function checkForm({ title, submitLabel, check, onSave }) {
+        const current = check || {};
         openModal({
-            title: `New check — ${contextLabel}`,
-            submitLabel: 'Add check',
+            title,
+            submitLabel,
             fields: [
                 { name: 'label', label: 'What is being attempted', required: true,
-                  placeholder: 'Spot the tripwire' },
-                { name: 'check_type', label: 'Type', type: 'select', value: 'skill_check',
+                  placeholder: 'Spot the tripwire', value: current.label || '' },
+                { name: 'check_type', label: 'Type', type: 'select',
+                  value: current.check_type || 'skill_check',
                   options: [
                       { value: 'skill_check', label: 'Skill check' },
                       { value: 'ability_check', label: 'Ability check' },
                       { value: 'saving_throw', label: 'Saving throw' },
                       { value: 'contested', label: 'Contested' }
                   ] },
-                { name: 'skill_name', label: 'Skill (for a skill check)', type: 'select', value: 'Perception',
+                { name: 'skill_name', label: 'Skill (for a skill check)', type: 'select',
+                  value: current.skill_name || 'Perception',
                   options: SKILL_NAMES.map(n => ({ value: n, label: n })) },
-                { name: 'ability', label: 'Ability (for an ability check or save)', type: 'select', value: 'dex',
+                { name: 'ability', label: 'Ability (for an ability check or save)', type: 'select',
+                  value: current.ability || 'dex',
                   options: ABILITY_CODES.map(a => ({ value: a, label: a.toUpperCase() })) },
-                { name: 'dc', label: 'DC', type: 'number', value: 12, hint: 'Between 1 and 40.' },
-                { name: 'success_text', label: 'On a success', type: 'textarea', rows: 2 },
-                { name: 'failure_text', label: 'On a failure', type: 'textarea', rows: 2 },
+                { name: 'dc', label: 'DC', type: 'number', value: current.dc ?? 12,
+                  hint: 'Between 1 and 40.' },
+                { name: 'success_text', label: 'On a success', type: 'textarea', rows: 2,
+                  value: current.success_text || '',
+                  placeholder: 'They spot the wire and the trap never triggers.' },
+                { name: 'failure_text', label: 'On a failure', type: 'textarea', rows: 2,
+                  value: current.failure_text || '',
+                  placeholder: 'The wire snaps and the darts fire.' },
                 { name: 'is_secret', type: 'checkbox', label: '',
-                  checkboxLabel: 'Secret — you roll it, the party does not know', value: false },
+                  checkboxLabel: 'Secret — you roll it, the party does not know',
+                  value: !!current.is_secret },
                 { name: 'is_group_check', type: 'checkbox', label: '',
-                  checkboxLabel: 'Group check', value: false }
+                  checkboxLabel: 'Group check', value: !!current.is_group_check }
             ],
             onSubmit: async values => {
                 const dc = Number(values.dc);
@@ -385,10 +401,7 @@
                 }
                 // The shape constraint wants the field its type actually uses,
                 // and nothing else, so a stale select never lands in the row.
-                const payload = {
-                    campaign_id: campaignId,
-                    game_world_id: session.gameWorldId,
-                    [parentColumn]: parentId,
+                await onSave({
                     label: values.label,
                     check_type: values.check_type,
                     dc,
@@ -398,12 +411,40 @@
                     success_text: values.success_text || null,
                     failure_text: values.failure_text || null,
                     is_secret: values.is_secret,
-                    is_group_check: values.is_group_check,
-                    sort_order: d.checks.length
-                };
-                const { error } = await db.from('campaign_checks').insert(payload);
-                if (error) throw new Error(error.message || 'Could not add that check.');
+                    is_group_check: values.is_group_check
+                });
                 await refresh();
+            }
+        });
+    }
+
+    window.newCheck = (parentColumn, parentId, contextLabel) => {
+        checkForm({
+            title: `New check — ${contextLabel}`,
+            submitLabel: 'Add check',
+            onSave: async payload => {
+                const { error } = await db.from('campaign_checks').insert({
+                    campaign_id: campaignId,
+                    game_world_id: session.gameWorldId,
+                    [parentColumn]: parentId,
+                    sort_order: d.checks.length,
+                    ...payload
+                });
+                if (error) throw new Error(error.message || 'Could not add that check.');
+            }
+        });
+    };
+
+    window.editCheck = id => {
+        const check = d.checks.find(k => k.id === id);
+        if (!check) return;
+        checkForm({
+            title: `Edit — ${check.label}`,
+            submitLabel: 'Save check',
+            check,
+            onSave: async payload => {
+                const { error } = await db.from('campaign_checks').update(payload).eq('id', id);
+                if (error) throw new Error(error.message || 'Could not save that check.');
             }
         });
     };
@@ -414,52 +455,67 @@
         }
     };
 
+    // success_text and failure_text were collected by the form, stored, and
+    // never shown -- which is the whole reason you write one down.
     function checkRow(check) {
         const what = check.check_type === 'skill_check'
             ? check.skill_name
             : (check.ability || '').toUpperCase();
         const kind = check.check_type === 'saving_throw' ? 'save' : 'check';
+        const outcomes = [
+            ['pass', 'On a success', check.success_text],
+            ['fail', 'On a failure', check.failure_text]
+        ].filter(([, , text]) => text && String(text).trim());
+
         return `
-            <div class="check-row">
-                <span class="dc">DC ${check.dc}</span>
-                <span>${escapeHtml(what || '')} ${kind}</span>
-                <span style="flex:1;min-width:0;color:var(--text-tertiary)">${escapeHtml(check.label)}</span>
-                ${check.is_secret ? '<span class="hidden-pill">secret</span>' : ''}
-                ${isDM ? `<button class="btn btn-quiet btn-tiny"
-                                  onclick="deleteCheck('${check.id}')">Remove</button>` : ''}
+            <div class="check-block">
+                <div class="check-row">
+                    <span class="dc">DC ${check.dc}</span>
+                    <span>${escapeHtml(what || '')} ${kind}</span>
+                    <span style="flex:1;min-width:0;color:var(--text-tertiary)">${escapeHtml(check.label)}</span>
+                    ${check.is_group_check ? '<span class="hidden-pill">group</span>' : ''}
+                    ${check.is_secret ? '<span class="hidden-pill">secret</span>' : ''}
+                    ${isDM ? `<button class="btn btn-quiet btn-tiny"
+                                      onclick="editCheck('${check.id}')">Edit</button>` : ''}
+                </div>
+                ${outcomes.map(([tone, label, text]) => `
+                    <div class="outcome is-${tone}">
+                        <span class="eyebrow">${label}</span>
+                        <span>${escapeHtml(text)}</span>
+                    </div>`).join('')}
             </div>`;
     }
 
-    function storylinesTab() {
-        if (!d.storylines.length) {
+    function chaptersTab() {
+        if (!d.chapters.length) {
             return `<div class="empty-state">
-                        <h3>No storylines yet</h3>
-                        <p>${isDM ? 'A storyline holds ordered beats, each with its own read-aloud text, DM notes and check requirements.'
+                        <h3>No chapters yet</h3>
+                        <p>${isDM ? 'A chapter holds ordered beats, each with its own read-aloud text, DM notes and check requirements.'
                                   : 'Nothing has been revealed yet.'}</p>
-                        ${isDM ? '<button class="btn btn-accent" onclick="newStoryline()">New storyline</button>' : ''}
+                        ${isDM ? '<button class="btn btn-accent" onclick="newChapter()">New chapter</button>' : ''}
                     </div>`;
         }
 
         return `
             <div class="section-head">
-                <span class="eyebrow">Storylines</span><span class="rule"></span>
-                ${isDM ? '<button class="btn btn-quiet btn-tiny" onclick="newStoryline()">New</button>' : ''}
+                <span class="eyebrow">Chapters</span><span class="rule"></span>
+                ${isDM ? '<button class="btn btn-quiet btn-tiny" onclick="newChapter()">New</button>' : ''}
             </div>
-            ${d.storylines.map(s => {
-                const beats = d.beats.filter(b => b.storyline_id === s.id);
+            ${d.chapters.map(s => {
+                const beats = d.beats.filter(b => b.chapter_id === s.id);
                 return `
-                    <div class="campaign-card" data-holdable data-kind="storyline"
+                    <div class="campaign-card" data-holdable data-kind="chapter"
                          data-id="${escapeHtml(s.id)}" style="cursor:default">
                         <div class="head">
                             <h3>${escapeHtml(s.title)}</h3>
                             <span class="status-pill is-${escapeHtml(s.status)}">${escapeHtml(s.status)}</span>
-                            ${revealToggle('storylines', s, 'is_revealed', 'Visible', 'Hidden')}
+                            ${revealToggle('chapters', s, 'is_revealed', 'Visible', 'Hidden')}
                         </div>
-                        ${s.player_summary ? `<p class="summary">${escapeHtml(s.player_summary)}</p>` : ''}
-                        ${isDM && s.body ? `<p class="prose">${escapeHtml(s.body)}</p>` : ''}
+                        ${s.player_summary ? `<p class="prose">${escapeHtml(s.player_summary)}</p>` : ''}
+                        ${dmNoteBlock('chapter_id', s.id, s.title)}
                         <div class="beat-list">
                             ${beats.map(b => {
-                                const bChecks = d.checks.filter(k => k.storyline_beat_id === b.id);
+                                const bChecks = d.checks.filter(k => k.chapter_beat_id === b.id);
                                 return `
                                     <div class="list-row" data-holdable data-kind="beat" data-id="${escapeHtml(b.id)}"
                                          style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
@@ -468,10 +524,10 @@
                                                 <div class="name">${escapeHtml(b.title)}</div>
                                                 <div class="meta">${escapeHtml(b.status)}</div>
                                             </div>
-                                            ${revealToggle('storyline_beats', b, 'is_revealed', 'Visible', 'Hidden')}
+                                            ${revealToggle('chapter_beats', b, 'is_revealed', 'Visible', 'Hidden')}
                                         </div>
                                         ${b.read_aloud ? `<p class="prose">${escapeHtml(b.read_aloud)}</p>` : ''}
-                                        ${d.encounters.filter(e => e.storyline_beat_id === b.id).map(e => `
+                                        ${d.encounters.filter(e => e.chapter_beat_id === b.id).map(e => `
                                             <a class="check-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}">
                                                 <span class="dc">ENCOUNTER</span>
                                                 <span style="flex:1;min-width:0">${escapeHtml(e.name)}</span>
@@ -481,9 +537,9 @@
                                             </a>`).join('')}
                                         ${bChecks.map(checkRow).join('')}
                                         ${isDM ? `<button class="btn btn-quiet btn-tiny" style="align-self:flex-start"
-                                                    onclick="newCheck('storyline_beat_id','${b.id}',${
+                                                    onclick="newCheck('chapter_beat_id','${b.id}',${
                                                         JSON.stringify(b.title).replace(/"/g, '&quot;')})">Add check</button>` : ''}
-                                        ${dmNoteBlock('storyline_beat_id', b.id, b.title)}
+                                        ${dmNoteBlock('chapter_beat_id', b.id, b.title)}
                                     </div>`;
                             }).join('')}
                             ${isDM ? `<button class="btn btn-quiet btn-tiny" style="align-self:flex-start"
@@ -493,47 +549,116 @@
             }).join('')}`;
     }
 
-    window.newStoryline = () => {
+    window.newChapter = () => {
         openModal({
-            title: 'New storyline',
+            title: 'New chapter',
             submitLabel: 'Create',
             fields: [
                 { name: 'title', label: 'Title', required: true },
-                { name: 'player_summary', label: 'What the party knows', type: 'textarea', rows: 3 },
-                { name: 'body', label: 'Your notes on it', type: 'textarea', rows: 5,
-                  hint: 'DM-facing. Hidden from players while the storyline is hidden.' },
+                { name: 'player_summary', label: 'What the party knows', type: 'textarea', rows: 3,
+                  hint: 'Players can read this once the chapter is revealed. Your own notes go in the DM note below it.' },
                 { name: 'is_revealed', type: 'checkbox', label: '', checkboxLabel: 'Visible to players', value: false }
             ],
             onSubmit: async values => {
-                await run(db.from('storylines').insert({
+                await run(db.from('chapters').insert({
                     campaign_id: campaignId, game_world_id: session.gameWorldId,
                     title: values.title, player_summary: values.player_summary || null,
-                    body: values.body || null, is_revealed: values.is_revealed,
-                    sort_order: d.storylines.length
-                }), 'Could not create the storyline.');
+                    is_revealed: values.is_revealed,
+                    sort_order: d.chapters.length
+                }), 'Could not create the chapter.');
                 await refresh();
             }
         });
     };
 
-    window.newBeat = storylineId => {
+    window.editChapter = id => {
+        const chapter = d.chapters.find(c => c.id === id);
+        if (!chapter) return;
+        openModal({
+            title: `Edit ${chapter.title}`,
+            submitLabel: 'Save chapter',
+            fields: [
+                { name: 'title', label: 'Title', required: true, value: chapter.title },
+                { name: 'player_summary', label: 'What the party knows', type: 'textarea', rows: 4,
+                  value: chapter.player_summary || '',
+                  hint: 'Players can read this once the chapter is revealed.' },
+                { name: 'status', label: 'Status', type: 'select', value: chapter.status,
+                  options: CHAPTER_STATUSES.map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) }
+            ],
+            onSubmit: async values => {
+                const { error } = await db.from('chapters').update({
+                    title: values.title,
+                    player_summary: values.player_summary || null,
+                    status: values.status
+                }).eq('id', id);
+                if (error) throw new Error(error.message || 'Could not save the chapter.');
+                await refresh();
+            }
+        });
+    };
+
+    window.editBeat = id => {
+        const beat = d.beats.find(b => b.id === id);
+        if (!beat) return;
+        openModal({
+            title: `Edit ${beat.title}`,
+            submitLabel: 'Save beat',
+            fields: [
+                { name: 'title', label: 'Title', required: true, value: beat.title },
+                { name: 'read_aloud', label: 'Read-aloud text', type: 'textarea', rows: 4,
+                  value: beat.read_aloud || '',
+                  hint: 'Players see this once the beat is revealed.' },
+                { name: 'status', label: 'Status', type: 'select', value: beat.status,
+                  options: BEAT_STATUSES.map(v => ({
+                      value: v, label: v[0].toUpperCase() + v.slice(1).replace(/_/g, ' ') })) }
+            ],
+            onSubmit: async values => {
+                const { error } = await db.from('chapter_beats').update({
+                    title: values.title,
+                    read_aloud: values.read_aloud || null,
+                    status: values.status
+                }).eq('id', id);
+                if (error) throw new Error(error.message || 'Could not save the beat.');
+                await refresh();
+            }
+        });
+    };
+
+    window.newBeat = chapterId => {
         openModal({
             title: 'New beat',
             submitLabel: 'Add beat',
             fields: [
                 { name: 'title', label: 'Title', required: true },
-                { name: 'read_aloud', label: 'Read-aloud text', type: 'textarea', rows: 4 },
-                { name: 'body', label: 'Your notes', type: 'textarea', rows: 4 },
+                { name: 'read_aloud', label: 'Read-aloud text', type: 'textarea', rows: 4,
+                  hint: 'Players see this once the beat is revealed.' },
+                { name: 'note', label: 'Your notes', type: 'textarea', rows: 4,
+                  hint: 'Kept in the DM notes table, which players cannot read at all.' },
                 { name: 'is_revealed', type: 'checkbox', label: '', checkboxLabel: 'Visible to players', value: false }
             ],
             onSubmit: async values => {
-                const siblings = d.beats.filter(b => b.storyline_id === storylineId);
-                await run(db.from('storyline_beats').insert({
-                    storyline_id: storylineId, game_world_id: session.gameWorldId,
+                const siblings = d.beats.filter(b => b.chapter_id === chapterId);
+                // The note goes to dm_notes rather than a column on the beat:
+                // player_read on chapter_beats is USING (is_revealed), a row
+                // filter, so a revealed beat would hand its columns over.
+                const { data: beat, error } = await db.from('chapter_beats').insert({
+                    chapter_id: chapterId, game_world_id: session.gameWorldId,
                     title: values.title, read_aloud: values.read_aloud || null,
-                    body: values.body || null, is_revealed: values.is_revealed,
+                    is_revealed: values.is_revealed,
                     sort_order: siblings.length
-                }), 'Could not add the beat.');
+                }).select('id').single();
+
+                if (error || !beat) {
+                    console.error('Could not add the beat.', error);
+                    toast('Could not add the beat.', 'error');
+                    return;
+                }
+                if (values.note) {
+                    await run(db.from('dm_notes').insert({
+                        game_world_id: session.gameWorldId,
+                        chapter_beat_id: beat.id, body: values.note
+                    }), 'The beat was added, but its note was not saved.');
+                }
                 await refresh();
             }
         });
@@ -689,10 +814,15 @@
         if (!d.monsters.length) {
             return `<div class="empty-state">
                         <h3>No monsters in this campaign</h3>
-                        <p>The roster is filled from the Compendium, which is not built yet. It will add SRD monsters by reference and let you author homebrew stat blocks.</p>
+                        <p>${isDM
+                            ? 'Add creatures here to build the roster an encounter draws from. The tracker can also pull straight from the SRD mid-fight.'
+                            : 'Your DM has not put anything on the roster yet.'}</p>
+                        ${isDM ? '<button class="btn btn-accent" onclick="addMonster()">Add a monster</button>' : ''}
                     </div>`;
         }
-        return `<div class="stack">${d.monsters.map(m => `
+        return `
+            ${sectionHead('Roster', isDM ? 'addMonster()' : null)}
+            <div class="stack">${d.monsters.map(m => `
             <div class="list-row" data-holdable data-kind="monster" data-id="${escapeHtml(m.id)}" style="cursor:default">
                 <div class="who">
                     <div class="name">${escapeHtml(m.name)}</div>
@@ -700,8 +830,69 @@
                         m.challenge_rating !== null && m.challenge_rating !== undefined ? ` · CR ${m.challenge_rating}` : ''}</div>
                 </div>
                 <div class="mono lvl">${m.max_hit_points ?? '—'} HP</div>
-            </div>`).join('')}</div>`;
+            </div>`).join('')}</div>
+            ${isDM ? '<p class="hint">Hold a monster (or right-click) to take it off the roster.</p>' : ''}`;
     }
+
+    // The campaign screens had no section header helper; the sheet's shape is
+    // the one people already know from the other tabs.
+    function sectionHead(label, addCall) {
+        return `
+            <div class="section-head">
+                <span class="eyebrow">${escapeHtml(label)}</span>
+                <span class="rule"></span>
+                ${addCall ? `<button class="btn btn-quiet btn-tiny" onclick="${addCall}">Add</button>` : ''}
+            </div>`;
+    }
+
+    // Search the SRD and put the result on this campaign's roster. The same
+    // shape the tracker uses, so a monster reaches the roster from either end.
+    window.addMonster = () => {
+        openSrdForm({
+            title: 'Add a monster to the roster',
+            which: 'monsters',
+            submitLabel: 'Add to roster',
+            toValues: monster => ({
+                name: monster.name,
+                max_hit_points: monster.hit_points ?? null,
+                armor_class: srdArmorClass(monster.armor_class),
+                challenge_rating: monster.challenge_rating ?? null,
+                creature_type: monster.type || '',
+                api_index: monster.index || ''
+            }),
+            fields: [
+                { name: 'name', label: 'Name', required: true,
+                  hint: 'Rename it for an elite variant; the SRD entry stays untouched.' },
+                { name: 'max_hit_points', label: 'Hit points', type: 'number' },
+                { name: 'armor_class', label: 'Armor class', type: 'number' },
+                { name: 'challenge_rating', label: 'Challenge rating', type: 'number' },
+                { name: 'creature_type', label: 'Type', placeholder: 'humanoid, beast, undead…' },
+                { name: 'api_index', label: '', type: 'hidden' }
+            ],
+            onSubmit: async values => {
+                const { error } = await db.from('campaign_monsters').insert({
+                    campaign_id: campaignId,
+                    game_world_id: session.gameWorldId,
+                    name: values.name,
+                    // Anything typed in without picking an SRD entry is
+                    // homebrew, and the source column is constrained to say so.
+                    source: values.api_index ? 'srd_api' : 'homebrew',
+                    api_index: values.api_index || null,
+                    statblock: values.api_index ? null : {
+                        name: values.name,
+                        armor_class: values.armor_class,
+                        hit_points: values.max_hit_points
+                    },
+                    challenge_rating: values.challenge_rating,
+                    creature_type: values.creature_type || null,
+                    armor_class: values.armor_class,
+                    max_hit_points: values.max_hit_points
+                });
+                if (error) throw new Error(error.message || 'Could not add that monster.');
+                await refresh();
+            }
+        });
+    };
 
     function encountersTab() {
         if (!d.encounters.length) {
@@ -752,14 +943,14 @@
         });
     };
 
-    // Deleting a campaign takes its storylines, areas, NPCs, monsters,
+    // Deleting a campaign takes its chapters, areas, NPCs, monsters,
     // encounters and sessions with it, by cascade. The confirmation says so and
     // counts them, because "delete campaign" does not look like it means all
     // of that.
     window.deleteCampaign = () => {
         const cm = d.campaign;
         const owned = [
-            [d.storylines.length, 'storyline'],
+            [d.chapters.length, 'chapter'],
             [d.areas.length, 'area'],
             [d.npcs.length, 'NPC'],
             [d.monsters.length, 'monster'],
@@ -798,7 +989,7 @@
     function tabBody() {
         switch (activeTab) {
             case 'party':      return partyTab();
-            case 'storylines': return storylinesTab();
+            case 'chapters': return chaptersTab();
             case 'areas':      return areasTab();
             case 'npcs':       return npcsTab();
             case 'monsters':   return monstersTab();
@@ -810,7 +1001,7 @@
     function tabCount(id) {
         switch (id) {
             case 'party':      return d.members.filter(m => m.status === 'active').length;
-            case 'storylines': return d.storylines.length;
+            case 'chapters': return d.chapters.length;
             case 'areas':      return d.areas.length;
             case 'npcs':       return d.npcs.length;
             case 'monsters':   return d.monsters.length;
@@ -859,7 +1050,7 @@
     // own. Only a DM gets a menu: everything on it writes.
     // ========================================
 
-    // Storylines, beats, areas, NPCs and roster monsters all delete the same
+    // Chapters, beats, areas, NPCs and roster monsters all delete the same
     // way -- one row, by id, then redraw.
     async function deleteRow(table, id, title, message) {
         confirmModal({
@@ -897,19 +1088,23 @@
                 };
             }
 
-            case 'storyline': {
-                const st = d.storylines.find(x => x.id === id);
+            case 'chapter': {
+                const st = d.chapters.find(x => x.id === id);
                 if (!st) return null;
-                const beats = d.beats.filter(b => b.storyline_id === st.id).length;
+                const beats = d.beats.filter(b => b.chapter_id === st.id).length;
                 return {
                     title: st.title,
                     actions: [
+                        { label: 'Edit', hint: 'Title, summary and status',
+                          run: () => window.editChapter(st.id) },
                         { label: st.is_revealed ? 'Hide from players' : 'Reveal to players',
-                          run: () => window.toggleReveal('storylines', st.id, 'is_revealed', st.is_revealed) },
+                          run: () => window.toggleReveal('chapters', st.id, 'is_revealed', st.is_revealed) },
                         { label: 'Add a beat', run: () => window.newBeat(st.id) },
                         { label: 'Delete', danger: true,
-                          hint: beats ? `Its ${beats} beat${beats === 1 ? '' : 's'} go too` : 'It has no beats yet',
-                          run: () => deleteRow('storylines', st.id, `Delete ${st.title}`,
+                          hint: beats
+                              ? `Its ${beats} beat${beats === 1 ? '' : 's'} ${beats === 1 ? 'goes' : 'go'} too`
+                              : 'It has no beats yet',
+                          run: () => deleteRow('chapters', st.id, `Delete ${st.title}`,
                               (beats ? `This also deletes its ${beats} beat${beats === 1 ? '' : 's'} and their checks. `
                                      : 'It has no beats yet. ') + 'This cannot be undone.') }
                     ]
@@ -919,16 +1114,20 @@
             case 'beat': {
                 const beat = d.beats.find(b => b.id === id);
                 if (!beat) return null;
-                const checks = d.checks.filter(k => k.storyline_beat_id === beat.id).length;
+                const checks = d.checks.filter(k => k.chapter_beat_id === beat.id).length;
                 return {
                     title: beat.title,
                     actions: [
+                        { label: 'Edit', hint: 'Title, read-aloud text and status',
+                          run: () => window.editBeat(beat.id) },
                         { label: beat.is_revealed ? 'Hide from players' : 'Reveal to players',
-                          run: () => window.toggleReveal('storyline_beats', beat.id, 'is_revealed', beat.is_revealed) },
-                        { label: 'Add a check', run: () => window.newCheck('storyline_beat_id', beat.id, beat.title) },
+                          run: () => window.toggleReveal('chapter_beats', beat.id, 'is_revealed', beat.is_revealed) },
+                        { label: 'Add a check', run: () => window.newCheck('chapter_beat_id', beat.id, beat.title) },
                         { label: 'Delete', danger: true,
-                          hint: checks ? `Its ${checks} check${checks === 1 ? '' : 's'} go too` : undefined,
-                          run: () => deleteRow('storyline_beats', beat.id, `Delete ${beat.title}`,
+                          hint: checks
+                              ? `Its ${checks} check${checks === 1 ? '' : 's'} ${checks === 1 ? 'goes' : 'go'} too`
+                              : undefined,
+                          run: () => deleteRow('chapter_beats', beat.id, `Delete ${beat.title}`,
                               (checks ? `This also deletes its ${checks} check${checks === 1 ? '' : 's'}. ` : '')
                               + 'Any encounter linked to it stays, unlinked. This cannot be undone.') }
                     ]
@@ -948,7 +1147,9 @@
                         { label: 'Add an area inside', run: () => window.newArea(area.id) },
                         { label: 'Add a check', run: () => window.newCheck('area_id', area.id, area.name) },
                         { label: 'Delete', danger: true,
-                          hint: children ? `Its ${children} nested area${children === 1 ? '' : 's'} go too` : undefined,
+                          hint: children
+                              ? `Its ${children} nested area${children === 1 ? '' : 's'} ${children === 1 ? 'goes' : 'go'} too`
+                              : undefined,
                           run: () => deleteRow('areas', area.id, `Delete ${area.name}`,
                               (children ? `This also deletes the ${children} area${children === 1 ? '' : 's'} inside it. ` : '')
                               + (here ? `${here} NPC${here === 1 ? '' : 's'} placed here stay, without a location. ` : '')
