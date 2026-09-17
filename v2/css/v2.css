@@ -316,6 +316,35 @@ textarea:focus-visible,
   .modal { border-radius: var(--radius-xl); }
 }
 
+/* ---------- Legacy engine modal ----------
+   level-up-engine.js is shared with v1 and builds its own overlay: a .modal
+   wrapping .modal-backdrop + .modal-content, where v2's .modal IS the card.
+   Restyling that shape here is what lets the shared file stay untouched.
+   Every custom property it uses is already an Ember token. */
+.modal:has(> .modal-backdrop) {
+  position: fixed; inset: 0; z-index: 320; display: flex;
+  align-items: center; justify-content: center; padding: var(--space-md);
+  width: auto; max-width: none; max-height: none; overflow: visible;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+}
+.modal > .modal-backdrop { position: absolute; inset: 0; background: rgba(10, 7, 5, .6); }
+.modal > .modal-content {
+  position: relative; width: 100%; max-height: 88vh; overflow: auto;
+  padding: var(--space-md);
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+}
+.modal > .modal-content h2 {
+  font-family: var(--font-display); font-size: var(--fs-19); font-weight: 700;
+}
+.modal > .modal-content label { min-width: 0; }
+.modal > .modal-content .btn-primary {
+  padding: 10px 18px; border-radius: var(--radius-md); border: 0; cursor: pointer;
+  font: inherit; font-weight: 600;
+  background: var(--accent-primary); color: var(--bg-primary);
+}
+.modal > .modal-content .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
 /* ---------- Campaign detail ---------- */
 .campaign-head { display: flex; flex-direction: column; gap: var(--space-6); }
 .campaign-head .title-row { display: flex; align-items: center; gap: var(--space-sm); }
@@ -449,8 +478,15 @@ a.list-row, a.list-row:hover,
 .fab:hover { background: var(--accent-primary-hover); }
 .fab-wrap.open .fab { transform: rotate(45deg); }
 
+/* One panel, not a stack of pills. Each pill sized itself to its own label,
+   so ten actions read as ten unrelated bubbles of ten different widths. */
 .fab-menu {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  display: flex; flex-direction: column; align-items: stretch;
+  width: 232px; max-width: calc(100vw - var(--space-md) * 2);
+  max-height: min(60vh, 460px); overflow-y: auto;
+  padding: var(--space-6); border-radius: var(--radius-lg);
+  background: var(--bg-secondary); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
   /* visibility, not opacity alone: a transparent menu still sits in the tab
      order and the accessibility tree. Delaying it keeps the fade on close. */
   opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px);
@@ -463,21 +499,32 @@ a.list-row, a.list-row:hover,
               visibility 0s linear 0s;
 }
 .fab-item {
-  padding: 10px 16px; border-radius: var(--radius-full);
-  background: var(--bg-secondary); border: 1px solid var(--border-strong);
+  display: block; width: 100%; text-align: left;
+  padding: 11px 12px; border-radius: var(--radius-sm);
+  background: transparent; border: 0; box-shadow: none;
   color: var(--text-primary); font: inherit; font-size: var(--fs-13); font-weight: 500;
-  box-shadow: var(--shadow-md); cursor: pointer; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.fab-item.is-primary { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--accent-on); font-weight: 600; }
+/* A hairline between rows, but not above the first: a panel with a line
+   across its top edge looks like a rendering fault. */
+.fab-item + .fab-item { box-shadow: inset 0 1px 0 var(--border-subtle); border-radius: 0; }
+.fab-item + .fab-item:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+.fab-item.is-primary { color: var(--accent-primary); font-weight: 700; }
 .fab-item:hover { background: var(--bg-hover); }
-.fab-item.is-primary:hover { background: var(--accent-primary-hover); }
+.fab-item.is-primary:hover { background: var(--bg-hover); }
 
 /* The sheet and tracker have their own bottom furniture to clear. */
 .sheet-page ~ .fab-wrap, .fab-wrap.above-tabs { bottom: calc(var(--tab-bar-height) + var(--space-md)); }
 
+.topbar-actions { display: contents; }
+
 @media (min-width: 900px) {
-  /* Above the breakpoint the topbar already shows these. */
+  /* Above the breakpoint the topbar already shows these -- unless there are
+     too many to sit in a row, in which case the + button carries them here
+     too and the topbar shows none. */
   .fab-wrap { display: none; }
+  .fab-wrap.is-compact { display: flex; }
+  .topbar-actions.is-collapsed { display: none; }
 }
 
 /* 3. Compendium on a phone: the detail sat under a list of a hundred-plus rows,
@@ -613,4 +660,203 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
   padding: var(--space-md); user-select: all;
   background: var(--bg-tertiary); border: 1px dashed var(--border-strong);
   border-radius: var(--radius-lg);
+}
+
+/* ---------- Creation / level-up wizard ----------
+   Both wizards share this. Every step is sized to fit a 390px screen without
+   the controls themselves scrolling, which is the whole reason v2 steps the
+   form rather than repeating v1's single long page. */
+.wizard { display: flex; flex-direction: column; gap: var(--space-md); }
+.wizard-body { display: flex; flex-direction: column; gap: var(--space-14); min-width: 0; }
+
+.wizard-steps {
+  display: flex; align-items: center; gap: var(--space-6);
+  list-style: none; margin: 0; padding: 0; min-width: 0;
+}
+.wizard-steps li {
+  display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;
+  font-size: var(--fs-11); color: var(--text-tertiary);
+}
+.wizard-steps li .dot {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: var(--fs-11); font-weight: 600;
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+}
+.wizard-steps li .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wizard-steps li.is-current { color: var(--text-primary); font-weight: 600; }
+.wizard-steps li.is-current .dot { background: var(--accent-primary); color: var(--bg-primary); border-color: transparent; }
+.wizard-steps li.is-done .dot { background: var(--bg-tertiary); color: var(--accent-primary); border-color: var(--accent-primary); }
+/* Below the breakpoint only the current step is named; the dots carry the
+   rest, which keeps four steps on one line at 390px. */
+@media (max-width: 560px) {
+  .wizard-steps li:not(.is-current) { flex: none; }
+  .wizard-steps li:not(.is-current) .label { display: none; }
+}
+
+.wizard-nav { display: flex; gap: var(--space-sm); justify-content: flex-end; }
+.wizard-nav .btn { min-width: 96px; justify-content: center; }
+.wizard-blocker {
+  font-size: var(--fs-12); color: var(--text-secondary);
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+}
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); min-width: 0; }
+.form-row > * { min-width: 0; }
+@media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
+
+.method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); min-width: 0; }
+@media (max-width: 460px) { .method-grid { grid-template-columns: 1fr; } }
+.method-tile {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  min-width: 0; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle); color: inherit; font: inherit;
+}
+.method-tile .title { font-weight: 600; font-size: var(--fs-13); }
+.method-tile .blurb { font-size: var(--fs-11); color: var(--text-tertiary); }
+.method-tile.is-on { border-color: var(--accent-primary); background: var(--bg-secondary); }
+
+.ability-assign { display: flex; flex-direction: column; gap: var(--space-6); }
+.ability-assign-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center; gap: var(--space-sm); min-width: 0;
+  padding: 8px 10px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+}
+.ability-assign-row .ab { font-size: var(--fs-11); color: var(--text-tertiary); font-weight: 600; }
+.ability-assign-row select, .ability-assign-row input {
+  width: 100%; min-width: 0; padding: 7px 9px; border-radius: var(--radius-sm);
+  background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+  color: var(--text-primary); font: inherit;
+}
+.score-readout { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.score-readout .racial { font-size: var(--fs-11); color: var(--accent-primary); }
+.score-readout .total { font-size: var(--fs-16); font-weight: 700; }
+.score-readout .mod { font-size: var(--fs-11); color: var(--text-tertiary); }
+
+.stepper { display: flex; align-items: center; gap: var(--space-6); }
+.stepper button {
+  flex: none; width: 34px; height: 34px; border-radius: var(--radius-sm);
+  background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+  color: var(--text-primary); font: inherit; font-size: var(--fs-16); cursor: pointer;
+}
+.stepper button:disabled { opacity: .35; cursor: not-allowed; }
+.stepper .val { min-width: 2ch; text-align: center; font-size: var(--fs-16); font-weight: 700; }
+
+.budget {
+  font-size: var(--fs-12); color: var(--text-secondary);
+  padding: 8px 12px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+}
+.budget .mono { font-size: var(--fs-16); font-weight: 700; color: var(--text-primary); }
+.budget.is-over { border-color: var(--danger); }
+.budget.is-over .mono { color: var(--danger); }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: var(--space-6); }
+.chip-row .chip {
+  cursor: pointer; padding: 7px 12px; border-radius: 999px;
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+  color: var(--text-secondary); font: inherit; font-size: var(--fs-12);
+}
+.chip-row .chip.is-on { border-color: var(--accent-primary); color: var(--text-primary); }
+
+.review-head h3 { font-family: var(--font-display); font-size: var(--fs-21); font-weight: 700; }
+.review-head .meta { font-size: var(--fs-12); color: var(--text-tertiary); margin-top: 2px; }
+.review-scores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+@media (max-width: 460px) { .review-scores { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.review-score {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  padding: 10px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+}
+.review-score .ab { font-size: var(--fs-9); color: var(--text-tertiary); font-weight: 600; }
+.review-score .total { font-size: var(--fs-21); font-weight: 700; line-height: 1.1; }
+.review-score .mod { font-size: var(--fs-11); color: var(--text-secondary); }
+.review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+@media (max-width: 460px) { .review-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.review-grid > div {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  padding: 10px; border-radius: var(--radius-md); background: var(--bg-tertiary);
+}
+.review-grid .k { font-size: var(--fs-9); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+.review-grid .v { font-size: var(--fs-16); font-weight: 700; }
+
+.pick-list { display: flex; flex-direction: column; gap: var(--space-6); }
+.pick-row {
+  display: flex; flex-direction: column; gap: 1px; align-items: flex-start;
+  min-width: 0; text-align: left; cursor: pointer; width: 100%;
+  padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle); color: inherit; font: inherit;
+}
+.pick-row .name { font-weight: 600; font-size: var(--fs-14); }
+.pick-row .meta { font-size: var(--fs-11); color: var(--text-tertiary); text-transform: capitalize; }
+.pick-row.is-on { border-color: var(--accent-primary); background: var(--bg-secondary); }
+
+/* ---------- Level-up ---------- */
+.levelup-banner {
+  display: flex; align-items: center; gap: var(--space-sm); width: 100%;
+  text-align: left; cursor: pointer; font: inherit; color: inherit;
+  padding: 12px 14px; margin-bottom: var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--accent-primary);
+}
+.levelup-banner .body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.levelup-banner .title { font-weight: 700; font-size: var(--fs-14); }
+.levelup-banner .meta {
+  font-size: var(--fs-11); color: var(--text-tertiary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.levelup-banner .go { margin-left: auto; color: var(--accent-primary); font-size: var(--fs-17); }
+
+.hp-choice-row {
+  display: flex; align-items: center; gap: var(--space-sm); min-width: 0; flex-wrap: wrap;
+  padding: 10px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+}
+.hp-choice-row .ab { font-size: var(--fs-11); color: var(--text-tertiary); font-weight: 600; flex: none; }
+.hp-choice-actions { display: flex; gap: var(--space-6); margin-left: auto; min-width: 0; }
+.hp-choice-actions .btn { padding: 7px 12px; font-size: var(--fs-12); white-space: nowrap; }
+
+.asi-block { display: flex; flex-direction: column; gap: var(--space-sm); }
+.asi-block + .asi-block { margin-top: var(--space-md); }
+
+.seg { display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-md); background: var(--bg-tertiary); }
+.seg button {
+  flex: 1; min-width: 0; padding: 8px 10px; cursor: pointer; font: inherit;
+  font-size: var(--fs-12); font-weight: 600; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-tertiary);
+}
+.seg button.is-on { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* ---------- Press-and-hold card menus ----------
+   The card is the control, so it must not offer iOS's own selection callout
+   or leave text highlighted behind the menu that opens. */
+.holdable, .holdable * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Inputs inside a holdable list still need selection and a caret. */
+.holdable input, .holdable textarea, .holdable select {
+  -webkit-user-select: auto; user-select: auto;
+}
+
+.card-menu { display: flex; flex-direction: column; gap: 2px; }
+.card-menu-item {
+  display: flex; flex-direction: column; gap: 1px; align-items: flex-start;
+  width: 100%; text-align: left; min-width: 0; cursor: pointer;
+  padding: 13px 14px; border-radius: var(--radius-md);
+  background: transparent; border: 0; color: var(--text-primary);
+  font: inherit; font-size: var(--fs-14);
+}
+.card-menu-item:hover { background: var(--bg-hover); }
+.card-menu-item .label { font-weight: 600; }
+.card-menu-item .hint { font-size: var(--fs-11); color: var(--text-tertiary); }
+.card-menu-item.is-danger .label { color: var(--danger); }
+
+/* A hint that the gesture exists, for the pointer that can hover. */
+@media (hover: hover) {
+  .holdable [data-holdable]:hover { cursor: context-menu; }
 }

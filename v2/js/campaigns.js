@@ -55,7 +55,8 @@
         ];
 
         return `
-            <a class="campaign-card" href="campaign.html?id=${encodeURIComponent(campaign.id)}">
+            <a class="campaign-card" href="campaign.html?id=${encodeURIComponent(campaign.id)}"
+               data-holdable data-id="${escapeHtml(campaign.id)}">
                 <div class="head">
                     <h3>${escapeHtml(campaign.name)}</h3>
                     ${data.live[campaign.id] ? '<span class="mono nav-count is-live">LIVE</span>' : ''}
@@ -98,6 +99,73 @@
         });
     };
 
+    // Editing and deleting a campaign lived only inside it. Holding a card is
+    // how you reach them from the list.
+    function cardMenu(card, data) {
+        const campaign = data.campaigns.find(c => c.id === card.dataset.id);
+        if (!campaign || !isDM) return null;
+
+        const href = `campaign.html?id=${encodeURIComponent(campaign.id)}`;
+        return {
+            title: campaign.name,
+            actions: [
+                { label: 'Open', hint: 'Storylines, areas, NPCs and encounters',
+                  run: () => { window.location.href = href; } },
+                { label: 'Edit', hint: 'Name, summary and status',
+                  run: () => editCampaign(campaign) },
+                { label: 'Delete', danger: true,
+                  hint: 'Its storylines, areas, NPCs and encounters go too',
+                  run: () => deleteCampaign(campaign) }
+            ]
+        };
+    }
+
+    function editCampaign(campaign) {
+        openModal({
+            title: `Edit ${campaign.name}`,
+            submitLabel: 'Save',
+            fields: [
+                { name: 'name', label: 'Name', required: true, value: campaign.name },
+                { name: 'summary', label: 'Summary', type: 'textarea', rows: 3,
+                  value: campaign.summary || '' },
+                { name: 'status', label: 'Status', type: 'select', value: campaign.status || 'active',
+                  options: STATUSES.map(s => ({ value: s, label: s[0].toUpperCase() + s.slice(1) })) }
+            ],
+            onSubmit: async values => {
+                const { error } = await db.from('campaigns').update({
+                    name: values.name, summary: values.summary || null, status: values.status
+                }).eq('id', campaign.id);
+                if (error) {
+                    if (error.code === '23505') throw new Error('A campaign in this world already has that name.');
+                    throw new Error(error.message || 'Could not save.');
+                }
+                await refresh();
+            }
+        });
+    }
+
+    // The list does not hold the campaign's contents, so unlike the detail
+    // page this cannot count what cascades. It names the kinds instead of
+    // guessing at numbers.
+    function deleteCampaign(campaign) {
+        confirmModal({
+            title: `Delete ${campaign.name}`,
+            message: 'This also deletes its storylines, areas, NPCs, monsters, encounters '
+                   + 'and session recaps. Characters leave the campaign but stay in the world. '
+                   + 'This cannot be undone.',
+            confirmLabel: 'Delete campaign',
+            onConfirm: async () => {
+                const { error } = await db.from('campaigns').delete().eq('id', campaign.id);
+                if (error) throw new Error(error.message || 'Could not delete the campaign.');
+                await refresh();
+            }
+        });
+    }
+
+    async function refresh() {
+        render(await load());
+    }
+
     function render(data) {
         renderShell({
             active: 'campaigns',
@@ -127,8 +195,12 @@
         }
 
         main.innerHTML = `
-            <div class="campaign-grid">${data.campaigns.map(cm => card(cm, data)).join('')}</div>
-            ${isDM ? '' : '<p class="hint">Some campaign material stays hidden until your DM reveals it.</p>'}`;
+            <div class="campaign-grid holdable">${data.campaigns.map(cm => card(cm, data)).join('')}</div>
+            ${isDM
+                ? '<p class="hint">Hold a campaign (or right-click) to edit or delete it.</p>'
+                : '<p class="hint">Some campaign material stays hidden until your DM reveals it.</p>'}`;
+
+        wireCardMenus('.campaign-grid', '.campaign-card', card => cardMenu(card, data));
     }
 
     (async function init() {

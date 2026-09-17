@@ -214,6 +214,7 @@ function characterCard(character) {
     return `
         <a class="character-card${character.pending_level_up ? ' is-flagged' : ''}"
            href="character-sheet.html?id=${encodeURIComponent(character.id)}"
+           data-holdable data-id="${escapeHtml(character.id)}"
            style="flex-direction:column;gap:var(--space-10)">
             <div class="card-top">
                 <div class="avatar">${escapeHtml((character.name || '?').charAt(0).toUpperCase())}</div>
@@ -391,19 +392,26 @@ function wireSideMenu() {
 // and as a floating button that flips up a menu below it.
 //
 // actions: [{ label, onclick?, href?, primary? }]
+// Above three, a row of buttons stops reading as a toolbar and starts reading
+// as clutter -- the tracker had ten. Past that the topbar collapses into the
+// same + menu the phone uses. A threshold rather than a per-page flag, so
+// adding an eleventh action cannot bring the problem back.
+const ACTION_CROWD_LIMIT = 3;
+
 function renderActions(actions) {
-    if (!actions || !actions.length) return { topbar: '', fab: '' };
+    if (!actions || !actions.length) return { topbar: '', fab: '', compact: false };
 
     const attrs = a => a.href
         ? `href="${a.href}"` : `onclick="${a.onclick}"`;
     const tag = a => a.href ? 'a' : 'button';
+    const compact = actions.length > ACTION_CROWD_LIMIT;
 
     const topbar = actions.map(a =>
         `<${tag(a)} class="btn ${a.primary ? 'btn-accent' : ''}" ${attrs(a)}>${escapeHtml(a.label)}</${tag(a)}>`
     ).join('');
 
     const fab = `
-        <div class="fab-wrap" id="fab-wrap">
+        <div class="fab-wrap${compact ? ' is-compact' : ''}" id="fab-wrap">
             <div class="fab-menu" id="fab-menu">
                 ${actions.map(a =>
                     `<${tag(a)} class="fab-item ${a.primary ? 'is-primary' : ''}" ${attrs(a)}>${escapeHtml(a.label)}</${tag(a)}>`
@@ -415,7 +423,7 @@ function renderActions(actions) {
             </button>
         </div>`;
 
-    return { topbar, fab };
+    return { topbar, fab, compact };
 }
 
 function wireFab() {
@@ -438,7 +446,7 @@ function wireFab() {
 // Builds the whole chrome for a page: sidebar, mobile header, drawer, topbar.
 function renderShell(options) {
     const { active, title, sub, topbarExtra, counts, actions } = options;
-    const { topbar, fab } = renderActions(actions);
+    const { topbar, fab, compact } = renderActions(actions);
     document.body.innerHTML = `
         <div class="app-shell">
             ${renderSidebar(active, counts)}
@@ -446,7 +454,10 @@ function renderShell(options) {
                 ${renderHeader(title, sub)}
                 <div class="topbar">
                     <h1>${escapeHtml(title)}</h1>
-                    <div class="spacer">${topbar}${topbarExtra || ''}</div>
+                    <div class="spacer">
+                        <div class="topbar-actions${compact ? ' is-collapsed' : ''}">${topbar}</div>
+                        ${topbarExtra || ''}
+                    </div>
                 </div>
                 <div class="main-content" id="main-content"></div>
             </div>
@@ -457,6 +468,143 @@ function renderShell(options) {
     wireFab();
     if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
     return $('#main-content');
+}
+
+// ========================================
+// Press-and-hold card menus
+//
+// Editing and deleting used to live only in a topbar or a row of small
+// buttons. On a phone the row crowds the card it belongs to, so instead the
+// card itself is the control: hold a finger on it, or right-click on a
+// desktop, and the actions for that one thing come up.
+//
+// Three things make or break the gesture:
+//   - a hold that survives a scroll is a trap, so any real movement cancels it
+//   - the browser fires a click after the touch ends, which would open the
+//     card behind the menu, so the next click is swallowed
+//   - iOS shows its own text-selection callout on a long press, which has to
+//     be suppressed on the elements that use this
+// ========================================
+
+const HOLD_MS = 450;
+const HOLD_SLOP_PX = 10;
+
+function openCardMenu(title, actions) {
+    const usable = (actions || []).filter(Boolean);
+    if (!usable.length) return;
+
+    openPanel({
+        title,
+        body: `<div class="card-menu">${usable.map((a, i) =>
+            `<button class="card-menu-item${a.danger ? ' is-danger' : ''}" data-card-action="${i}">
+                <span class="label">${escapeHtml(a.label)}</span>
+                ${a.hint ? `<span class="hint">${escapeHtml(a.hint)}</span>` : ''}
+            </button>`).join('')}</div>`,
+        onMount: host => {
+            $$('[data-card-action]', host).forEach(button => {
+                button.addEventListener('click', () => {
+                    const action = usable[Number(button.dataset.cardAction)];
+                    closeModal();
+                    // Let the dialog finish closing before the action opens
+                    // its own, otherwise the second one replaces the first
+                    // mid-teardown and the page is left scroll-locked.
+                    setTimeout(() => action.run(), 0);
+                });
+            });
+        }
+    });
+}
+
+// Delegated from a container, so a redraw never needs to re-bind anything.
+// `resolve` receives the card element and returns { title, actions } or null.
+function wireCardMenus(containerSelector, cardSelector, resolve) {
+    const container = $(containerSelector);
+    if (!container || container.dataset.holdWired === cardSelector) return;
+    container.dataset.holdWired = cardSelector;
+
+    let timer = null;
+    let origin = null;
+    let swallowClick = false;
+
+    const cancel = () => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        origin = null;
+    };
+
+    const fire = card => {
+        cancel();
+        const menu = resolve(card);
+        if (!menu) return;
+        swallowClick = true;
+        // A short buzz is the only feedback that the hold registered; without
+        // it people hold, see nothing, and let go early.
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+        openCardMenu(menu.title, menu.actions);
+    };
+
+    container.addEventListener('touchstart', e => {
+        const card = e.target.closest(cardSelector);
+        if (!card || !container.contains(card)) return;
+        const touch = e.touches[0];
+        origin = { x: touch.clientX, y: touch.clientY };
+        timer = setTimeout(() => fire(card), HOLD_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', e => {
+        if (!timer || !origin) return;
+        const touch = e.touches[0];
+        // A scroll starts as a touch on a card. Anything past a few pixels is
+        // the page moving, not someone holding still.
+        if (Math.abs(touch.clientX - origin.x) > HOLD_SLOP_PX ||
+            Math.abs(touch.clientY - origin.y) > HOLD_SLOP_PX) cancel();
+    }, { passive: true });
+
+    container.addEventListener('touchend', cancel, { passive: true });
+    container.addEventListener('touchcancel', cancel, { passive: true });
+    container.addEventListener('scroll', cancel, { passive: true });
+
+    // The click the browser synthesises after a long press would follow the
+    // card's own link or handler, opening the thing behind the menu.
+    container.addEventListener('click', e => {
+        if (!swallowClick) return;
+        swallowClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+    }, true);
+
+    // The desktop equivalent. Nothing here has a native context menu worth
+    // keeping, and a right-click is what someone reaches for anyway.
+    container.addEventListener('contextmenu', e => {
+        const card = e.target.closest(cardSelector);
+        if (!card || !container.contains(card)) return;
+        e.preventDefault();
+        const menu = resolve(card);
+        if (menu) openCardMenu(menu.title, menu.actions);
+    });
+}
+
+// A delete that cannot be undone and was reached by a gesture people trigger
+// by accident deserves more than a Yes button: the name has to be typed.
+function confirmByName({ title, name, message, confirmLabel = 'Delete', onConfirm }) {
+    openModal({
+        title,
+        danger: true,
+        submitLabel: confirmLabel,
+        fields: [{
+            name: 'typed',
+            label: `Type ${name} to confirm`,
+            required: true,
+            placeholder: name,
+            hint: message
+        }],
+        onSubmit: async values => {
+            if ((values.typed || '').trim().toLowerCase() !== name.trim().toLowerCase()) {
+                throw new Error(`That is not the name. Type ${name} exactly.`);
+            }
+            await onConfirm();
+        }
+    });
 }
 
 // ========================================

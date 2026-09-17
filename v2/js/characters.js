@@ -25,10 +25,7 @@
             title: 'Characters',
             sub: `${session.gameWorldName} · ${data.characters.length} character${data.characters.length === 1 ? '' : 's'}`,
             counts: { characters: data.characters.length },
-            // Character creation still lives in the classic app: it drives the
-            // level-up engine and feature registry, which v2 has not taken on
-            // yet. Linking out is honest; a half-built form would not be.
-            actions: [{ label: 'Add character (classic)', href: '../characters.html' }]
+            actions: [{ label: 'New character', primary: true, href: 'character-new.html' }]
         });
 
         const main = $('#main-content');
@@ -42,8 +39,8 @@
             main.innerHTML = `
                 <div class="empty-state">
                     <h3>No characters yet</h3>
-                    <p>This world has no characters. Create one in the classic version and it will appear here.</p>
-                    <a class="btn btn-accent" href="../characters.html">Open the classic version</a>
+                    <p>Characters belong to the world, so one made here shows up in every campaign you pull them into.</p>
+                    <a class="btn btn-accent" href="character-new.html">Create a character</a>
                 </div>`;
             return;
         }
@@ -63,7 +60,55 @@
                 <span class="rule"></span>
                 ${flagged ? `<span class="hint">${flagged} need${flagged === 1 ? 's' : ''} attention</span>` : ''}
             </div>
-            <div class="party-roster">${ordered.map(characterCard).join('')}</div>`;
+            <div class="party-roster holdable">${ordered.map(characterCard).join('')}</div>
+            ${isDM ? '<p class="hint">Hold a character (or right-click) for more.</p>' : ''}`;
+
+        wireCardMenus('.party-roster', '.character-card',
+            card => characterMenu(card, data.characters));
+    }
+
+    function characterMenu(card, characters) {
+        const character = characters.find(c => c.id === card.dataset.id);
+        if (!character) return null;
+
+        const href = `character-sheet.html?id=${encodeURIComponent(character.id)}`;
+        const actions = [
+            { label: 'Open sheet', hint: `Level ${character.level || 1} ${character.class || ''}`.trim(),
+              run: () => { window.location.href = href; } }
+        ];
+
+        if (character.pending_level_up) {
+            actions.push({ label: 'Level up', hint: 'Opens the wizard on their sheet',
+                           run: () => { window.location.href = href; } });
+        }
+
+        // Characters belong to the world, so only a DM removes one, and only
+        // ever deliberately -- see deleteCharacter.
+        if (isDM) actions.push({
+            label: 'Delete', danger: true, hint: 'Permanent, with everything on their sheet',
+            run: () => deleteCharacter(character)
+        });
+
+        return { title: character.name, actions };
+    }
+
+    // A character is the largest thing a person builds in this app, and a
+    // press-and-hold is easy to trigger by accident, so this asks for the
+    // name to be typed rather than accepting a tap on a red button.
+    function deleteCharacter(character) {
+        confirmByName({
+            title: `Delete ${character.name}`,
+            name: character.name,
+            confirmLabel: 'Delete character',
+            message: 'Their abilities, skills, spells, inventory, features and campaign '
+                   + 'memberships go with them, and they are removed from any encounter '
+                   + 'they are in. This cannot be undone.',
+            onConfirm: async () => {
+                const { error } = await db.from('characters').delete().eq('id', character.id);
+                if (error) throw new Error(error.message || 'Could not delete the character.');
+                render(await load());
+            }
+        });
     }
 
     (async function init() {

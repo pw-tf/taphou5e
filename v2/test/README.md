@@ -73,15 +73,43 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- Press-and-hold card menus: a normal tap still opening the card, a hold
+  opening the menu, the synthesised click afterwards *not* following the card's
+  link, and a hold that moves being treated as a scroll
+- Every `data-kind` the campaign detail resolver handles, since they share one
+  code path: storyline, NPC, roster monster and party member
+- Deleting a character refusing anything but the typed name, and accepting it
+  with different case and surrounding spaces
+- Action crowding: a page over three actions keeping the + menu on desktop with
+  an empty topbar, a page under it still using the topbar, and the menu's rows
+  all being one width inside one bordered panel
 - Deleting a campaign or an encounter: what the confirmation says cascades, and
   the delete write itself surviving the redirect back to the list
 - Encounter sharing: a ten-character code, the dialog saying what travels, an
   unknown code refused before anything is created, a lower-case code with stray
   spaces still importing, and an import creating the roster monsters the recipe
   needs, at full health with their colour and group intact
+- The rules constants v2 copies out of v1's `app.js` still matching it, compared
+  as text so a silent drift fails the suite
+- Character creation: the wizard naming what blocks it, racial bonuses shown on
+  the scores before saving, standard array using each number once, point buy's
+  27-point budget (and 14 to 15 costing two points, not one), the Half-Elf
+  choice v1 never asked for, and the five scaffolding tables being seeded
+- That the shared engine ran and wrote **numbers** into `ability_scores` --
+  it keys scores by their long names, so short keys would write `undefined`
+  over all six
+- Levelling: a multi-level grant opening as one run, one hit point choice per
+  level gained, steps that do not apply skipping themselves, and the finish
+  writing level, proficiency, hit dice, the hit point gain on both current and
+  maximum, class *and* subclass features, and clearing the pending flag
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
 network at all.
+
+The stub serves the same `<table>_single` row whatever id the page asked for, so
+a test needing a different character on the sheet injects its own stub with
+`stub_with(characters_single=...)` in a fresh context rather than steering the
+query. The level-up section does this for Korr.
 
 Recorded writes are mirrored into `sessionStorage`, so an assertion can read
 what a page wrote even after the page redirected — importing a shared encounter

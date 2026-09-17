@@ -13,6 +13,8 @@ BASE = "http://localhost:8777"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
 # Hosts this sandbox blocks by policy; failures against them are expected.
+ABILITY_CODES = ["str", "dex", "con", "int", "wis", "cha"]
+
 BLOCKED = ("jsdelivr.net", "supabase.co", "googleapis.com", "gstatic.com", "buymeacoffee.com")
 
 FIXTURES = {
@@ -162,6 +164,30 @@ FIXTURES = {
         "components": ["V", "S", "M"], "material": "a tiny ball of bat guano",
         "duration": "Instantaneous", "desc": ["A bright streak flashes."],
         "higher_level": ["Damage increases by 1d6."]},
+    # A Barbarian levelling 4 -> 6: level 5 has features, level 6 is an ASI
+    # level for nobody (Barbarians take theirs at 4, 8, 12...), and neither
+    # level has spellcasting, so the spell step must skip itself.
+    "srd_class_levels": {
+        "barbarian": {
+            "5": {"level": 5, "features": [
+                     {"index": "barbarian-extra-attack", "name": "Extra Attack"},
+                     {"index": "barbarian-fast-movement", "name": "Fast Movement"}]},
+            "6": {"level": 6, "features": [
+                     {"index": "barbarian-path-feature", "name": "Path Feature"}]},
+        },
+        "wizard": {
+            "6": {"level": 6, "features": [{"index": "wizard-arcane-tradition", "name": "Arcane Tradition"}],
+                  "spellcasting": {"spells_known_at_level": 4,
+                                   "spell_slots_level": {"1": 4, "2": 3, "3": 3}}},
+        },
+        "fighter": {
+            "4": {"level": 4, "features": [{"index": "fighter-asi", "name": "Ability Score Improvement"}]},
+        },
+    },
+    "srd_subclasses": {"results": [
+        {"index": "berserker", "name": "Berserker", "url": "/api/subclasses/berserker"}]},
+    "srd_subclass_levels": {
+        "berserker-5": {"features": [{"index": "berserker-mindless-rage", "name": "Mindless Rage"}]}},
     "encounters_single": {"id": "e1", "campaign_id": "cam1", "game_world_id": "w1",
                           "name": "Ambush at the Ford", "status": "planned", "round": 0,
                           "active_combatant_id": None, "hide_monster_hp": True,
@@ -224,6 +250,9 @@ STUB = """
     ['select','eq','order','limit','neq','in','is'].forEach(m => { q[m] = () => q; });
     q.single = () => Promise.resolve({
       data: FIXTURES[table + '_single'] || (FIXTURES[table] || [])[0] || null, error: null });
+    // The level-up wizard uses maybeSingle for "is this already saved?" reads,
+    // which must resolve to null rather than the first fixture row.
+    q.maybeSingle = () => Promise.resolve({ data: null, error: null });
     q.then = (res, rej) => Promise.resolve({ data: FIXTURES[table] || [], error: null }).then(res, rej);
     return q;
   }
@@ -247,6 +276,7 @@ STUB = """
         return w; };
       w.select = () => w;
       w.single = () => Promise.resolve({ data: { id: 'new-id' }, error: null });
+      w.maybeSingle = () => Promise.resolve({ data: null, error: null });
       w.then = (res, rej) => Promise.resolve({ data: null, error: null }).then(res, rej);
       return w;
     };
@@ -263,6 +293,18 @@ STUB = """
     if (/\/api\/spells$/.test(url))            return json(FIXTURES.srd_spells);
     if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
     if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
+    // Class levels drive the level-up wizard's feature and spell steps.
+    const lvl = url.match(/\/api\/classes\/([a-z]+)\/levels\/(\d+)$/);
+    if (lvl) {
+      const table = FIXTURES.srd_class_levels[lvl[1]] || {};
+      return table[lvl[2]] ? json(table[lvl[2]])
+                           : Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    }
+    if (/\/api\/classes\/[a-z]+\/subclasses$/.test(url)) return json(FIXTURES.srd_subclasses);
+    const feat = url.match(/\/api\/features\/([a-z0-9-]+)$/);
+    if (feat) return json({ name: feat[1], desc: ['Fixture text for ' + feat[1] + '.'] });
+    const sub = url.match(/\/api\/subclasses\/([a-z-]+)\/levels\/(\d+)$/);
+    if (sub) return json(FIXTURES.srd_subclass_levels[sub[1] + '-' + sub[2]] || { features: [] });
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
   };
 
@@ -310,7 +352,45 @@ STUB = """
     }
   };
 })();
-""".replace("__FIXTURES__", json.dumps(FIXTURES))
+"""
+
+
+def stub_with(**overrides):
+    """The stub with some fixture tables replaced.
+
+    The stub embeds its fixtures at injection time and returns the same
+    `<table>_single` row whatever id the page asked for, so a test that needs
+    a different character on the sheet injects its own stub in a fresh context
+    rather than trying to steer the query.
+    """
+    data = dict(FIXTURES)
+    data.update(overrides)
+    return STUB_SRC.replace("__FIXTURES__", json.dumps(data))
+
+
+STUB_SRC = STUB
+STUB = STUB.replace("__FIXTURES__", json.dumps(FIXTURES))
+
+# Korr, for the level-up wizard. The DM panel raises `level` and records the
+# level before the grant; the wizard then walks the levels in between. So a
+# 4 -> 6 grant looks like this: level already 6, preGrantLevel 4, and the hit
+# points still those of a level 4 Barbarian until the wizard adds them.
+KORR = {
+    "id": "c3", "game_world_id": "w1", "name": "Korr", "player_name": "Sam",
+    "race": "Goliath", "class": "Barbarian", "subclass": None, "level": 6,
+    "armor_class": 15, "speed": 40, "initiative_bonus": 1, "proficiency_bonus": 2,
+    "current_hit_points": 22, "hit_point_maximum": 52, "temporary_hit_points": 0,
+    "hit_dice_total": "4d12", "hit_dice_remaining": 4,
+    "death_save_successes": 0, "death_save_failures": 0,
+    "active_conditions": [], "pending_level_up": True, "experience_points": 6000,
+    "notes": "",
+    "ability_scores": {"strength": 18, "dexterity": 12, "constitution": 10,
+                       "intelligence": 8, "wisdom": 10, "charisma": 11},
+    "saving_throws": [], "skills": [], "weapons": [], "inventory_items": [],
+    "spells": [], "spell_slots": [], "features_traits": [],
+    "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
+    "character_details": {},
+}
 
 errors, failed = [], []
 results = []
@@ -341,13 +421,127 @@ async def click_tab(page, label):
         await page.click(f'.tab-btn:has-text("{label}")')
 
 
+TOUCH_HOLD_JS = """({ x, y, ms }) => new Promise(resolve => {
+  const target = document.elementFromPoint(x, y);
+  const touch = new Touch({ identifier: 1, target, clientX: x, clientY: y });
+  const opts = { touches: [touch], targetTouches: [touch], changedTouches: [touch],
+                 bubbles: true, cancelable: true };
+  target.dispatchEvent(new TouchEvent('touchstart', opts));
+  setTimeout(() => {
+    target.dispatchEvent(new TouchEvent('touchend', opts));
+    // The browser synthesises a click after a touch; the page has to swallow
+    // it, so firing it here is part of what makes this a real test.
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    resolve();
+  }, ms);
+})"""
+
+TOUCH_SCROLL_JS = """({ x, y }) => new Promise(resolve => {
+  const target = document.elementFromPoint(x, y);
+  const at = (cx, cy) => {
+    const touch = new Touch({ identifier: 2, target, clientX: cx, clientY: cy });
+    return { touches: [touch], targetTouches: [touch], changedTouches: [touch],
+             bubbles: true, cancelable: true };
+  };
+  target.dispatchEvent(new TouchEvent('touchstart', at(x, y)));
+  // Past the slop threshold well before the hold would fire.
+  setTimeout(() => target.dispatchEvent(new TouchEvent('touchmove', at(x, y - 60))), 80);
+  setTimeout(() => { target.dispatchEvent(new TouchEvent('touchend', at(x, y - 60))); resolve(); }, 800);
+})"""
+
+MENU_SHAPE_JS = """() => {
+  const menu = document.querySelector('.fab-menu');
+  const items = Array.from(menu.querySelectorAll('.fab-item'));
+  const style = getComputedStyle(menu);
+  return {
+    menu: Math.round(menu.getBoundingClientRect().width),
+    items: items.map(i => Math.round(i.getBoundingClientRect().width)),
+    bordered: parseFloat(style.borderTopWidth) > 0
+  };
+}"""
+
+
+async def act(page, label):
+    """Trigger a page action by label, through whichever control is showing.
+
+    The topbar carries the actions on a wide screen, but a page with more than
+    three of them collapses into the + menu at every width, and below 900px
+    every page does. So look for a visible topbar button first and fall back
+    to opening the menu.
+    """
+    button = page.locator(f'.topbar-actions:not(.is-collapsed) button:has-text("{label}"), '
+                          f'.topbar-actions:not(.is-collapsed) a:has-text("{label}")')
+    if await button.count() and await button.first.is_visible():
+        await button.first.click()
+        return
+    wrap = page.locator("#fab-wrap")
+    if not await wrap.locator(".fab-wrap.open").count():
+        await page.click("#fab-toggle")
+        await page.wait_for_timeout(200)
+    await page.click(f'.fab-item:has-text("{label}")')
+
+
 async def fill_pin(page, group, digits):
     boxes = page.locator(f'[data-pin-group="{group}"] .pin-input')
     for i, d in enumerate(digits):
         await boxes.nth(i).fill(d)
 
 
+def check_rules_parity():
+    """v2/js/rules.js copies its rules constants out of v1's app.js.
+
+    They are copies on purpose -- app.js is 5,000 lines with side effects and
+    cannot be loaded by a v2 page -- but a copy that silently drifts is a rules
+    bug in both versions at once. This compares the text of each one.
+    """
+    import re
+
+    app = open("/home/user/taphou5e/app.js").read()
+    rules = open("/home/user/taphou5e/v2/js/rules.js").read()
+
+    def block_of(src, name):
+        """The declaration's text, from `const NAME =` to its balanced close.
+
+        Brace counting rather than line matching, because these range from a
+        one-line array to a forty-line object and both forms appear in each
+        file.
+        """
+        start = src.index(f"const {name} = ")
+        depth, i, seen = 0, src.index("=", start) + 1, False
+        while i < len(src):
+            ch = src[i]
+            if ch in "[{":
+                depth += 1
+                seen = True
+            elif ch in "]}":
+                depth -= 1
+                if seen and depth == 0:
+                    i += 1
+                    break
+            i += 1
+        # Normalise whitespace so indentation differences are not drift.
+        return re.sub(r"\s+", " ", src[start:i])
+
+    for name in ("SKILLS", "ABILITIES", "ABILITY_FULL", "HIT_DICE", "ASI_LEVELS",
+                 "SUBCLASSES", "FEATS"):
+        try:
+            a, b = block_of(app, name), block_of(rules, name)
+        except ValueError:
+            raise AssertionError(f"{name} is missing from one of the two files")
+        assert a == b, f"{name} has drifted between app.js and v2/js/rules.js"
+    ok(f"the rules constants v2 copies still match v1's ({7} of them)")
+
+    # These are expressions, not blocks, so compare them literally.
+    for line in ("const getModifier = score => Math.floor((score - 10) / 2);",
+                 "const getProfBonus = level => Math.ceil(level / 4) + 1;"):
+        assert line in app and line in rules, line
+    assert "const SUBCLASS_LEVEL = 3;" in app and "const SUBCLASS_LEVEL = 3;" in rules
+    ok("the modifier, proficiency and subclass-level rules match v1 exactly")
+
+
 async def main():
+    check_rules_parity()
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(executable_path=CHROME)
         ctx = await browser.new_context(viewport={"width": 1280, "height": 900})
@@ -986,7 +1180,7 @@ async def main():
         ok("a downed combatant dims rather than disappearing")
 
         # ---------- 29. Turn order ----------
-        await page.click('.topbar button:has-text("Roll initiative")')
+        await act(page, "Roll initiative")
         await page.wait_for_timeout(600)
         writes = await page.evaluate("window.__writes")
         rolled = [w for w in writes if w["table"] == "encounter_combatants"
@@ -995,7 +1189,7 @@ async def main():
         assert 1 <= rolled[-1]["payload"]["initiative"] <= 20, rolled[-1]
         ok("rolling initiative only fills the blanks")
 
-        await page.click('.topbar button:has-text("Start encounter")')
+        await act(page, "Start encounter")
         await page.wait_for_timeout(600)
         writes = await page.evaluate("window.__writes")
         started = [w for w in writes if w["table"] == "encounters"][-1]
@@ -1011,15 +1205,23 @@ async def main():
         # rather than sending the highlight jumping between them.
         assert await page.locator(".enc-group h2").count() == 0, "groups are a planning view"
         running_order = [n.strip() for n in await page.locator(".init-name").all_inner_texts()]
-        assert running_order[0].startswith("Sythra"), running_order
-        ok(f"a running encounter shows one flat initiative order ({running_order[0][:9]} first)")
+        # Initiative for the blanks is rolled, so naming a combatant here is a
+        # coin toss -- what the tracker guarantees is the ordering itself.
+        rolls = await page.evaluate("""() => Array.from(document.querySelectorAll('.init-row'))
+            .map(r => {
+              const input = r.querySelector('.init-input');
+              return Number(input ? input.value : r.querySelector('.init-value b').textContent);
+            })""")
+        assert len(rolls) == len(running_order), (rolls, running_order)
+        assert rolls == sorted(rolls, reverse=True), rolls
+        ok(f"a running encounter shows one flat initiative order, highest first ({rolls})")
 
         # Advancing past the last live combatant wraps and increments the round.
         # The downed one must never take a turn.
         live = await page.locator(".init-row:not(.is-dead)").count()
         seen = []
         for _ in range(live):
-            await page.click('.topbar button:has-text("Next turn")')
+            await act(page, "Next turn")
             await page.wait_for_timeout(400)
             seen.append(await page.locator(".init-row.is-active .init-name").inner_text())
         writes = await page.evaluate("window.__writes")
@@ -1170,6 +1372,36 @@ async def main():
         assert await mp.locator(".topbar .btn").count() >= 1, "topbar should carry the actions"
         ok("above 900px the FAB hides and the topbar carries the actions")
 
+        # ...unless there are too many to sit in a row. The tracker had ten
+        # buttons across the top of a desktop screen; they belong in the menu.
+        await mp.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".init-row", timeout=10000)
+        assert await mp.locator("#fab-toggle").is_visible(), "a crowded topbar keeps the FAB on desktop"
+        showing = await mp.locator(".topbar-actions:not(.is-collapsed) .btn").count()
+        assert showing == 0, showing
+        ok("a page with more than three actions keeps the + menu on desktop and empties the topbar")
+
+        await mp.click("#fab-toggle")
+        await mp.wait_for_timeout(250)
+        labels = [t.strip() for t in await mp.locator(".fab-item").all_inner_texts()]
+        assert len(labels) > 3, labels
+        ok(f"the desktop menu carries all {len(labels)} tracker actions")
+
+        # One panel, not a stack of pills: every row the same width, inside a
+        # single bordered box.
+        shape = await mp.evaluate(MENU_SHAPE_JS)
+        assert len(set(shape["items"])) == 1, shape
+        assert shape["items"][0] < shape["menu"], shape
+        assert shape["bordered"], "the menu itself should be the bordered surface"
+        ok(f"menu rows are one width inside one panel ({shape['items'][0]}px in {shape['menu']}px)")
+
+        # A page under the limit still uses the topbar on desktop.
+        await mp.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".topbar", timeout=10000)
+        assert not await mp.locator("#fab-toggle").is_visible()
+        assert await mp.locator(".topbar-actions:not(.is-collapsed) .btn").count() >= 1
+        ok("a page under the limit still shows its actions in the topbar")
+
         await mob.close()
 
         # ---------- 34. Tracker parity with the classic version ----------
@@ -1183,7 +1415,7 @@ async def main():
         await page.wait_for_selector(".init-row", timeout=10000)
 
         # Adding a monster must not require a trip to the Compendium first.
-        await page.click('.topbar button:has-text("Add monsters")')
+        await act(page, "Add monsters")
         await page.wait_for_selector("#add-search", timeout=5000)
         await page.fill("#add-search", "gob")
         await page.wait_for_timeout(400)
@@ -1459,7 +1691,7 @@ async def main():
 
         # Picking a suggestion must put the chosen name in the box, not leave
         # the fragment that was typed.
-        await page.click('.topbar button:has-text("Add monsters")')
+        await act(page, "Add monsters")
         await page.wait_for_selector("#add-search", timeout=5000)
         await page.fill("#add-search", "gob")
         await page.wait_for_timeout(400)
@@ -1481,9 +1713,9 @@ async def main():
 
         # Once running, the list goes flat and the colour returns to a stripe,
         # so turn order is never reshuffled by a colour.
-        await page.click('.topbar button:has-text("Roll initiative")')
+        await act(page, "Roll initiative")
         await page.wait_for_timeout(500)
-        await page.click('.topbar button:has-text("Start encounter")')
+        await act(page, "Start encounter")
         await page.wait_for_timeout(700)
         assert await page.locator(".colour-block").count() == 0, "colour blocks are a planning view"
         assert await page.locator(".init-row.has-color").count() == 2
@@ -1529,7 +1761,7 @@ async def main():
         # Deleting a campaign says what goes with it.
         await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
         await page.wait_for_selector(".campaign-tabs", timeout=10000)
-        await page.click('.topbar button:has-text("Delete campaign")')
+        await act(page, "Delete campaign")
         await page.wait_for_selector(".modal", timeout=5000)
         message = await page.locator(".modal-body .prose").inner_text()
         assert "storyline" in message and "NPC" in message and "encounter" in message, message
@@ -1552,7 +1784,7 @@ async def main():
         # Deleting an encounter is scoped to the encounter, not the roster.
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        await page.click('.topbar button:has-text("Delete encounter")')
+        await act(page, "Delete encounter")
         await page.wait_for_selector(".modal", timeout=5000)
         message = await page.locator(".modal-body .prose").inner_text()
         assert "combatant" in message and "roster" in message, message
@@ -1561,7 +1793,7 @@ async def main():
         await page.wait_for_timeout(300)
 
         # Linking an encounter to the moment in the story it belongs to.
-        await page.click('.topbar button:has-text("Link to a beat")')
+        await act(page, "Link to a beat")
         await page.wait_for_selector(".modal", timeout=5000)
         options = [t.strip() for t in await page.locator("#mf-storyline_beat_id option").all_inner_texts()]
         assert any("The first crossing" in o for o in options), options
@@ -1581,7 +1813,7 @@ async def main():
         # ---------- 40. Encounter sharing ----------
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        await page.click('.topbar button:has-text("Share encounter")')
+        await act(page, "Share encounter")
         await page.wait_for_selector(".share-code", timeout=5000)
 
         code = (await page.locator(".share-code").inner_text()).strip()
@@ -1598,9 +1830,9 @@ async def main():
 
         # Importing rebuilds the recipe in the chosen campaign.
         await page.goto(f"{BASE}/v2/monster-tracker.html", wait_until="domcontentloaded")
-        await page.wait_for_selector(".topbar button", timeout=10000)
+        await page.wait_for_selector("#fab-toggle, .topbar-actions button", timeout=10000)
         await page.evaluate("window.__resetWrites()")
-        await page.click('.topbar button:has-text("Add a shared encounter")')
+        await act(page, "Add a shared encounter")
         await page.wait_for_selector(".modal", timeout=5000)
 
         # A wrong code is refused before anything is created.
@@ -1642,6 +1874,439 @@ async def main():
         assert rows[0]["current_hit_points"] == rows[0]["max_hit_points"] == 9, rows[0]
         assert rows[1]["max_hit_points"] == 6, rows[1]
         ok("imported creatures keep their colour, group and rolled hit points, at full health")
+
+        # ---------- 42. Character creation ----------
+        await page.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".wizard", timeout=10000)
+
+        # The wizard says what is missing rather than a dead Next button.
+        assert await page.locator("#wz-next").is_disabled()
+        assert "name" in (await page.locator(".wizard-blocker").inner_text()).lower()
+        ok("the wizard names what is blocking it instead of only disabling Next")
+
+        await page.fill("#wz-name", "Ysolde Marr")
+        await page.fill("#wz-player", "Kim")
+        await page.select_option("#wz-race", "Half-Orc")
+        await page.select_option("#wz-class", "Barbarian")
+        await page.wait_for_timeout(250)
+
+        hint = await page.locator("#wz-race-hint").inner_text()
+        assert "STR +2" in hint and "CON +1" in hint, hint
+        ok(f"the race hint shows the bonuses before anything is saved ({hint})")
+
+        assert "d12" in await page.locator("#wz-class-hint").inner_text()
+        ok("the class hint shows its hit die")
+
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+
+        # Standard array: six numbers, each used once.
+        await page.click('[data-method="standard"]')
+        await page.wait_for_timeout(200)
+        assert await page.locator("#wz-next").is_disabled()
+        ok("the array step blocks until all six numbers are assigned")
+
+        for ability, index in [("str", "0"), ("con", "1"), ("dex", "2"),
+                               ("wis", "3"), ("cha", "4"), ("int", "5")]:
+            await page.select_option(f'[data-array="{ability}"]', index)
+            await page.wait_for_timeout(120)
+
+        # 15 was taken by STR, so nobody else can be given it.
+        dex_options = page.locator('[data-array="dex"] option')
+        disabled = await dex_options.nth(1).is_disabled()
+        assert disabled, "a number already assigned elsewhere should be disabled"
+        ok("a number assigned to one ability cannot be assigned to another")
+
+        row = page.locator('.ability-assign-row:has([data-array="str"]) .score-readout')
+        text = await row.inner_text()
+        # 15 from the array, +2 from Half-Orc, so the sheet stores 17 (+3).
+        assert "+2" in text and "17" in text and "+3" in text, text
+        ok(f"the racial bonus is shown on the score before saving ({text.split()})")
+
+        assert not await page.locator("#wz-next").is_disabled()
+        await page.click("#wz-next")
+        await page.wait_for_selector(".review-scores", timeout=5000)
+
+        review = await page.locator(".review-grid").inner_text()
+        # Barbarian d12, CON 13+1 = 14 (+2): 12 + 2 = 14 hit points at level 1.
+        assert "14" in review, review
+        ok("review shows the hit points the engine will store")
+
+        # ---------- 43. Point buy ----------
+        await page.click("#wz-back")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+        await page.click('[data-method="pointbuy"]')
+        await page.wait_for_timeout(250)
+
+        budget = await page.locator(".budget").inner_text()
+        assert "27" in budget, budget
+        ok("point buy starts with the full 27 point budget")
+
+        # Every score starts at 8, so nothing can go lower.
+        assert await page.locator('[data-buy="str"][data-delta="-1"]').is_disabled()
+        ok("point buy will not take a score below 8")
+
+        # 8 -> 15 costs 9 points; do it three times and the budget is spent.
+        for ability in ("str", "con", "dex"):
+            for _ in range(7):
+                await page.click(f'[data-buy="{ability}"][data-delta="1"]')
+                await page.wait_for_timeout(60)
+
+        budget = await page.locator(".budget").inner_text()
+        assert "0 points left" in budget, budget
+        ok("three 15s spend exactly the 27 point budget")
+
+        # 14 -> 15 costs two points, not one, which is the whole point of the
+        # table -- so with nothing left, no score can rise.
+        for ability in ABILITY_CODES:
+            assert await page.locator(f'[data-buy="{ability}"][data-delta="1"]').is_disabled(), ability
+        ok("with the budget spent, no score can be raised")
+
+        await page.click('[data-buy="str"][data-delta="-1"]')
+        await page.wait_for_timeout(200)
+        budget = await page.locator(".budget").inner_text()
+        assert "2 points left" in budget, budget
+        ok("stepping 15 back down to 14 refunds two points, not one")
+
+        # ---------- 44. Half-Elf, and what creation writes ----------
+        await page.click("#wz-back")
+        await page.wait_for_selector("#wz-race", timeout=5000)
+        await page.select_option("#wz-race", "Half-Elf")
+        await page.wait_for_timeout(250)
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+
+        assert await page.locator('[data-halfelf]').count() == 5, "Charisma is excluded"
+        ok("a Half-Elf is offered the five abilities other than Charisma")
+
+        assert await page.locator("#wz-next").is_disabled()
+        assert "Half-Elf" in await page.locator(".wizard-blocker").inner_text()
+        ok("the wizard blocks until the Half-Elf choice is made")
+
+        await page.click('[data-halfelf="strength"]')
+        await page.click('[data-halfelf="constitution"]')
+        await page.wait_for_timeout(200)
+        assert not await page.locator("#wz-next").is_disabled()
+        ok("choosing two abilities unblocks the step")
+
+        await page.evaluate("window.__resetWrites()")
+        await page.click("#wz-next")
+        await page.wait_for_selector(".review-scores", timeout=5000)
+        await page.click("#wz-next")
+        await page.wait_for_timeout(1200)
+
+        writes = await page.evaluate("window.__writes")
+        made = [w for w in writes if w["table"] == "characters" and w["verb"] == "insert"]
+        assert made, [w["table"] for w in writes]
+        char = made[-1]["payload"]
+        assert char["name"] == "Ysolde Marr" and char["player_name"] == "Kim", char
+        assert char["race"] == "Half-Elf" and char["class"] == "Barbarian", char
+        assert char["game_world_id"] == "w1", char
+        ok("creation writes the character to this world")
+
+        tables = [w["table"] for w in writes if w["verb"] == "insert"]
+        for scaffold in ("ability_scores", "skills", "saving_throws", "currency", "character_details"):
+            assert scaffold in tables, (scaffold, tables)
+        ok("the five scaffolding tables v1 seeds are seeded here too")
+
+        skills = [w for w in writes if w["table"] == "skills" and w["verb"] == "insert"][-1]
+        assert isinstance(skills["payload"], list) and len(skills["payload"]) == 18, skills
+        ok("all eighteen skills are written in one insert")
+
+        # The engine keys scores by their LONG names. Handing it short keys
+        # silently misses every bonus and then writes undefined over all six,
+        # so this asserts the shape, not just that the call happened.
+        effects = [w for w in writes if w["table"] == "character_effects" and w["verb"] == "insert"]
+        assert effects, "the engine should record racial effects"
+        targets = sorted(e["target"] for e in effects[-1]["payload"])
+        assert "charisma" in targets, targets
+        assert "strength" in targets and "constitution" in targets, targets
+        ok(f"the shared engine ran and recorded the racial effects ({targets})")
+
+        scores_write = [w for w in writes if w["table"] == "ability_scores" and w["verb"] == "update"]
+        assert scores_write, "the engine should write the adjusted scores"
+        adjusted = scores_write[-1]["payload"]
+        assert all(isinstance(v, int) for v in adjusted.values()), adjusted
+        ok(f"the adjusted scores are numbers, not undefined ({sorted(adjusted)[:3]}...)")
+
+        # ---------- 45. Level-up wizard ----------
+        # Korr is a level 4 Barbarian owed a level, granted from 4 to 6. The
+        # sheet stub serves one character whatever the id, so this needs its
+        # own context carrying Korr as the single character.
+        luctx = await browser.new_context()
+        await luctx.add_init_script(stub_with(characters_single=KORR))
+        await luctx.add_init_script("""
+            try {
+              localStorage.setItem('dnd-session', JSON.stringify({
+                gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
+                dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(),
+                timestamp: Date.now() }));
+              localStorage.setItem('preGrantLevel_c3', '4');
+              localStorage.setItem('targetLevel_c3', '6');
+            } catch (e) {}
+        """)
+        lu = await luctx.new_page()
+        watch(lu, "levelup")
+
+        await lu.goto(f"{BASE}/v2/character-sheet.html?id=c3", wait_until="domcontentloaded")
+        await lu.wait_for_selector(".sheet-header", timeout=10000)
+
+        assert await lu.locator(".levelup-banner").count() == 1
+        ok("a character owed a level gets a banner on their sheet")
+
+        await lu.click(".levelup-banner")
+        await lu.wait_for_selector(".wizard-steps", timeout=10000)
+        await lu.wait_for_timeout(900)
+
+        title = await lu.locator(".modal-head h2").inner_text()
+        assert "4" in title and "6" in title, title
+        ok(f"a multi-level grant opens as one run across the range ({title})")
+
+        # Two levels gained means two hit point choices, not one repeated.
+        rows = await lu.locator(".hp-choice-row").count()
+        assert rows == 2, rows
+        ok("each level gained gets its own hit point choice")
+
+        steps = [t.strip() for t in await lu.locator(".wizard-steps li .label").all_inner_texts()]
+        # Barbarians take ASIs at 4, 8, 12 -- neither 5 nor 6 is one. The class
+        # has no spellcasting either, so both steps must skip themselves.
+        assert "ASI" not in steps, steps
+        assert "Spells" not in steps, steps
+        assert "Subclass" in steps, steps
+        ok(f"steps that do not apply skip themselves ({steps})")
+
+        await lu.click("#lu-avg-all")
+        await lu.wait_for_timeout(300)
+        total = await lu.locator(".wizard-body .hint").last.inner_text()
+        # d12 Barbarian, CON 10 (+0): average is 7 a level, so 14 for two.
+        assert "+14" in total, total
+        ok(f"taking the average for all fills every level ({total.strip()})")
+
+        await lu.click("#lu-next")
+        await lu.wait_for_selector(".pick-list", timeout=5000)
+        assert await lu.locator('[data-subclass]').count() >= 7
+        assert await lu.locator("#lu-next").is_disabled()
+        ok("the subclass step blocks until one is chosen")
+
+        await lu.click('[data-subclass="Path of the Berserker"]')
+        await lu.wait_for_timeout(200)
+        await lu.click("#lu-next")
+        await lu.wait_for_selector(".review-grid", timeout=5000)
+
+        summary = await lu.locator(".review-grid").inner_text()
+        # Level 6 proficiency is +3, hit dice become 6d12.
+        assert "+3" in summary and "6d12" in summary, summary
+        ok(f"the summary shows the level 6 proficiency and hit dice")
+
+        features = await lu.locator(".pick-list").inner_text()
+        assert "Extra Attack" in features and "Path Feature" in features, features
+        ok("features from every level in the range are listed, not just the last")
+
+        await lu.evaluate("window.__resetWrites()")
+        await lu.click("#lu-next")
+        await lu.wait_for_timeout(1500)
+
+        writes = await lu.evaluate("window.__writes")
+        updates = [w for w in writes if w["table"] == "characters" and w["verb"] == "update"]
+        assert updates, [w["table"] for w in writes]
+        final = updates[-1]["payload"]
+        assert final["level"] == 6, final
+        assert final["proficiency_bonus"] == 3, final
+        assert final["hit_dice_total"] == "6d12", final
+        assert final["pending_level_up"] is False, final
+        ok("finishing writes the target level, proficiency, hit dice and clears the flag")
+
+        hp = [w for w in updates if "hit_point_maximum" in w["payload"]]
+        assert hp, [w["payload"] for w in updates]
+        # Korr was 52/22; +14 across two levels.
+        assert hp[-1]["payload"]["hit_point_maximum"] == 66, hp[-1]
+        assert hp[-1]["payload"]["current_hit_points"] == 36, hp[-1]
+        ok("the hit point gain is added to both maximum and current")
+
+        saved_features = [w for w in writes if w["table"] == "features_traits" and w["verb"] == "insert"]
+        names = [w["payload"]["name"] for w in saved_features]
+        assert "Extra Attack" in names, names
+        assert "Mindless Rage" in names, "subclass features should be saved too"
+        ok(f"class and subclass features are both saved ({len(names)} rows)")
+
+        left = await lu.evaluate("localStorage.getItem('preGrantLevel_c3')")
+        assert left is None, left
+        ok("the wizard clears the level markers it consumed")
+
+        await luctx.close()
+
+        # ---------- 46. Press-and-hold card menus ----------
+        # The gesture has to survive three things: a scroll that starts on a
+        # card, the click the browser fires afterwards, and a redraw.
+        hold = await browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+        await hold.add_init_script(STUB)
+        hp = await hold.new_page()
+        watch(hp, "hold")
+
+        await hp.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await hp.fill("#world-name", "Thornfell Reach")
+        await fill_pin(hp, "join", "1379")
+        await hp.click("#join-form .btn-submit")
+        await hp.wait_for_selector(".party-roster", timeout=10000)
+
+        await hp.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".campaign-card", timeout=10000)
+
+        box = await hp.locator(".campaign-card").first.bounding_box()
+        cx, cy = box["x"] + box["width"] / 2, box["y"] + 24
+
+        # A short tap must still follow the link, not open a menu.
+        await hp.touchscreen.tap(cx, cy)
+        await hp.wait_for_timeout(600)
+        assert "campaign.html" in hp.url, hp.url
+        ok("a normal tap still opens the card")
+
+        await hp.go_back(wait_until="domcontentloaded")
+        await hp.wait_for_selector(".campaign-card", timeout=10000)
+
+        async def press_hold(page, x, y, ms=700):
+            await page.evaluate(TOUCH_HOLD_JS, {"x": x, "y": y, "ms": ms})
+
+        await press_hold(hp, cx, cy)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        ok("holding a campaign card opens its menu")
+
+        labels = [t.strip().split("\n")[0] for t in await hp.locator(".card-menu-item .label").all_inner_texts()]
+        assert "Delete" in labels and "Edit" in labels, labels
+        ok(f"the menu offers the actions that had no home before ({labels})")
+
+        # The menu must not have let the card's own link fire underneath it.
+        assert "campaigns.html" in hp.url, hp.url
+        ok("the click that follows a hold does not open the card behind the menu")
+
+        await hp.click("#modal-close")
+        await hp.wait_for_timeout(300)
+
+        # A hold that turns into a scroll is a trap, so movement cancels it.
+        await hp.evaluate(TOUCH_SCROLL_JS, {"x": cx, "y": cy})
+        await hp.wait_for_timeout(900)
+        assert await hp.locator(".card-menu").count() == 0, "a scroll must not open the menu"
+        ok("a hold that moves is a scroll, and opens nothing")
+
+        # Deleting through the menu writes the delete.
+        await press_hold(hp, cx, cy)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        await hp.click('.card-menu-item:has-text("Delete")')
+        await hp.wait_for_selector(".modal-body", timeout=5000)
+        message = await hp.locator(".modal-body").inner_text()
+        assert "storylines" in message and "stay in the world" in message, message
+        ok("deleting from the menu says what cascades and that characters survive")
+
+        await hp.evaluate("window.__resetWrites()")
+        await hp.click('.modal-actions button[type="submit"]')
+        await hp.wait_for_timeout(700)
+        writes = await hp.evaluate("window.__writes")
+        assert [w for w in writes if w["table"] == "campaigns" and w["verb"] == "delete"], writes
+        ok("the campaign delete is written from the card menu")
+
+        # ---------- 47. Deleting a character needs the name typed ----------
+        await hp.goto(f"{BASE}/v2/characters.html", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".character-card", timeout=10000)
+        cbox = await hp.locator(".character-card").first.bounding_box()
+        await press_hold(hp, cbox["x"] + cbox["width"] / 2, cbox["y"] + 24)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+
+        title = await hp.locator(".modal-head h2").inner_text()
+        await hp.click('.card-menu-item:has-text("Delete")')
+        await hp.wait_for_selector("#mf-typed", timeout=5000)
+        ok(f"a character's menu offers delete ({title})")
+
+        await hp.evaluate("window.__resetWrites()")
+        await hp.fill("#mf-typed", "something else")
+        await hp.click('.modal-actions button[type="submit"]')
+        await hp.wait_for_timeout(500)
+        assert "not the name" in await hp.locator(".modal-error").inner_text()
+        writes = await hp.evaluate("window.__writes")
+        assert not [w for w in writes if w["verb"] == "delete"], writes
+        ok("a character is not deleted unless the name is typed exactly")
+
+        await hp.fill("#mf-typed", f"  {title.replace('Delete ', '')}  ")
+        await hp.click('.modal-actions button[type="submit"]')
+        await hp.wait_for_timeout(700)
+        writes = await hp.evaluate("window.__writes")
+        assert [w for w in writes if w["table"] == "characters" and w["verb"] == "delete"], writes
+        ok("the typed name is matched ignoring case and surrounding spaces")
+
+        # ---------- 48. The campaign detail resolver ----------
+        # Every tab's rows share one gesture and one resolver, switching on the
+        # kind the row declares, so each kind needs to actually resolve.
+        await hp.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".campaign-tabs", timeout=10000)
+
+        async def hold_first(selector):
+            await hp.wait_for_selector(selector, timeout=5000)
+            b = await hp.locator(selector).first.bounding_box()
+            await press_hold(hp, b["x"] + min(b["width"] / 2, 120), b["y"] + 18)
+            await hp.wait_for_selector(".card-menu", timeout=5000)
+            out = [t.strip() for t in await hp.locator(".card-menu-item .label").all_inner_texts()]
+            head = await hp.locator(".modal-head h2").inner_text()
+            await hp.click("#modal-close")
+            await hp.wait_for_timeout(250)
+            return head, out
+
+        await hp.click('.campaign-tabs button:has-text("Storylines")')
+        title, labels = await hold_first('[data-kind="storyline"]')
+        assert "Delete" in labels and any("beat" in l.lower() for l in labels), labels
+        ok(f"a storyline resolves ({title}: {labels})")
+
+        await hp.click('.campaign-tabs button:has-text("NPCs")')
+        title, labels = await hold_first('[data-kind="npc"]')
+        assert labels[0] == "Edit" and "Delete" in labels, labels
+        ok(f"an NPC resolves, and can now be edited at all ({title})")
+
+        await hp.click('.campaign-tabs button:has-text("Monsters")')
+        title, labels = await hold_first('[data-kind="monster"]')
+        assert labels == ["Remove from roster"], labels
+        ok(f"a roster monster can be removed, which it could not before ({title})")
+
+        await hp.click('.campaign-tabs button:has-text("Party")')
+        title, labels = await hold_first('[data-kind="party"]')
+        assert "Open sheet" in labels, labels
+        assert any("campaign" in l for l in labels), labels
+        ok(f"a party member resolves ({title}: {labels})")
+
+        # ---------- 49. Combatant rows ----------
+        await hp.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".init-row", timeout=10000)
+        # Target the party row: initiative order decides which row is first,
+        # and the "stays in the world" wording is specific to a character.
+        b = await hp.locator(".init-row.is-party").first.bounding_box()
+        await press_hold(hp, b["x"] + 120, b["y"] + 18)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        labels = [t.strip() for t in await hp.locator(".card-menu-item .label").all_inner_texts()]
+        assert "Set colour" in labels and "Edit note" in labels, labels
+        ok(f"a combatant row reaches everything the inline buttons had no room for ({len(labels)} actions)")
+
+        # A character is in the encounter, not owned by it.
+        hint = await hp.locator('.card-menu-item:has-text("Remove") .hint').inner_text()
+        assert "stay in the world" in hint, hint
+        ok("removing a character from an encounter says they stay in the world")
+
+        await hp.click("#modal-close")
+        await hp.wait_for_timeout(250)
+
+        # setColor applies the colour it is given, so the menu needs a picker.
+        await press_hold(hp, b["x"] + 120, b["y"] + 18)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        await hp.click('.card-menu-item:has-text("Set colour")')
+        await hp.wait_for_selector(".swatches", timeout=5000)
+        assert await hp.locator("[data-pick]").count() == 8, "no colour, plus the seven in the palette"
+        await hp.evaluate("window.__resetWrites()")
+        await hp.click('[data-pick="#7fa65c"]')
+        await hp.wait_for_timeout(600)
+        writes = await hp.evaluate("window.__writes")
+        coloured = [w for w in writes if w["table"] == "encounter_combatants"
+                    and (w["payload"] or {}).get("color") == "#7fa65c"]
+        assert coloured, writes
+        ok("the colour picker writes the chosen colour")
+
+        await hold.close()
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
