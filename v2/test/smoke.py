@@ -72,10 +72,19 @@ FIXTURES = {
                        "Nature", "Perception", "Performance", "Persuasion", "Religion",
                        "Sleight of Hand", "Stealth", "Survival"])],
         "weapons": [{"id": "w1", "name": "Quarterstaff", "attack_bonus": 2, "damage": "1d6",
-                     "damage_type": "bludgeoning", "properties": "Versatile (1d8)", "equipped": True}],
-        "inventory_items": [{"id": "it1", "name": "Spellbook", "description": "Water damaged.",
-                             "quantity": 1, "weight": 3, "equipped": False, "attuned": False,
-                             "item_type": "Gear"}],
+                     "damage_type": "bludgeoning", "properties": "Versatile (1d8)", "equipped": False}],
+        "inventory_items": [
+            {"id": "it1", "name": "Spellbook", "description": "Water damaged.",
+             "quantity": 1, "weight": 3, "equipped": False, "attuned": False,
+             "item_type": "Gear"},
+            # Carried and equipped: this is an action. Its damage is not stored
+            # anywhere -- inventory_items has no such column -- so it has to be
+            # resolved from the SRD by name.
+            {"id": "it2", "name": "Longsword", "description": "", "quantity": 1,
+             "weight": 3, "equipped": True, "attuned": False, "item_type": "Weapon"},
+            # Carried but not equipped: not an action.
+            {"id": "it3", "name": "Dagger", "description": "", "quantity": 2,
+             "weight": 1, "equipped": False, "attuned": False, "item_type": "Weapon"}],
         "spells": [{"id": "sp1", "name": "Fire Bolt", "level": 0, "school": "Evocation",
                     "casting_time": "1 action", "range": "120 feet", "components": "V, S",
                     "duration": "Instantaneous", "description": "A mote of fire.", "prepared": True},
@@ -167,9 +176,15 @@ FIXTURES = {
     # A Barbarian levelling 4 -> 6: level 5 has features, level 6 is an ASI
     # level for nobody (Barbarians take theirs at 4, 8, 12...), and neither
     # level has spellcasting, so the spell step must skip itself.
-    "srd_equipment": {"count": 2, "results": [
+    "srd_equipment": {"count": 3, "results": [
         {"index": "longsword", "name": "Longsword", "url": "/api/equipment/longsword"},
+        {"index": "dagger", "name": "Dagger", "url": "/api/equipment/dagger"},
         {"index": "rope-hempen", "name": "Rope, Hempen (50 feet)", "url": "/api/equipment/rope-hempen"}]},
+    "srd_equipment_dagger": {
+        "index": "dagger", "name": "Dagger", "weight": 1,
+        "equipment_category": {"name": "Weapon"},
+        "damage": {"damage_dice": "1d4", "damage_type": {"name": "Piercing"}},
+        "properties": [{"name": "Finesse"}], "desc": ["A simple dagger."]},
     "srd_equipment_longsword": {
         "index": "longsword", "name": "Longsword", "weight": 3,
         "equipment_category": {"name": "Weapon"},
@@ -310,6 +325,7 @@ STUB = """
     if (/\/api\/equipment$/.test(url))         return json(FIXTURES.srd_equipment);
     if (/\/api\/features$/.test(url))          return json(FIXTURES.srd_features_index);
     if (/\/api\/equipment\/longsword$/.test(url)) return json(FIXTURES.srd_equipment_longsword);
+    if (/\/api\/equipment\/dagger$/.test(url)) return json(FIXTURES.srd_equipment_dagger);
     if (/\/api\/features\/action-surge-1-use$/.test(url)) return json(FIXTURES.srd_feature_action_surge);
     if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
     if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
@@ -2508,6 +2524,62 @@ async def main():
         assert used["payload"]["uses_remaining"] == 0, used
         assert await page.locator(".pane").count() == 0, "the charge must not open the feature"
         ok("a feature's charges can be spent from the row")
+
+        # ---------- 52b. Equipped carried weapons are actions ----------
+        # The two tabs read two different tables, so a weapon in inventory had
+        # no path to Actions at all. Equipping it is now that path.
+        await click_tab(page, "Actions")
+        await page.wait_for_selector('.section-head:has-text("Weapons")', timeout=5000)
+        await page.wait_for_timeout(900)   # the SRD lookup redraws once it lands
+
+        names = [t.strip() for t in await page.locator(".stack .list-row .name").all_inner_texts()]
+        assert any("Longsword" in n for n in names), names
+        ok("an equipped weapon from the inventory shows as an action")
+
+        assert not any("Dagger" in n for n in names), names
+        ok("an unequipped one does not")
+
+        # inventory_items has no damage column, so this can only have come
+        # from the SRD lookup.
+        row = page.locator('.list-row:has-text("Longsword")')
+        meta = await row.locator(".meta").inner_text()
+        assert "1d8" in meta and "Slashing" in meta, meta
+        ok(f"its damage is resolved from the SRD by name ({meta.strip()})")
+
+        # Equipped sorts to the top, and nothing is hidden for being unequipped.
+        first = (await page.locator(".stack .list-row .name").first.inner_text()).strip()
+        assert "EQUIPPED" in first and "Longsword" in first, first
+        assert any("Quarterstaff" in n for n in names), "unequipped weapons stay listed"
+        ok(f"equipped sorts first without hiding the rest ({len(names)} actions)")
+
+        # Unequipping takes it straight back off the tab.
+        b = await page.locator('.list-row:has-text("Longsword")').bounding_box()
+        await page.evaluate(TOUCH_HOLD_JS, {"x": b["x"] + 80, "y": b["y"] + 18, "ms": 700})
+        await page.wait_for_selector(".card-menu", timeout=5000)
+        hint = await page.locator('.card-menu-item:has-text("Unequip") .hint').inner_text()
+        assert "off your actions" in hint, hint
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.card-menu-item:has-text("Unequip")')
+        await page.wait_for_timeout(700)
+
+        writes = await page.evaluate("window.__writes")
+        off = [w for w in writes if w["table"] == "inventory_items"][-1]
+        assert off["payload"]["equipped"] is False, off
+        names = [t.strip() for t in await page.locator(".stack .list-row .name").all_inner_texts()]
+        assert not any("Longsword" in n for n in names), names
+        ok("unequipping it takes it back off the actions tab")
+
+        # A weapon proper can now be equipped at all, which nothing could do.
+        b = await page.locator('.list-row:has-text("Quarterstaff")').bounding_box()
+        await page.evaluate(TOUCH_HOLD_JS, {"x": b["x"] + 80, "y": b["y"] + 18, "ms": 700})
+        await page.wait_for_selector(".card-menu", timeout=5000)
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.card-menu-item .label:text-is("Equip")')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        equipped = [w for w in writes if w["table"] == "weapons"][-1]
+        assert equipped["payload"]["equipped"] is True, equipped
+        ok("a weapon's equipped flag can be set, which neither version could do before")
 
         await click_tab(page, "Notes")
         await page.wait_for_selector('.section-head:has-text("Backstory")', timeout=5000)

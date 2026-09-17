@@ -87,6 +87,10 @@ at it directly — edit `CHROME` at the top of the file, or run
   feature charges in both directions, and a details field being edited
 - That none of the inline controls on a row open the detail pane behind it,
   which is what would make all of them useless
+- The attack list drawing on both tables: an equipped inventory weapon showing
+  as an action and an unequipped one not, its damage resolved from the SRD by
+  name (there is no column for it), equipped sorting first without hiding
+  unequipped weapons, and a weapon's own equipped flag being settable
 - Press-and-hold card menus: a normal tap still opening the card, a hold
   opening the menu, the synthesised click afterwards *not* following the card's
   link, and a hold that moves being treated as a scroll
