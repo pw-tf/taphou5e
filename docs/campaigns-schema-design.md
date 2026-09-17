@@ -891,7 +891,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (244 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (251 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -1336,6 +1336,54 @@ which is what it did before any of this existed.
 This needed no schema change and no backfill, which is why the sort was chosen
 over filtering Actions down to equipped weapons: filtering would have emptied
 almost every character's Actions tab on deploy.
+
+### 11.3a11 Two ways a number field fights you
+
+Reported from a phone: typing a level during character creation closes the
+keyboard. Both causes were mine, and the second was app-wide.
+
+**A redraw on every keystroke.** `wireIdentity` called `render()` on the level
+field's `input` event, and `render()` goes through `renderShell`, which replaces
+`document.body`. The focused input is destroyed mid-word, which on a phone
+means the keyboard closes. The comment directly above the line said *"free text
+does not, so leave the caret where it is"* -- and the line included the level
+field anyway.
+
+Nothing on the identity step displays the level, so it never needed the redraw.
+The two selects still redraw, because their hints change and choosing from a
+select has already taken focus off it. Everything else now updates the Next
+button and the blocker note **in place**, which is all a keystroke can change.
+
+The same line also clamped to 1--20 on every keystroke, which makes a two-digit
+level impossible: clearing the field to retype snaps it straight back to 1.
+The value is now held as typed and tidied on blur, and every read of it
+downstream goes through `clampLevel`, so a half-typed level can never reach the
+database or render as the string `"null"`.
+
+**Pre-filled number fields appended.** A sweep that types into every field in
+v2 and checks what comes out turned up the bigger problem:
+
+| Field | Typed | Became |
+|---|---|---|
+| Currency (gold, showing 137) | `250` | `137250` |
+| Level (showing 1) | `12` | `112` |
+| Creature count (showing 1) | `12` | `112` |
+| Rolled hit points (showing 9) | `15` | `915` |
+
+Tapping a pre-filled number field puts a caret where the finger landed and
+leaves the value in place. Nobody taps a number field meaning to splice digits
+into the middle of it. A `focusin` handler in core now selects the contents of
+any non-empty `input[type=number]`, which fixes every such field at once,
+including ones not written yet.
+
+Scoped to numbers deliberately: selecting a name or a note on focus would
+destroy someone's text the moment they tapped in to fix one word. The suite
+asserts both halves -- numbers replace, text does not.
+
+The select is **synchronous**, not on a timer. The first attempt deferred it
+with `setTimeout(..., 0)`, which can land after the first keystroke: it then
+selects the character just typed and lets the second replace it, so typing 12
+gives 2. That is the same bug wearing a different hat.
 
 ### 11.3b Review fixes
 

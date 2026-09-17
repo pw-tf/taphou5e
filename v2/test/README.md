@@ -73,6 +73,16 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- Typing into a number field: the level keeping focus per keystroke (a redraw
+  there closes the keyboard on a phone), a two-digit level being enterable at
+  all, clamping happening on blur rather than mid-word, and an empty field
+  blocking the step in place rather than through a redraw
+- Pre-filled number fields replacing on focus rather than appending, and text
+  fields deliberately not doing so
+
+A note on measuring this: clicking an already-focused element fires no
+`focusin`, so a test that clicks and types twice measures nothing. Blur between
+the passes or the select-on-focus behaviour is never exercised.
 - The login page opening on the join form alone, and the segmented control
   swapping the two rather than only revealing one (`.login-card` sets
   `display: flex`, which beats the UA's `[hidden] { display: none }`)

@@ -471,6 +471,29 @@ function renderShell(options) {
 }
 
 // ========================================
+// Number fields select themselves
+//
+// Tapping a pre-filled number field puts a caret where the finger landed and
+// leaves the value in place, so typing appends to it: 250 into a gold field
+// showing 137 gives 137250, and 12 into a level showing 1 gives 112. Nobody
+// taps a number field meaning to splice digits into the middle of it -- they
+// mean to replace it.
+//
+// Scoped to numbers on purpose. Selecting a name or a note on focus would
+// destroy someone's text the moment they tapped in to fix one word.
+// ========================================
+
+document.addEventListener('focusin', event => {
+    const el = event.target;
+    if (!el || el.tagName !== 'INPUT' || el.type !== 'number') return;
+    if (el.readOnly || el.disabled || el.value === '') return;
+    // Synchronously, not on a timer. A deferred select can land AFTER the
+    // first keystroke, which selects the character just typed and lets the
+    // second one replace it -- typing 12 gives 2.
+    try { el.select(); } catch (e) { /* not selectable */ }
+});
+
+// ========================================
 // Press-and-hold card menus
 //
 // Editing and deleting used to live only in a topbar or a row of small

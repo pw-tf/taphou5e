@@ -43,6 +43,7 @@
         if (state.step === 0) {
             if (!state.name.trim()) return 'Give the character a name.';
             if (!state.playerName.trim()) return 'Say who is playing them.';
+            if (state.level === null) return 'Give them a level between 1 and 20.';
             if (state.level < 1 || state.level > 20) return 'Level must be between 1 and 20.';
             return null;
         }
@@ -70,15 +71,16 @@
     }
 
     function derived() {
+        const level = clampLevel(state.level);
         const final = finalScores();
         const conMod = getModifier(final.con);
         return {
             final,
-            hp: calcHP(state.cls, state.level, conMod),
+            hp: calcHP(state.cls, level, conMod),
             ac: 10 + getModifier(final.dex),
             initiative: getModifier(final.dex),
             speed: (window.LevelUpEngine && window.LevelUpEngine.RACIAL_SPEED[state.race]) || 30,
-            profBonus: getProfBonus(state.level),
+            profBonus: getProfBonus(level),
             saves: (window.LevelUpEngine && window.LevelUpEngine.CLASS_SAVING_THROWS[state.cls]) || []
         };
     }
@@ -100,7 +102,7 @@
         const last = state.step === STEPS.length - 1;
         const blocked = blockers();
         return `
-            ${blocked ? `<p class="wizard-blocker" role="status">${escapeHtml(blocked)}</p>` : ''}
+            <p class="wizard-blocker" role="status"${blocked ? '' : ' hidden'}>${escapeHtml(blocked || '')}</p>
             <div class="wizard-nav">
                 <button class="btn" id="wz-back" ${state.step === 0 ? 'disabled' : ''}>Back</button>
                 <button class="btn btn-accent" id="wz-next" ${blocked || state.saving ? 'disabled' : ''}>
@@ -140,7 +142,8 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="wz-level">Level</label>
-                    <input id="wz-level" type="number" min="1" max="20" value="${state.level}">
+                    <input id="wz-level" type="number" min="1" max="20" inputmode="numeric"
+                           value="${state.level === null ? '' : state.level}">
                 </div>
                 <div class="form-group">
                     <label for="wz-subclass">Subclass</label>
@@ -154,26 +157,71 @@
             </div>`;
     }
 
+    // Redrawing on a keystroke is the one thing this must never do: render()
+    // replaces document.body, which destroys the focused field and closes the
+    // keyboard mid-word. Only the two selects redraw, because changing a
+    // select has already taken focus off it and their hints have to update.
     function wireIdentity() {
-        const bind = (id, key, transform) => {
+        const bind = (id, key) => {
             const el = $(id);
             if (!el) return;
             el.addEventListener('input', () => {
-                state[key] = transform ? transform(el.value) : el.value;
-                // Race and class change the hints and the review, so redraw;
-                // free text does not, so leave the caret where it is.
-                if (id === '#wz-race' || id === '#wz-class' || id === '#wz-level') render();
-                else $('#wz-next').disabled = !!blockers();
+                state[key] = el.value;
+                refreshGate();
             });
         };
         bind('#wz-name', 'name');
         bind('#wz-player', 'playerName');
-        bind('#wz-race', 'race');
-        bind('#wz-class', 'cls');
         bind('#wz-subclass', 'subclass');
-        bind('#wz-background', 'background');
-        bind('#wz-alignment', 'alignment');
-        bind('#wz-level', 'level', v => Math.max(1, Math.min(20, parseInt(v, 10) || 1)));
+
+        [['#wz-race', 'race'], ['#wz-class', 'cls'],
+         ['#wz-background', 'background'], ['#wz-alignment', 'alignment']].forEach(([id, key]) => {
+            const el = $(id);
+            if (!el) return;
+            el.addEventListener('change', () => {
+                state[key] = el.value;
+                // Race and class drive the hints under them and the scores on
+                // the next step, so these do need the redraw.
+                if (id === '#wz-race' || id === '#wz-class') render();
+                else refreshGate();
+            });
+        });
+
+        // Level is a number field, so it gets neither the redraw nor a clamp
+        // on every keystroke: clamping as you type makes a two-digit level
+        // impossible to enter, because clearing the field to retype it snaps
+        // straight back to 1. It is held as typed and tidied on the way out.
+        const level = $('#wz-level');
+        if (level) {
+            level.addEventListener('input', () => {
+                const parsed = parseInt(level.value, 10);
+                state.level = Number.isFinite(parsed) ? parsed : null;
+                refreshGate();
+            });
+            level.addEventListener('blur', () => {
+                state.level = clampLevel(state.level);
+                level.value = state.level;
+                refreshGate();
+            });
+        }
+    }
+
+    function clampLevel(value) {
+        const parsed = parseInt(value, 10);
+        return Number.isFinite(parsed) ? Math.max(1, Math.min(20, parsed)) : 1;
+    }
+
+    // Update the one thing a keystroke can change without a redraw.
+    function refreshGate() {
+        const blocked = blockers();
+        const button = $('#wz-next');
+        if (button) button.disabled = !!blocked || state.saving;
+
+        const note = $('.wizard-blocker');
+        if (note) {
+            note.textContent = blocked || '';
+            note.hidden = !blocked;
+        }
     }
 
     // ---- Step 2: abilities -----------------------------------------------
@@ -353,7 +401,7 @@
         return `
             <div class="review-head">
                 <h3>${escapeHtml(state.name)}</h3>
-                <p class="meta">Level ${state.level} ${escapeHtml(state.race)} ${escapeHtml(state.cls)}${
+                <p class="meta">Level ${clampLevel(state.level)} ${escapeHtml(state.race)} ${escapeHtml(state.cls)}${
                     state.subclass ? ` (${escapeHtml(state.subclass)})` : ''} &middot; ${escapeHtml(state.playerName)}</p>
             </div>
             <div class="review-scores">
@@ -374,7 +422,7 @@
                 <div><span class="k">Initiative</span><span class="mono v">${formatMod(d.initiative)}</span></div>
                 <div><span class="k">Speed</span><span class="mono v">${d.speed} ft</span></div>
                 <div><span class="k">Proficiency</span><span class="mono v">${formatMod(d.profBonus)}</span></div>
-                <div><span class="k">Hit dice</span><span class="mono v">${state.level}d${HIT_DICE[state.cls] || 8}</span></div>
+                <div><span class="k">Hit dice</span><span class="mono v">${clampLevel(state.level)}d${HIT_DICE[state.cls] || 8}</span></div>
             </div>
             <p class="hint">
                 ${saves ? `Saving throw proficiency in ${escapeHtml(saves)}. ` : ''}
@@ -439,6 +487,7 @@
     async function create() {
         const d = derived();
         const hd = HIT_DICE[state.cls] || 8;
+        const level = clampLevel(state.level);
 
         const { data: character, error } = await db.from('characters').insert({
             game_world_id: session.gameWorldId,
@@ -447,7 +496,7 @@
             race: state.race,
             class: state.cls,
             subclass: state.subclass.trim() || null,
-            level: state.level,
+            level,
             experience_points: 0,
             background: state.background,
             alignment: state.alignment,
@@ -457,8 +506,8 @@
             hit_point_maximum: d.hp,
             current_hit_points: d.hp,
             temporary_hit_points: 0,
-            hit_dice_total: `${state.level}d${hd}`,
-            hit_dice_remaining: state.level,
+            hit_dice_total: `${level}d${hd}`,
+            hit_dice_remaining: level,
             death_save_successes: 0,
             death_save_failures: 0,
             proficiency_bonus: d.profBonus,
@@ -498,7 +547,7 @@
             const base = {};
             ABILITIES.forEach(a => base[ABILITY_LONG[a]] = state.scores[a]);
             await window.LevelUpEngine.enhanceCharacterCreation(
-                id, { race: state.race, class: state.cls, level: state.level },
+                id, { race: state.race, class: state.cls, level },
                 base, state.halfElf
             );
         }

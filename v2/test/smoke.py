@@ -2622,6 +2622,117 @@ async def main():
         assert saved["payload"]["backstory"] == "Raised by the Ash, and in its debt.", saved
         ok("a details field can be edited from the sheet")
 
+        # ---------- 55. Typing into a number field ----------
+        # Two ways a number field can fight the person using it, both of which
+        # shipped: a redraw on keystroke that destroys the field (and closes
+        # the keyboard on a phone), and a pre-filled value that the new digits
+        # append to instead of replacing.
+        typing = await browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+        await typing.add_init_script(STUB)
+        tp = await typing.new_page()
+        watch(tp, "typing")
+
+        await tp.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await tp.fill("#world-name", "Thornfell Reach")
+        await fill_pin(tp, "join", "1379")
+        await tp.click("#join-form .btn-submit")
+        await tp.wait_for_selector(".party-roster", timeout=10000)
+
+        await tp.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await tp.wait_for_selector("#wz-level", timeout=10000)
+
+        level = tp.locator("#wz-level")
+        await level.click()
+        for digit in "12":
+            await tp.keyboard.type(digit)
+            await tp.wait_for_timeout(150)
+            focused = await level.evaluate("el => document.activeElement === el")
+            assert focused, f"the level field lost focus after typing {digit!r}"
+        ok("typing a level keeps the field focused, so the keyboard stays up")
+
+        assert await level.input_value() == "12", await level.input_value()
+        ok("a two-digit level can actually be typed")
+
+        # Out of range is caught on the way out, not on every keystroke --
+        # clamping as you type makes the field impossible to clear and retype.
+        # Blur first: the field is still focused from above, and clicking a
+        # focused element fires no focusin, so it would not re-select.
+        await tp.evaluate("() => document.activeElement && document.activeElement.blur()")
+        await tp.wait_for_timeout(120)
+        await level.click()
+        await tp.keyboard.type("99")
+        assert await level.input_value() == "99", "no clamping mid-word"
+        await tp.locator("#wz-name").click()
+        await tp.wait_for_timeout(200)
+        assert await level.input_value() == "20", await level.input_value()
+        ok("a level out of range is tidied on the way out, not mid-word")
+
+        # While the field is empty mid-edit the step is blocked, and the block
+        # says so without a redraw -- a redraw here is what closed the keyboard.
+        await tp.fill("#wz-name", "Ysolde")
+        await tp.fill("#wz-player", "Kim")
+        await tp.evaluate("() => document.activeElement && document.activeElement.blur()")
+        await tp.wait_for_timeout(120)
+        await level.click()
+        await tp.keyboard.press("Control+a")
+        await tp.keyboard.press("Backspace")
+        await tp.wait_for_timeout(200)
+        assert await level.evaluate("el => document.activeElement === el"), \
+            "clearing the field must not cost focus either"
+        blocker = (await tp.locator(".wizard-blocker").inner_text()).lower()
+        assert "level" in blocker, blocker
+        assert await tp.locator("#wz-next").is_disabled()
+        ok("an empty level blocks the step, in place, without a redraw")
+
+        # Leaving it settles to a real level rather than writing null, and a
+        # redraw from elsewhere must never print the string "null" into it.
+        await tp.select_option("#wz-race", "Dwarf")
+        await tp.wait_for_timeout(300)
+        settled = await tp.locator("#wz-level").input_value()
+        assert settled == "1", settled
+        assert settled != "null"
+        ok(f"an emptied level settles to {settled}, never to 'null'")
+
+        # ---------- 56. Number fields replace, text fields do not ----------
+        async def retype(page, selector, text):
+            # Clicking an already-focused element fires no focusin, so the
+            # blur is what makes this measure anything at all.
+            await page.evaluate("() => document.activeElement && document.activeElement.blur()")
+            await page.wait_for_timeout(120)
+            el = page.locator(selector).first
+            await el.click()
+            await page.wait_for_timeout(150)
+            await page.keyboard.type(text, delay=40)
+            await page.wait_for_timeout(150)
+            return await el.input_value()
+
+        await tp.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
+        await tp.wait_for_selector(".sheet-header", timeout=10000)
+        await tp.click('.tab-btn:has-text("Inventory")')
+        await tp.wait_for_selector('.section-head:has-text("Currency")', timeout=5000)
+        await tp.click('.section-head:has-text("Currency") button')
+        await tp.wait_for_selector("#mf-gold", timeout=5000)
+
+        assert await tp.locator("#mf-gold").input_value() == "137"
+        value = await retype(tp, "#mf-gold", "250")
+        assert value == "250", f"tapping a gold field showing 137 and typing 250 gave {value!r}"
+        ok("a pre-filled number field replaces rather than appends")
+        await tp.click("#modal-close")
+        await tp.wait_for_timeout(300)
+
+        # Text is deliberately left alone: selecting a name on focus would
+        # destroy it the moment someone tapped in to fix one word.
+        await tp.click('.tab-btn:has-text("Notes")')
+        await tp.wait_for_selector('.section-head:has-text("Backstory")', timeout=5000)
+        await tp.click('.section-head:has-text("Backstory") button')
+        await tp.wait_for_selector("#mf-value", timeout=5000)
+        before = await tp.locator("#mf-value").input_value()
+        after = await retype(tp, "#mf-value", "X")
+        assert after != "X" and before in after, (before, after)
+        ok("a text field is not selected on focus, so tapping in does not wipe it")
+        await typing.close()
+
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
         await page.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
