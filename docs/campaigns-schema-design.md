@@ -742,6 +742,49 @@ Three properties matter more than the mechanism:
 Two independent localStorage keys, no collision: `taphou5e-ui` (version) and `taphou5e-theme` (Ember's
 own, from `theme.js`). Both versions read the same `dnd-session` key, so switching never logs anyone out.
 
+### 9.3a The invite, and the second classic edit
+
+The router in §9.3 only acts for people who have already opted in, which left
+nobody a way to find out v2 exists. `v2-invite.js` is the offer.
+
+It is the **second and last** change to the frozen classic version, after the
+`login.js` PIN cutover. The footprint is deliberately one file plus one script
+tag on each of two pages: it touches no `app.js` state, adds one namespaced
+global, and reuses the classic modal markup so it looks native rather than
+bolted on. Deleting the file and the two tags removes it completely.
+
+**Where it appears.** Two screens, because there are two ways into the classic
+app: the login page for someone signing in, and the character page's home
+screen for someone whose session is still valid and who therefore never sees a
+login page at all.
+
+**What it waits for.** On the character page it watches for the home screen to
+actually become visible rather than firing on load. That means it never appears
+over the redirect to the login page when a session has expired, and never over
+a character sheet restored from the last visit — someone opening a character is
+mid-task. If the home screen never appears, it gives up after fifteen seconds
+rather than firing over whatever the person ended up on.
+
+**What each answer means.**
+
+| Answer | Stored | Effect |
+|---|---|---|
+| Try it | `taphou5e-ui = next` | The router takes over from now on; v2's side menu is the way back |
+| Not now | `taphou5e-invite = <now>` | Asked again after seven days |
+| Not now, with the box ticked | `taphou5e-invite = never` | Never asked again |
+| Tapping away or Escape | as "Not now" | Honours the checkbox if it was ticked first |
+
+Dismissing deliberately does **not** write `taphou5e-ui = classic`: choosing
+classic is a decision, and "not now" is not one. A corrupt timestamp in
+`taphou5e-invite` falls through to asking rather than wedging the prompt off
+forever.
+
+**The handoff carries a DM's session.** `dnd-session` is shared, so accepting
+the invite lands a DM in v2 already signed in. v1 stores `dmToken` but not
+`dmTokenIssued`; `dmTokenExpired()` falls back to `session.timestamp`, which v1
+does store, so a DM whose token has aged out still gets told rather than
+silently seeing empty campaign data.
+
 ### 9.4 What each version sees of the other's data
 
 Because of decision 2, this stays simple. A character never leaves its world, so **v1's roster is never
@@ -818,11 +861,11 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (219 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (228 assertions):
 
 | Built | Not yet |
 |---|---|
-| Shell, tokens, theme control, root router | The "try the new layout" invite on the classic login |
+| Shell, tokens, theme control, root router | Flipping the default for devices that never chose |
 | Login and world creation on the RPCs | |
 | Overview hub | |
 | Party roster | |
@@ -841,6 +884,7 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (219 asserti
 | Level-up wizard, multi-level aware | |
 | Press-and-hold card menus | |
 | A writable character sheet | |
+| The invite to try v2, on both classic screens | |
 
 Every hub tile and navigation item links to a real page.
 

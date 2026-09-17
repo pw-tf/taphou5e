@@ -73,6 +73,12 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- The invite on both classic screens: the login page, and the home screen for a
+  device that still has a session (waiting for that screen rather than firing
+  over the redirect), plus each answer's consequence — "not now" recording
+  when we asked without choosing classic, staying away on the next load,
+  returning after a week, the checkbox stopping it for good, and "try it"
+  opting the device in so the router takes over
 - The sheet's write paths, which did not exist: spell slots spent by tap and
   restored by hold, the prepared toggle, adding a spell prefilled from the SRD,
   an out-of-range spell level refused before it reaches the database, item
