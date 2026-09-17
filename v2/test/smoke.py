@@ -167,6 +167,22 @@ FIXTURES = {
     # A Barbarian levelling 4 -> 6: level 5 has features, level 6 is an ASI
     # level for nobody (Barbarians take theirs at 4, 8, 12...), and neither
     # level has spellcasting, so the spell step must skip itself.
+    "srd_equipment": {"count": 2, "results": [
+        {"index": "longsword", "name": "Longsword", "url": "/api/equipment/longsword"},
+        {"index": "rope-hempen", "name": "Rope, Hempen (50 feet)", "url": "/api/equipment/rope-hempen"}]},
+    "srd_equipment_longsword": {
+        "index": "longsword", "name": "Longsword", "weight": 3,
+        "equipment_category": {"name": "Weapon"},
+        "damage": {"damage_dice": "1d8", "damage_type": {"name": "Slashing"}},
+        "properties": [{"name": "Versatile"}],
+        "desc": ["A versatile martial weapon."]},
+    "srd_features_index": {"count": 1, "results": [
+        {"index": "action-surge-1-use", "name": "Action Surge (1 use)",
+         "url": "/api/features/action-surge-1-use"}]},
+    "srd_feature_action_surge": {
+        "index": "action-surge-1-use", "name": "Action Surge (1 use)", "level": 2,
+        "class": {"name": "Fighter"},
+        "desc": ["You can push yourself beyond your normal limits for a moment."]},
     "srd_class_levels": {
         "barbarian": {
             "5": {"level": 5, "features": [
@@ -291,6 +307,10 @@ STUB = """
     const json = (body) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
     if (/\/api\/monsters$/.test(url))          return json(FIXTURES.srd_monsters);
     if (/\/api\/spells$/.test(url))            return json(FIXTURES.srd_spells);
+    if (/\/api\/equipment$/.test(url))         return json(FIXTURES.srd_equipment);
+    if (/\/api\/features$/.test(url))          return json(FIXTURES.srd_features_index);
+    if (/\/api\/equipment\/longsword$/.test(url)) return json(FIXTURES.srd_equipment_longsword);
+    if (/\/api\/features\/action-surge-1-use$/.test(url)) return json(FIXTURES.srd_feature_action_surge);
     if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
     if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
     // Class levels drive the level-up wizard's feature and spell steps.
@@ -2307,6 +2327,194 @@ async def main():
         ok("the colour picker writes the chosen colour")
 
         await hold.close()
+
+        # ---------- 50. The sheet can be written to ----------
+        # It was read-only everywhere but hit points, conditions, proficiency
+        # toggles and rests, so a player had to open the classic version to
+        # record a spell they had just learned.
+        await page.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
+        await page.wait_for_selector(".sheet-header", timeout=10000)
+
+        await click_tab(page, "Spells")
+        await page.wait_for_selector(".slot-chip", timeout=5000)
+
+        # Slots: tap to spend. The fixture has 4 level-1 slots with 1 used.
+        first = page.locator('.slot-chip:has-text("L1")')
+        assert "3/4" in await first.inner_text(), await first.inner_text()
+        await page.evaluate("window.__resetWrites()")
+        await first.click()
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        spent = [w for w in writes if w["table"] == "spell_slots"][-1]
+        assert spent["payload"]["used"] == 2, spent
+        assert "2/4" in await page.locator('.slot-chip:has-text("L1")').inner_text()
+        ok("tapping a spell slot spends it")
+
+        # Holding gives it back.
+        b = await page.locator('.slot-chip:has-text("L1")').bounding_box()
+        await page.evaluate(TOUCH_HOLD_JS, {"x": b["x"] + b["width"] / 2, "y": b["y"] + b["height"] / 2, "ms": 700})
+        await page.wait_for_selector(".card-menu", timeout=5000)
+        await page.click('.card-menu-item:has-text("Restore one")')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        restored = [w for w in writes if w["table"] == "spell_slots"][-1]
+        assert restored["payload"]["used"] == 1, restored
+        ok("holding a spell slot restores one")
+
+        # Prepared toggles without opening the spell.
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.list-row:has-text("Fire Bolt") .prep-toggle')
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        prep = [w for w in writes if w["table"] == "spells"][-1]
+        assert prep["payload"]["prepared"] is False, prep
+        assert await page.locator(".pane").count() == 0, "toggling must not open the detail pane"
+        ok("the prepared toggle writes without opening the spell")
+
+        # Adding a spell, through the SRD search.
+        await page.click('.section-head:has-text("Spells") button:has-text("Add")')
+        await page.wait_for_selector("#srd-lookup", timeout=5000)
+        await page.fill("#srd-lookup", "fire")
+        await page.wait_for_selector(".srd-hit", timeout=5000)
+        await page.click('.srd-hit:has-text("Fireball")')
+        await page.wait_for_timeout(600)
+
+        assert await page.input_value("#mf-name") == "Fireball"
+        assert await page.input_value("#mf-level") == "3"
+        assert "Evocation" in await page.input_value("#mf-school")
+        assert "V, S, M" in await page.input_value("#mf-components")
+        ok("picking an SRD spell fills the form from the API")
+
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        added = [w for w in writes if w["table"] == "spells" and w["verb"] == "insert"][-1]
+        assert added["payload"]["name"] == "Fireball", added
+        assert added["payload"]["level"] == 3, added
+        assert added["payload"]["api_index"] == "fireball", added
+        assert added["payload"]["character_id"] == "c2", added
+        ok("adding a spell writes it against this character")
+
+        # A spell level outside 0-9 is refused before it reaches the database.
+        await page.click('.section-head:has-text("Spells") button:has-text("Add")')
+        await page.wait_for_selector("#mf-level", timeout=5000)
+        await page.fill("#mf-name", "Wish Harder")
+        await page.fill("#mf-level", "12")
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(400)
+        assert "between 0 and 9" in await page.locator(".modal-error").inner_text()
+        writes = await page.evaluate("window.__writes")
+        assert not [w for w in writes if w["table"] == "spells"], writes
+        ok("a spell level out of range is refused before it reaches the database")
+        await page.click("#modal-close")
+
+        # ---------- 51. Inventory and currency ----------
+        await click_tab(page, "Inventory")
+        await page.wait_for_selector(".qty", timeout=5000)
+
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.list-row:has-text("Spellbook") .qty button:has-text("+")')
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        qty = [w for w in writes if w["table"] == "inventory_items"][-1]
+        assert qty["payload"]["quantity"] == 2, qty
+        assert await page.locator(".pane").count() == 0, "the stepper must not open the detail pane"
+        ok("item quantity steps up without opening the item")
+
+        # Down to zero drops the item rather than leaving a row saying 0.
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.list-row:has-text("Spellbook") .qty button:has-text("\u2212")')
+        await page.wait_for_timeout(400)
+        await page.click('.list-row:has-text("Spellbook") .qty button:has-text("\u2212")')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        assert [w for w in writes if w["table"] == "inventory_items" and w["verb"] == "delete"], writes
+        ok("taking the last one drops the item instead of leaving a zero")
+
+        await page.click('.section-head:has-text("Currency") button:has-text("Add")')
+        await page.wait_for_selector("#mf-gold", timeout=5000)
+        assert await page.input_value("#mf-gold") == "137"
+        await page.fill("#mf-gold", "-5")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(400)
+        assert "zero or more" in await page.locator(".modal-error").inner_text()
+        ok("currency cannot go negative")
+
+        await page.fill("#mf-gold", "200")
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        purse = [w for w in writes if w["table"] == "currency"][-1]
+        assert purse["payload"]["gold"] == 200 and purse["payload"]["copper"] == 12, purse
+        ok("currency saves every coin type, not just the one changed")
+
+        # ---------- 52. Weapons, features and notes ----------
+        await click_tab(page, "Actions")
+        await page.wait_for_selector('.section-head:has-text("Weapons")', timeout=5000)
+        await page.click('.section-head:has-text("Weapons") button:has-text("Add")')
+        await page.wait_for_selector("#srd-lookup", timeout=5000)
+        await page.fill("#srd-lookup", "longsw")
+        await page.wait_for_selector(".srd-hit", timeout=5000)
+        await page.click('.srd-hit:has-text("Longsword")')
+        await page.wait_for_timeout(600)
+        assert await page.input_value("#mf-damage") == "1d8"
+        assert await page.input_value("#mf-damage_type") == "Slashing"
+        ok("an SRD weapon fills its damage and type")
+        await page.click("#modal-close")
+
+        # Arcane Recovery is already spent in the fixture (0 of 1), so tapping
+        # it must write nothing rather than going negative.
+        assert "0/1" in await page.locator(".charge").inner_text()
+        await page.evaluate("window.__resetWrites()")
+        await page.click(".charge")
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        assert not [w for w in writes if w["table"] == "features_traits"], writes
+        ok("spending a feature that has no uses left writes nothing")
+
+        # Holding gives one back, which is the only way to correct a mis-tap
+        # between rests.
+        b = await page.locator('.list-row:has-text("Arcane Recovery")').bounding_box()
+        await page.evaluate(TOUCH_HOLD_JS, {"x": b["x"] + 80, "y": b["y"] + 18, "ms": 700})
+        await page.wait_for_selector(".card-menu", timeout=5000)
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.card-menu-item:has-text("Restore one use")')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        restored = [w for w in writes if w["table"] == "features_traits"][-1]
+        assert restored["payload"]["uses_remaining"] == 1, restored
+        ok("holding a feature restores a use")
+
+        # And now it can be spent, without opening the feature's detail pane.
+        await page.evaluate("window.__resetWrites()")
+        await page.click(".charge")
+        await page.wait_for_timeout(500)
+        writes = await page.evaluate("window.__writes")
+        used = [w for w in writes if w["table"] == "features_traits"][-1]
+        assert used["payload"]["uses_remaining"] == 0, used
+        assert await page.locator(".pane").count() == 0, "the charge must not open the feature"
+        ok("a feature's charges can be spent from the row")
+
+        await click_tab(page, "Notes")
+        await page.wait_for_selector('.section-head:has-text("Backstory")', timeout=5000)
+        body = await page.locator(".sheet-scroll").inner_text()
+        assert "classic version" not in body, "the notes tab should no longer send people to v1"
+        ok("the notes tab no longer tells people to go and use the classic version")
+
+        await page.click('.section-head:has-text("Backstory") button:has-text("Add")')
+        await page.wait_for_selector("#mf-value", timeout=5000)
+        assert "Raised by the Ash" in await page.input_value("#mf-value")
+        await page.fill("#mf-value", "Raised by the Ash, and in its debt.")
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(600)
+        writes = await page.evaluate("window.__writes")
+        saved = [w for w in writes if w["table"] == "character_details"][-1]
+        assert saved["payload"]["backstory"] == "Raised by the Ash, and in its debt.", saved
+        ok("a details field can be edited from the sheet")
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")

@@ -73,6 +73,14 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- The sheet's write paths, which did not exist: spell slots spent by tap and
+  restored by hold, the prepared toggle, adding a spell prefilled from the SRD,
+  an out-of-range spell level refused before it reaches the database, item
+  quantity stepping (and the last one dropping the item), currency refusing
+  negatives and saving every coin type, an SRD weapon's damage filling itself,
+  feature charges in both directions, and a details field being edited
+- That none of the inline controls on a row open the detail pane behind it,
+  which is what would make all of them useless
 - Press-and-hold card menus: a normal tap still opening the card, a hold
   opening the menu, the synthesised click afterwards *not* following the card's
   link, and a hold that moves being treated as a scroll

@@ -860,3 +860,51 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
 @media (hover: hover) {
   .holdable [data-holdable]:hover { cursor: context-menu; }
 }
+
+/* ---------- Sheet editing ----------
+   The sheet was read-only everywhere but hit points; these are the controls
+   that close that. All of them sit inside a row that is itself a button, so
+   each stops its own click from opening the detail pane behind it. */
+.slot-chip, .charge, .prep-toggle, .qty button {
+  font: inherit; cursor: pointer; border: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary); color: var(--text-primary);
+}
+.slot-chip.is-spent, .charge.is-spent { opacity: .45; }
+.slot-chip { min-width: 58px; }
+
+.charge {
+  flex: none; padding: 5px 9px; border-radius: var(--radius-sm);
+  font-size: var(--fs-11); font-weight: 600;
+}
+
+.prep-toggle {
+  flex: none; padding: 5px 9px; border-radius: var(--radius-sm);
+  font-size: var(--fs-9); font-weight: 700; letter-spacing: .06em;
+  color: var(--text-tertiary);
+}
+.prep-toggle.is-on {
+  background: var(--accent-primary); border-color: var(--accent-primary);
+  color: var(--accent-on);
+}
+
+.qty { display: flex; align-items: center; gap: var(--space-6); flex: none; }
+.qty button {
+  width: 30px; height: 30px; border-radius: var(--radius-sm);
+  font-size: var(--fs-14); line-height: 1;
+}
+.qty .mono { min-width: 2ch; text-align: center; font-weight: 700; }
+
+/* A paragraph that opens an editor needs to look like it does something,
+   without becoming a button-shaped block of prose. */
+.prose.editable { cursor: pointer; }
+.prose.editable:hover { color: var(--text-primary); }
+
+/* The SRD lookup that sits above an add form's own fields. */
+.srd-search { position: relative; }
+.srd-results { display: flex; flex-direction: column; gap: 2px; }
+.srd-hit {
+  text-align: left; padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+  color: var(--text-primary); font: inherit; font-size: var(--fs-13); cursor: pointer;
+}
+.srd-hit:hover { background: var(--bg-hover); border-color: var(--accent-primary); }
