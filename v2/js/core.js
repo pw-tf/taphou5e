@@ -311,6 +311,10 @@ function renderSidebar(activeId, counts) {
                     <button data-theme-option="light" onclick="setTheme('light')">Light</button>
                     <button data-theme-option="system" onclick="setTheme('system')">System</button>
                 </div>
+                <!-- These lived only in the mobile drawer, which is hidden
+                     above the breakpoint -- so a desktop had no way out. -->
+                <a class="side-menu-item" id="sb-classic">${icon('swap', 16)}Switch to classic</a>
+                <a class="side-menu-item side-menu-item-danger" id="sb-logout">${icon('logout', 16)}Logout</a>
             </div>
         </aside>`;
 }
@@ -365,6 +369,16 @@ function renderSideMenu(activeId) {
 }
 
 function wireSideMenu() {
+    const signOut = () => {
+        clearSession();
+        window.location.href = 'login.html';
+    };
+
+    // The sidebar is always present above the breakpoint, whether or not the
+    // drawer exists, so its handlers are wired before the early return.
+    $('#sb-classic')?.addEventListener('click', switchToClassic);
+    $('#sb-logout')?.addEventListener('click', signOut);
+
     const overlay = $('#side-menu-overlay');
     if (!overlay) return;
 
@@ -378,10 +392,7 @@ function wireSideMenu() {
     });
 
     $('#sm-classic')?.addEventListener('click', switchToClassic);
-    $('#sm-logout')?.addEventListener('click', () => {
-        clearSession();
-        window.location.href = 'login.html';
-    });
+    $('#sm-logout')?.addEventListener('click', signOut);
 }
 
 // Page actions.
@@ -469,6 +480,29 @@ function renderShell(options) {
     if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
     return $('#main-content');
 }
+
+// ========================================
+// Number fields select themselves
+//
+// Tapping a pre-filled number field puts a caret where the finger landed and
+// leaves the value in place, so typing appends to it: 250 into a gold field
+// showing 137 gives 137250, and 12 into a level showing 1 gives 112. Nobody
+// taps a number field meaning to splice digits into the middle of it -- they
+// mean to replace it.
+//
+// Scoped to numbers on purpose. Selecting a name or a note on focus would
+// destroy someone's text the moment they tapped in to fix one word.
+// ========================================
+
+document.addEventListener('focusin', event => {
+    const el = event.target;
+    if (!el || el.tagName !== 'INPUT' || el.type !== 'number') return;
+    if (el.readOnly || el.disabled || el.value === '') return;
+    // Synchronously, not on a timer. A deferred select can land AFTER the
+    // first keystroke, which selects the character just typed and lets the
+    // second one replace it -- typing 12 gives 2.
+    try { el.select(); } catch (e) { /* not selectable */ }
+});
 
 // ========================================
 // Press-and-hold card menus
@@ -614,6 +648,22 @@ function confirmByName({ title, name, message, confirmLabel = 'Delete', onConfir
 // declared, not hand-written, so each screen stays about its own data.
 // ========================================
 
+// Dismiss on a backdrop press, but only when the press STARTED there.
+//
+// A click fires on the nearest common ancestor of where the press began and
+// where it ended. Select a number inside a dialog, drag past its edge, let go
+// -- the click lands on the host, and a bare `e.target === host` test throws
+// the dialog away mid-edit. Same on a phone: press a field, the keyboard
+// opens and the layout shifts under your finger, and the release is outside.
+function wireBackdropDismiss(host, dismiss) {
+    let startedOnBackdrop = false;
+    host.addEventListener('pointerdown', e => { startedOnBackdrop = e.target === host; });
+    host.addEventListener('click', e => {
+        if (e.target === host && startedOnBackdrop) dismiss();
+        startedOnBackdrop = false;
+    });
+}
+
 function closeModal() {
     const host = $('#modal-host');
     if (host) host.remove();
@@ -638,7 +688,16 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
         if (f.type === 'checkbox') {
             return `<label class="remember-row"><input type="checkbox" ${common}${f.value ? ' checked' : ''}> ${escapeHtml(f.checkboxLabel || '')}</label>`;
         }
-        return `<input ${common} type="${f.type || 'text'}" value="${escapeHtml(f.value ?? '')}" placeholder="${escapeHtml(f.placeholder || '')}">`;
+        // A number input carries an implicit step="1", so any fractional value
+        // fails native validation and the browser refuses to submit -- with no
+        // error anywhere the page can see. A challenge rating of 1/4 or an
+        // item weighing 0.25 lb hit exactly that. Every number field here is
+        // validated in its own onSubmit, so the browser's step check only ever
+        // costs us a silent dead end.
+        const step = f.type === 'number' ? ` step="${f.step || 'any'}"` : '';
+        const bounds = (f.min !== undefined ? ` min="${f.min}"` : '')
+                     + (f.max !== undefined ? ` max="${f.max}"` : '');
+        return `<input ${common} type="${f.type || 'text'}"${step}${bounds} value="${escapeHtml(f.value ?? '')}" placeholder="${escapeHtml(f.placeholder || '')}">`;
     };
 
     const body = fields.map(f => {
@@ -682,7 +741,7 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
     const dismiss = () => closeModal();
     $('#modal-close').addEventListener('click', dismiss);
     $('#modal-cancel').addEventListener('click', dismiss);
-    host.addEventListener('click', e => { if (e.target === host) dismiss(); });
+    wireBackdropDismiss(host, dismiss);
     document.addEventListener('keydown', function esc(e) {
         if (e.key === 'Escape') { dismiss(); document.removeEventListener('keydown', esc); }
     });
@@ -840,7 +899,7 @@ function openPanel({ title, body, onMount, wide }) {
 
     const host = $('#modal-host');
     $('#modal-close').addEventListener('click', closeModal);
-    host.addEventListener('click', e => { if (e.target === host) closeModal(); });
+    wireBackdropDismiss(host, closeModal);
     document.addEventListener('keydown', function esc(e) {
         if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', esc); }
     });

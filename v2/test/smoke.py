@@ -112,21 +112,24 @@ FIXTURES = {
          "status": "active", "left_at": None},
         {"id": "mem2", "campaign_id": "cam1", "character_id": "c2", "game_world_id": "w1",
          "status": "inactive", "left_at": "2026-08-01T00:00:00Z"}],
-    "storylines": [{"id": "st1", "campaign_id": "cam1", "game_world_id": "w1",
+    "chapters": [{"id": "st1", "campaign_id": "cam1", "game_world_id": "w1",
                     "title": "The Toll Keeper", "player_summary": "Someone is taxing the ford.",
-                    "body": "It is the harbourmaster.", "status": "active",
+                    "status": "active",
                     "is_revealed": True, "sort_order": 0}],
-    "storyline_beats": [
-        {"id": "b1", "storyline_id": "st1", "game_world_id": "w1", "title": "The first crossing",
-         "read_aloud": "Mist hangs over the water.", "body": "", "status": "in_progress",
+    "chapter_beats": [
+        {"id": "b1", "chapter_id": "st1", "game_world_id": "w1", "title": "The first crossing",
+         "read_aloud": "Mist hangs over the water.", "status": "in_progress",
          "is_revealed": True, "sort_order": 0},
-        {"id": "b2", "storyline_id": "st1", "game_world_id": "w1", "title": "Who pays the toll",
-         "read_aloud": "", "body": "The truth.", "status": "pending",
+        {"id": "b2", "chapter_id": "st1", "game_world_id": "w1", "title": "Who pays the toll",
+         "read_aloud": "", "status": "pending",
          "is_revealed": False, "sort_order": 1}],
     "campaign_checks": [{"id": "ck1", "campaign_id": "cam1", "game_world_id": "w1",
-                         "storyline_beat_id": "b1", "label": "Spot the tripwire",
+                         "chapter_beat_id": "b1", "label": "Spot the tripwire",
                          "check_type": "skill_check", "ability": None, "skill_name": "Perception",
-                         "dc": 14, "is_secret": True, "sort_order": 0}],
+                         "dc": 14, "is_secret": True, "is_group_check": False,
+                         "success_text": "They spot the wire and step over it.",
+                         "failure_text": "The darts fire: 2d4 piercing.",
+                         "sort_order": 0}],
     "areas": [
         {"id": "a1", "campaign_id": "cam1", "game_world_id": "w1", "parent_area_id": None,
          "name": "The Drowned Road", "area_type": "region", "description": "Flooded lowland.",
@@ -223,7 +226,7 @@ FIXTURES = {
                           "name": "Ambush at the Ford", "status": "planned", "round": 0,
                           "active_combatant_id": None, "hide_monster_hp": True,
                           "read_aloud": "Mist hangs over the water.", "area_id": None,
-                          "storyline_beat_id": None},
+                          "chapter_beat_id": None},
     "encounter_combatants": [
         {"id": "cb1", "encounter_id": "e1", "game_world_id": "w1", "combatant_type": "character",
          "character_id": "c2", "campaign_monster_id": None, "npc_id": None,
@@ -252,10 +255,21 @@ FIXTURES = {
          "max_hit_points": 48, "current_hit_points": 48, "temporary_hit_points": 0,
          "conditions": [], "is_defeated": False, "has_acted": False, "sort_order": 4,
          "color": "#3d5a72", "group_label": "Wave 2"}],
-    "dm_notes": [{"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
-                  "storyline_id": None, "storyline_beat_id": None, "npc_id": None,
-                  "encounter_id": None, "campaign_session_id": None,
-                  "body": "Vell is the villain."}],
+    "dm_notes": [
+        {"id": "dn1", "game_world_id": "w1", "campaign_id": "cam1", "area_id": None,
+         "chapter_id": None, "chapter_beat_id": None, "npc_id": None,
+         "encounter_id": None, "campaign_session_id": None,
+         "body": "Vell is the villain."},
+        # Chapter and beat prose moved here out of their own tables, where a
+        # revealed row handed it to players.
+        {"id": "dn2", "game_world_id": "w1", "campaign_id": None, "area_id": None,
+         "chapter_id": "st1", "chapter_beat_id": None, "npc_id": None,
+         "encounter_id": None, "campaign_session_id": None,
+         "body": "It is the harbourmaster."},
+        {"id": "dn3", "game_world_id": "w1", "campaign_id": None, "area_id": None,
+         "chapter_id": None, "chapter_beat_id": "b1", "npc_id": None,
+         "encounter_id": None, "campaign_session_id": None,
+         "body": "The toll keeper is already dead."}],
 }
 
 STUB = """
@@ -1028,8 +1042,8 @@ async def main():
         assert reveal["payload"]["is_known_to_players"] is True, reveal
         ok("toggling visibility writes the reveal flag")
 
-        # ---------- 21. Storylines, checks, areas ----------
-        await page.click('.campaign-tabs button:has-text("Storylines")')
+        # ---------- 21. Chapters, checks, areas ----------
+        await page.click('.campaign-tabs button:has-text("Chapters")')
         await page.wait_for_timeout(400)
         check = await page.locator(".check-row").inner_text()
         assert "DC 14" in check and "Perception" in check, check
@@ -1683,7 +1697,7 @@ async def main():
         await page.wait_for_selector(".party-roster", timeout=10000)
         await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
         await page.wait_for_selector(".campaign-tabs", timeout=10000)
-        await page.click('.campaign-tabs button:has-text("Storylines")')
+        await page.click('.campaign-tabs button:has-text("Chapters")')
         await page.wait_for_timeout(400)
 
         await page.click('.beat-list button:has-text("Add check")')
@@ -1698,7 +1712,7 @@ async def main():
         check = [w for w in writes if w["table"] == "campaign_checks" and w["verb"] == "insert"][-1]
         p_ = check["payload"]
         # Only the one parent column is sent; the rest default to NULL.
-        assert p_["storyline_beat_id"] and p_.get("area_id") is None, p_
+        assert p_["chapter_beat_id"] and p_.get("area_id") is None, p_
         assert p_["label"] == "Hear the bowstring" and p_["dc"] == 15, p_
         assert p_["is_secret"] is True, p_
         ok("a check can be authored on a beat, attached to exactly one parent")
@@ -1722,7 +1736,7 @@ async def main():
         await page.click("#modal-close")
         await page.wait_for_timeout(300)
 
-        # Areas can carry a check too -- a trap needs no storyline beat.
+        # Areas can carry a check too -- a trap needs no chapter beat.
         await page.click('.campaign-tabs button:has-text("Areas")')
         await page.wait_for_timeout(400)
         assert await page.locator('button:has-text("Add check")').count() >= 1
@@ -1736,7 +1750,7 @@ async def main():
         writes = await page.evaluate("window.__writes")
         area_check = [w for w in writes if w["table"] == "campaign_checks" and w["verb"] == "insert"][-1]
         assert area_check["payload"]["area_id"], area_check
-        assert area_check["payload"].get("storyline_beat_id") is None, area_check
+        assert area_check["payload"].get("chapter_beat_id") is None, area_check
         assert area_check["payload"]["ability"] == "con", area_check
         assert area_check["payload"]["skill_name"] is None, area_check
         ok("a saving throw on an area stores its ability and leaves the skill null")
@@ -1834,7 +1848,7 @@ async def main():
         await act(page, "Delete campaign")
         await page.wait_for_selector(".modal", timeout=5000)
         message = await page.locator(".modal-body .prose").inner_text()
-        assert "storyline" in message and "NPC" in message and "encounter" in message, message
+        assert "chapter" in message and "NPC" in message and "encounter" in message, message
         assert "stay in the world" in message, "characters must be said to survive"
         assert "cannot be undone" in message, message
         ok("deleting a campaign lists what cascades and says characters survive")
@@ -1865,18 +1879,18 @@ async def main():
         # Linking an encounter to the moment in the story it belongs to.
         await act(page, "Link to a beat")
         await page.wait_for_selector(".modal", timeout=5000)
-        options = [t.strip() for t in await page.locator("#mf-storyline_beat_id option").all_inner_texts()]
+        options = [t.strip() for t in await page.locator("#mf-chapter_beat_id option").all_inner_texts()]
         assert any("The first crossing" in o for o in options), options
-        assert any("The Toll Keeper" in o for o in options), "beats show their storyline"
-        ok(f"the beat picker offers this campaign's beats, named by storyline")
+        assert any("The Toll Keeper" in o for o in options), "beats show their chapter"
+        ok(f"the beat picker offers this campaign's beats, named by chapter")
 
-        await page.select_option("#mf-storyline_beat_id", label=[o for o in options if "first crossing" in o][0])
+        await page.select_option("#mf-chapter_beat_id", label=[o for o in options if "first crossing" in o][0])
         await page.click('.modal-actions button[type="submit"]')
         await page.wait_for_timeout(700)
         writes = await page.evaluate("window.__writes")
         link = [w for w in writes if w["table"] == "encounters"][-1]
-        assert link["payload"]["storyline_beat_id"] == "b1", link
-        ok("linking writes storyline_beat_id")
+        assert link["payload"]["chapter_beat_id"] == "b1", link
+        ok("linking writes chapter_beat_id")
         assert "The first crossing" in await page.locator(".story-link").inner_text()
         ok("the encounter shows which beat it belongs to")
 
@@ -2265,7 +2279,7 @@ async def main():
         await hp.click('.card-menu-item:has-text("Delete")')
         await hp.wait_for_selector(".modal-body", timeout=5000)
         message = await hp.locator(".modal-body").inner_text()
-        assert "storylines" in message and "stay in the world" in message, message
+        assert "chapters" in message and "stay in the world" in message, message
         ok("deleting from the menu says what cascades and that characters survive")
 
         await hp.evaluate("window.__resetWrites()")
@@ -2320,10 +2334,10 @@ async def main():
             await hp.wait_for_timeout(250)
             return head, out
 
-        await hp.click('.campaign-tabs button:has-text("Storylines")')
-        title, labels = await hold_first('[data-kind="storyline"]')
+        await hp.click('.campaign-tabs button:has-text("Chapters")')
+        title, labels = await hold_first('[data-kind="chapter"]')
         assert "Delete" in labels and any("beat" in l.lower() for l in labels), labels
-        ok(f"a storyline resolves ({title}: {labels})")
+        ok(f"a chapter resolves ({title}: {labels})")
 
         await hp.click('.campaign-tabs button:has-text("NPCs")')
         title, labels = await hold_first('[data-kind="npc"]')
@@ -2621,6 +2635,280 @@ async def main():
         saved = [w for w in writes if w["table"] == "character_details"][-1]
         assert saved["payload"]["backstory"] == "Raised by the Ash, and in its debt.", saved
         ok("a details field can be edited from the sheet")
+
+        # ---------- 55. Typing into a number field ----------
+        # Two ways a number field can fight the person using it, both of which
+        # shipped: a redraw on keystroke that destroys the field (and closes
+        # the keyboard on a phone), and a pre-filled value that the new digits
+        # append to instead of replacing.
+        typing = await browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+        await typing.add_init_script(STUB)
+        tp = await typing.new_page()
+        watch(tp, "typing")
+
+        await tp.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await tp.fill("#world-name", "Thornfell Reach")
+        await fill_pin(tp, "join", "1379")
+        await tp.click("#join-form .btn-submit")
+        await tp.wait_for_selector(".party-roster", timeout=10000)
+
+        await tp.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await tp.wait_for_selector("#wz-level", timeout=10000)
+
+        level = tp.locator("#wz-level")
+        await level.click()
+        for digit in "12":
+            await tp.keyboard.type(digit)
+            await tp.wait_for_timeout(150)
+            focused = await level.evaluate("el => document.activeElement === el")
+            assert focused, f"the level field lost focus after typing {digit!r}"
+        ok("typing a level keeps the field focused, so the keyboard stays up")
+
+        assert await level.input_value() == "12", await level.input_value()
+        ok("a two-digit level can actually be typed")
+
+        # Out of range is caught on the way out, not on every keystroke --
+        # clamping as you type makes the field impossible to clear and retype.
+        # Blur first: the field is still focused from above, and clicking a
+        # focused element fires no focusin, so it would not re-select.
+        await tp.evaluate("() => document.activeElement && document.activeElement.blur()")
+        await tp.wait_for_timeout(120)
+        await level.click()
+        await tp.keyboard.type("99")
+        assert await level.input_value() == "99", "no clamping mid-word"
+        await tp.locator("#wz-name").click()
+        await tp.wait_for_timeout(200)
+        assert await level.input_value() == "20", await level.input_value()
+        ok("a level out of range is tidied on the way out, not mid-word")
+
+        # While the field is empty mid-edit the step is blocked, and the block
+        # says so without a redraw -- a redraw here is what closed the keyboard.
+        await tp.fill("#wz-name", "Ysolde")
+        await tp.fill("#wz-player", "Kim")
+        await tp.evaluate("() => document.activeElement && document.activeElement.blur()")
+        await tp.wait_for_timeout(120)
+        await level.click()
+        await tp.keyboard.press("Control+a")
+        await tp.keyboard.press("Backspace")
+        await tp.wait_for_timeout(200)
+        assert await level.evaluate("el => document.activeElement === el"), \
+            "clearing the field must not cost focus either"
+        blocker = (await tp.locator(".wizard-blocker").inner_text()).lower()
+        assert "level" in blocker, blocker
+        assert await tp.locator("#wz-next").is_disabled()
+        ok("an empty level blocks the step, in place, without a redraw")
+
+        # Leaving it settles to a real level rather than writing null, and a
+        # redraw from elsewhere must never print the string "null" into it.
+        await tp.select_option("#wz-race", "Dwarf")
+        await tp.wait_for_timeout(300)
+        settled = await tp.locator("#wz-level").input_value()
+        assert settled == "1", settled
+        assert settled != "null"
+        ok(f"an emptied level settles to {settled}, never to 'null'")
+
+        # ---------- 56. Number fields replace, text fields do not ----------
+        async def retype(page, selector, text):
+            # Clicking an already-focused element fires no focusin, so the
+            # blur is what makes this measure anything at all.
+            await page.evaluate("() => document.activeElement && document.activeElement.blur()")
+            await page.wait_for_timeout(120)
+            el = page.locator(selector).first
+            await el.click()
+            await page.wait_for_timeout(150)
+            await page.keyboard.type(text, delay=40)
+            await page.wait_for_timeout(150)
+            return await el.input_value()
+
+        await tp.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
+        await tp.wait_for_selector(".sheet-header", timeout=10000)
+        await tp.click('.tab-btn:has-text("Inventory")')
+        await tp.wait_for_selector('.section-head:has-text("Currency")', timeout=5000)
+        await tp.click('.section-head:has-text("Currency") button')
+        await tp.wait_for_selector("#mf-gold", timeout=5000)
+
+        assert await tp.locator("#mf-gold").input_value() == "137"
+        value = await retype(tp, "#mf-gold", "250")
+        assert value == "250", f"tapping a gold field showing 137 and typing 250 gave {value!r}"
+        ok("a pre-filled number field replaces rather than appends")
+        await tp.click("#modal-close")
+        await tp.wait_for_timeout(300)
+
+        # Text is deliberately left alone: selecting a name on focus would
+        # destroy it the moment someone tapped in to fix one word.
+        await tp.click('.tab-btn:has-text("Notes")')
+        await tp.wait_for_selector('.section-head:has-text("Backstory")', timeout=5000)
+        await tp.click('.section-head:has-text("Backstory") button')
+        await tp.wait_for_selector("#mf-value", timeout=5000)
+        before = await tp.locator("#mf-value").input_value()
+        after = await retype(tp, "#mf-value", "X")
+        assert after != "X" and before in after, (before, after)
+        ok("a text field is not selected on focus, so tapping in does not wipe it")
+        await typing.close()
+
+        # ---------- 57. Chapters: what is collected is shown ----------
+        await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+        await page.click('.campaign-tabs button:has-text("Chapters")')
+        await page.wait_for_selector(".campaign-card", timeout=5000)
+
+        body = await page.locator(".campaign-tab-body").inner_text()
+        # A check's outcomes were collected by the form, stored, and never
+        # rendered -- which is the only reason anyone writes one down.
+        assert "They spot the wire" in body, body
+        assert "The darts fire" in body, body
+        ok("a check shows what happens on a success and on a failure")
+
+        # DM prose now comes from dm_notes, which players cannot read at all,
+        # rather than a column any revealed row would hand over.
+        assert "It is the harbourmaster" in body, "the chapter's note should show"
+        assert "The toll keeper is already dead" in body, "the beat's note should show"
+        ok("chapter and beat notes render, from the table players cannot reach")
+
+        # The summary is prose, not a two-line teaser with an ellipsis.
+        clamp = await page.evaluate("""() => {
+            const el = document.querySelector('.campaign-card .prose');
+            const s = getComputedStyle(el);
+            return { clamp: s.webkitLineClamp, overflow: s.overflow };
+        }""")
+        assert clamp["clamp"] in ("none", "", None), clamp
+        ok("the chapter summary is shown in full, not clamped to two lines")
+
+        # ---------- 58. Editing chapters, beats and checks ----------
+        async def menu_for(kind, ident):
+            b = await page.locator(f'[data-kind="{kind}"][data-id="{ident}"]').first.bounding_box()
+            await page.evaluate(TOUCH_HOLD_JS, {"x": b["x"] + 80, "y": b["y"] + 16, "ms": 700})
+            await page.wait_for_selector(".card-menu", timeout=5000)
+            labels = [t.strip() for t in await page.locator(".card-menu-item .label").all_inner_texts()]
+            return labels
+
+        labels = await menu_for("chapter", "st1")
+        assert "Edit" in labels, labels
+        await page.click('.card-menu-item .label:text-is("Edit")')
+        await page.wait_for_selector("#mf-title", timeout=5000)
+        assert await page.input_value("#mf-title") == "The Toll Keeper"
+        # The body field is gone: that prose belongs to the DM note now.
+        assert await page.locator("#mf-body").count() == 0, "chapters no longer carry a body column"
+        await page.fill("#mf-title", "The Toll Keeper's Price")
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        saved = [w for w in writes if w["table"] == "chapters" and w["verb"] == "update"][-1]
+        assert saved["payload"]["title"] == "The Toll Keeper's Price", saved
+        assert "body" not in saved["payload"], saved
+        ok("a chapter can be edited, and no longer writes a body column")
+
+        labels = await menu_for("beat", "b1")
+        assert "Edit" in labels, labels
+        await page.click('.card-menu-item .label:text-is("Edit")')
+        await page.wait_for_selector("#mf-read_aloud", timeout=5000)
+        assert "Mist hangs" in await page.input_value("#mf-read_aloud")
+        await page.click("#modal-close")
+        await page.wait_for_timeout(300)
+        ok("a beat can be edited")
+
+        await page.click('.check-row button:has-text("Edit")')
+        await page.wait_for_selector("#mf-success_text", timeout=5000)
+        assert "spot the wire" in (await page.input_value("#mf-success_text")).lower()
+        assert await page.input_value("#mf-dc") == "14"
+        await page.fill("#mf-dc", "16")
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        edited = [w for w in writes if w["table"] == "campaign_checks" and w["verb"] == "update"][-1]
+        assert edited["payload"]["dc"] == 16, edited
+        assert edited["payload"]["success_text"], edited
+        ok("a check can be edited, keeping its outcomes")
+
+        # ---------- 59. The roster, and the way out on desktop ----------
+        await page.click('.campaign-tabs button:has-text("Monsters")')
+        await page.wait_for_timeout(400)
+        body = await page.locator(".campaign-tab-body").inner_text()
+        assert "not built yet" not in body, body
+        ok("the monsters tab no longer claims the compendium does not exist")
+
+        await page.click('.section-head:has-text("Roster") button:has-text("Add")')
+        await page.wait_for_selector("#srd-lookup", timeout=5000)
+        await page.fill("#srd-lookup", "gob")
+        await page.wait_for_selector(".srd-hit", timeout=5000)
+        await page.click('.srd-hit:has-text("Goblin")')
+        await page.wait_for_timeout(600)
+        assert await page.input_value("#mf-name") == "Goblin"
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        added = [w for w in writes if w["table"] == "campaign_monsters" and w["verb"] == "insert"][-1]
+        assert added["payload"]["source"] == "srd_api", added
+        assert added["payload"]["api_index"] == "goblin", added
+        ok("a monster can be put on the roster from the campaign itself")
+
+        # Logout and the switch back lived only in the mobile drawer, which is
+        # hidden above the breakpoint -- a desktop had no way out.
+        assert await page.locator("#sb-logout").is_visible()
+        assert await page.locator("#sb-classic").is_visible()
+        ok("the desktop sidebar carries logout and the switch to classic")
+
+        # ---------- 60. Items in the compendium ----------
+        await page.goto(f"{BASE}/v2/compendium.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".compendium-controls", timeout=10000)
+        await page.click('.segmented button:has-text("Items")')
+        await page.wait_for_timeout(600)
+        await page.fill("#srd-search", "longsw")
+        await page.wait_for_timeout(400)
+        await page.click('.list-row:has-text("Longsword")')
+        await page.wait_for_selector(".statblock", timeout=5000)
+        detail = await page.locator(".statblock").inner_text()
+        assert "1d8" in detail and "Slashing" in detail, detail
+        ok("an item's stat block shows its damage")
+
+        await page.click('button:has-text("Add to a character")')
+        await page.wait_for_selector("#mf-character_id", timeout=5000)
+        await page.evaluate("window.__resetWrites()")
+        await page.click('.modal-actions button[type="submit"]')
+        await page.wait_for_timeout(700)
+        writes = await page.evaluate("window.__writes")
+        item = [w for w in writes if w["table"] == "inventory_items" and w["verb"] == "insert"][-1]
+        assert item["payload"]["name"] == "Longsword", item
+        assert item["payload"]["item_type"] == "Weapon", item
+        ok("an item from the compendium lands in a character's inventory")
+
+        # ---------- 61. Selecting text must not close the dialog ----------
+        # A click fires on the nearest common ancestor of where the press began
+        # and where it ended. Select a number inside a dialog, drag past its
+        # edge, let go -- the click lands on the backdrop, and a bare target
+        # test threw the dialog away mid-edit.
+        await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".campaign-tabs", timeout=10000)
+        await page.click('.campaign-tabs button:has-text("Chapters")')
+        await page.wait_for_selector(".check-row", timeout=5000)
+        await page.click('.check-row button:has-text("Edit")')
+        await page.wait_for_selector("#mf-dc", timeout=5000)
+
+        dc = await page.locator("#mf-dc").bounding_box()
+        host = await page.locator("#modal-host").bounding_box()
+        # Press on the DC field, drag out past the dialog, release on the
+        # backdrop -- exactly the gesture that highlights a number.
+        await page.mouse.move(dc["x"] + 6, dc["y"] + dc["height"] / 2)
+        await page.mouse.down()
+        await page.mouse.move(host["x"] + 12, dc["y"] + dc["height"] / 2, steps=12)
+        await page.mouse.up()
+        await page.wait_for_timeout(300)
+        assert await page.locator("#modal-host").count() == 1, \
+            "selecting text out of the dialog must not close it"
+        ok("dragging a selection out of a dialog leaves it open")
+
+        # A real press on the backdrop still dismisses, or there would be no
+        # way to tap away from it.
+        await page.mouse.move(host["x"] + 12, host["y"] + 12)
+        await page.mouse.down()
+        await page.mouse.up()
+        await page.wait_for_timeout(300)
+        assert await page.locator("#modal-host").count() == 0, "a backdrop press should still dismiss"
+        ok("a press that starts and ends on the backdrop still dismisses")
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")

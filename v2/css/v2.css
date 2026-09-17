@@ -845,10 +845,17 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  /* Without this, a long press on a row still shows the blue tap flash and,
+     on some Android builds, starts a selection before user-select applies. */
+  -webkit-tap-highlight-color: transparent;
 }
-/* Inputs inside a holdable list still need selection and a caret. */
-.holdable input, .holdable textarea, .holdable select {
+/* Inputs inside a holdable list still need selection and a caret -- but only
+   the field itself. Letting the whole row select is what let a long press
+   highlight the text, raise the keyboard, and leave a stray selection that
+   the next tap dismissed instead of doing what it was aimed at. */
+.holdable input, .holdable textarea {
   -webkit-user-select: auto; user-select: auto;
+  -webkit-touch-callout: default;
 }
 
 .card-menu { display: flex; flex-direction: column; gap: 2px; }
@@ -946,3 +953,32 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
   display: flex; align-items: center; gap: 9px;
 }
 .brand-logo { height: 22px; width: auto; flex: none; filter: var(--logo-filter); }
+
+/* The sidebar foot carries the same items as the drawer, so they need the
+   drawer's row styling at a size that suits a narrower column. */
+.sidebar-foot { display: flex; flex-direction: column; gap: var(--space-6); }
+.sidebar-foot .side-menu-item {
+  display: flex; align-items: center; gap: var(--space-sm);
+  padding: 9px 10px; border-radius: var(--radius-md);
+  font-size: var(--fs-12); color: var(--text-secondary); cursor: pointer;
+}
+.sidebar-foot .side-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-foot .side-menu-item-danger { color: var(--danger); }
+
+/* ---------- Check outcomes ----------
+   What happens on a pass or a fail was collected by the form and stored, and
+   then never shown -- which is the only reason you write one down. */
+.check-block { display: flex; flex-direction: column; gap: 3px; }
+.check-block + .check-block { margin-top: var(--space-6); }
+.outcome {
+  display: flex; gap: var(--space-sm); align-items: baseline; min-width: 0;
+  padding: 7px 10px 7px 12px; border-radius: var(--radius-sm);
+  background: var(--bg-tertiary); font-size: var(--fs-12); line-height: 1.5;
+  border-left: 2px solid var(--border-strong);
+}
+.outcome .eyebrow { flex: none; }
+.outcome.is-pass { border-left-color: var(--success); }
+.outcome.is-fail { border-left-color: var(--danger); }
+@media (max-width: 560px) {
+  .outcome { flex-direction: column; gap: 1px; }
+}

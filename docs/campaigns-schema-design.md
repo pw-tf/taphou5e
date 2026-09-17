@@ -9,10 +9,10 @@
 ## 1. Goal
 
 A campaign layer between a game world and its content, so a DM opens a world, picks a campaign, and
-finds its storylines, areas, NPCs, monsters, encounters and party under one roof.
+finds its chapters, areas, NPCs, monsters, encounters and party under one roof.
 
 ```
-World  ──▶  Campaign  ──▶  Storylines · Areas · NPCs · Monsters · Encounters · Party
+World  ──▶  Campaign  ──▶  Chapters · Areas · NPCs · Monsters · Encounters · Party
 ```
 
 ## 2. Decisions locked
@@ -42,7 +42,7 @@ World  ──▶  Campaign  ──▶  Storylines · Areas · NPCs · Monsters �
 ## 4. New tables
 
 > Created in dependency order: `campaigns` → `campaign_characters` → `areas` → `campaign_monsters`
-> → `storylines` → `storyline_beats` → `npcs` → `encounters` → `encounter_combatants` →
+> → `chapters` → `chapter_beats` → `npcs` → `encounters` → `encounter_combatants` →
 > `campaign_sessions` → `campaign_checks` → `dm_notes`.
 
 Two conventions run through every table below:
@@ -171,10 +171,10 @@ create index on public.campaign_monsters (campaign_id);
 sort and budget without unpacking JSON or calling the external API. For SRD monsters, `statblock`
 holds **only overrides** (an elite variant, buffed HP), keeping the SRD out of your database.
 
-### 4.5 `storylines` and `storyline_beats`
+### 4.5 `chapters` and `chapter_beats`
 
 ```sql
-create table public.storylines (
+create table public.chapters (
   id              uuid primary key default gen_random_uuid(),
   campaign_id     uuid not null,
   game_world_id   uuid not null,
@@ -191,9 +191,9 @@ create table public.storylines (
   foreign key (campaign_id, game_world_id) references public.campaigns(id, game_world_id) on delete cascade
 );
 
-create table public.storyline_beats (
+create table public.chapter_beats (
   id            uuid primary key default gen_random_uuid(),
-  storyline_id  uuid not null,
+  chapter_id  uuid not null,
   game_world_id uuid not null,
   area_id       uuid references public.areas(id) on delete set null,
   title         text not null,
@@ -206,7 +206,7 @@ create table public.storyline_beats (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   unique (id, game_world_id),
-  foreign key (storyline_id, game_world_id) references public.storylines(id, game_world_id) on delete cascade
+  foreign key (chapter_id, game_world_id) references public.chapters(id, game_world_id) on delete cascade
 );
 ```
 
@@ -224,7 +224,7 @@ create table public.campaign_checks (
   id                 uuid primary key default gen_random_uuid(),
   campaign_id        uuid not null,
   game_world_id      uuid not null,
-  storyline_beat_id  uuid references public.storyline_beats(id) on delete cascade,
+  chapter_beat_id  uuid references public.chapter_beats(id) on delete cascade,
   area_id            uuid references public.areas(id) on delete cascade,
   npc_id             uuid references public.npcs(id) on delete cascade,
   encounter_id       uuid references public.encounters(id) on delete cascade,
@@ -243,7 +243,7 @@ create table public.campaign_checks (
   created_at         timestamptz not null default now(),
   foreign key (campaign_id, game_world_id) references public.campaigns(id, game_world_id) on delete cascade,
   constraint campaign_checks_one_parent check (
-    num_nonnulls(storyline_beat_id, area_id, npc_id, encounter_id) = 1
+    num_nonnulls(chapter_beat_id, area_id, npc_id, encounter_id) = 1
   ),
   constraint campaign_checks_shape check (
     (check_type = 'skill_check' and skill_name is not null) or
@@ -294,7 +294,7 @@ create table public.encounters (
   campaign_id          uuid not null,
   game_world_id        uuid not null,
   area_id              uuid references public.areas(id) on delete set null,
-  storyline_beat_id    uuid references public.storyline_beats(id) on delete set null,
+  chapter_beat_id    uuid references public.chapter_beats(id) on delete set null,
   name                 text not null,
   description          text,
   read_aloud           text,
@@ -358,7 +358,7 @@ columns from player queries when it is set.
 
 ### 4.9 `campaign_sessions` — keeping it
 
-You left this to me: **keep it.** Without it, session recaps end up crammed into a storyline beat,
+You left this to me: **keep it.** Without it, session recaps end up crammed into a chapter beat,
 where they fight with the beat's own body text and break the ordering of the story. It's one cheap
 table that nothing else depends on, and "maintaining campaigns" is most of what a DM actually does
 between games.
@@ -454,8 +454,8 @@ Per-table player read predicates:
 | `campaigns` | all rows (name/summary only — no secrets remain on this table) | no |
 | `campaign_characters` | all rows | no |
 | `areas` | `is_discovered` | no |
-| `storylines` | `is_revealed` | no |
-| `storyline_beats` | `is_revealed` | no |
+| `chapters` | `is_revealed` | no |
+| `chapter_beats` | `is_revealed` | no |
 | `npcs` | `is_known_to_players` | no |
 | `campaign_sessions` | `is_published` | no |
 | `encounters` | `status = 'active'` | no |
@@ -480,8 +480,8 @@ create table public.dm_notes (
   game_world_id       uuid not null references public.game_worlds(id) on delete cascade,
   campaign_id         uuid references public.campaigns(id)          on delete cascade,
   area_id             uuid references public.areas(id)              on delete cascade,
-  storyline_id        uuid references public.storylines(id)         on delete cascade,
-  storyline_beat_id   uuid references public.storyline_beats(id)    on delete cascade,
+  chapter_id        uuid references public.chapters(id)         on delete cascade,
+  chapter_beat_id   uuid references public.chapter_beats(id)    on delete cascade,
   npc_id              uuid references public.npcs(id)               on delete cascade,
   encounter_id        uuid references public.encounters(id)         on delete cascade,
   campaign_session_id uuid references public.campaign_sessions(id)  on delete cascade,
@@ -489,7 +489,7 @@ create table public.dm_notes (
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
   constraint dm_notes_one_parent check (
-    num_nonnulls(campaign_id, area_id, storyline_id, storyline_beat_id,
+    num_nonnulls(campaign_id, area_id, chapter_id, chapter_beat_id,
                  npc_id, encounter_id, campaign_session_id) = 1
   )
 );
@@ -838,7 +838,7 @@ Login (world + PIN)  →  /v2/  hub
   │    └─ Campaign
   │         ├─ Overview     — summary, status, recent sessions
   │         ├─ Party        — pull characters in from the world roster; set status
-  │         ├─ Storylines   — beats, with their check requirements
+  │         ├─ Chapters   — beats, with their check requirements
   │         ├─ Areas        — nested tree, descriptions, maps
   │         ├─ NPCs         — lore cards; stat block if attached
   │         ├─ Monsters     — roster: SRD refs + homebrew
@@ -891,7 +891,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (244 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (264 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -908,7 +908,7 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (244 asserti
 | DM panel: levelling mode, milestone and EXP grants | |
 | Check authoring on beats and areas | |
 | Campaign and encounter deletion | |
-| Encounter ↔ storyline beat linking | |
+| Encounter ↔ chapter beat linking | |
 | Encounter sharing by code | |
 | Character creation wizard | |
 | Level-up wizard, multi-level aware | |
@@ -942,7 +942,7 @@ reaching `/v2/dm-panel.html` by URL gets an explanation and no controls.
 ### 11.3d Check authoring
 
 `campaign_checks` had a schema and a renderer but no way to create a row outside
-SQL. Checks can now be added to a storyline beat or to an area — a trap needs no
+SQL. Checks can now be added to a chapter beat or to an area — a trap needs no
 beat — with the type, DC, outcome text and the secret and group flags.
 
 The form sends only the field its type uses: a skill check stores `skill_name`
@@ -1081,14 +1081,14 @@ lines: identity first, hit points and buttons second.
 
 **Deletes.** Campaigns and encounters can now be deleted, and the confirmation
 says what goes with them, because "delete campaign" does not look like it means
-its storylines, areas, NPCs, monsters, encounters and session recaps as well.
+its chapters, areas, NPCs, monsters, encounters and session recaps as well.
 The campaign dialog counts each of those and states plainly that **characters
 survive** — only the membership rows go, since characters belong to the world.
 The encounter dialog says the campaign's monster roster is left alone.
 
-**Story links.** `encounters.storyline_beat_id` had a foreign key and no UI. An
+**Story links.** `encounters.chapter_beat_id` had a foreign key and no UI. An
 encounter can now be tied to the beat it belongs to, and the campaign's
-Storylines tab lists the encounters hanging off each beat, with a live marker.
+Chapters tab lists the encounters hanging off each beat, with a live marker.
 The picker only offers beats from the same campaign: nothing in the schema stops
 a cross-campaign link, and one would be nonsense.
 
@@ -1245,7 +1245,7 @@ somewhere, and several of its destinations did not exist:
 | Edit or delete a campaign from the list | Only from inside the campaign |
 | Delete or share an encounter from the list | Only with it open |
 | Edit an NPC | Could be created, never edited |
-| Delete a storyline, beat, area or NPC | Not possible |
+| Delete a chapter, beat, area or NPC | Not possible |
 | Remove a monster from a roster | Not possible |
 | Delete a character | Not possible in v2 at all |
 
@@ -1336,6 +1336,119 @@ which is what it did before any of this existed.
 This needed no schema change and no backfill, which is why the sort was chosen
 over filtering Actions down to equipped weapons: filtering would have emptied
 almost every character's Actions tab on deploy.
+
+### 11.3a11 Two ways a number field fights you
+
+Reported from a phone: typing a level during character creation closes the
+keyboard. Both causes were mine, and the second was app-wide.
+
+**A redraw on every keystroke.** `wireIdentity` called `render()` on the level
+field's `input` event, and `render()` goes through `renderShell`, which replaces
+`document.body`. The focused input is destroyed mid-word, which on a phone
+means the keyboard closes. The comment directly above the line said *"free text
+does not, so leave the caret where it is"* -- and the line included the level
+field anyway.
+
+Nothing on the identity step displays the level, so it never needed the redraw.
+The two selects still redraw, because their hints change and choosing from a
+select has already taken focus off it. Everything else now updates the Next
+button and the blocker note **in place**, which is all a keystroke can change.
+
+The same line also clamped to 1--20 on every keystroke, which makes a two-digit
+level impossible: clearing the field to retype snaps it straight back to 1.
+The value is now held as typed and tidied on blur, and every read of it
+downstream goes through `clampLevel`, so a half-typed level can never reach the
+database or render as the string `"null"`.
+
+**Pre-filled number fields appended.** A sweep that types into every field in
+v2 and checks what comes out turned up the bigger problem:
+
+| Field | Typed | Became |
+|---|---|---|
+| Currency (gold, showing 137) | `250` | `137250` |
+| Level (showing 1) | `12` | `112` |
+| Creature count (showing 1) | `12` | `112` |
+| Rolled hit points (showing 9) | `15` | `915` |
+
+Tapping a pre-filled number field puts a caret where the finger landed and
+leaves the value in place. Nobody taps a number field meaning to splice digits
+into the middle of it. A `focusin` handler in core now selects the contents of
+any non-empty `input[type=number]`, which fixes every such field at once,
+including ones not written yet.
+
+Scoped to numbers deliberately: selecting a name or a note on focus would
+destroy someone's text the moment they tapped in to fix one word. The suite
+asserts both halves -- numbers replace, text does not.
+
+The select is **synchronous**, not on a timer. The first attempt deferred it
+with `setTimeout(..., 0)`, which can land after the first keystroke: it then
+selects the character just typed and lets the second replace it, so typing 12
+gives 2. That is the same bug wearing a different hat.
+
+### 11.3a12 Chapters, and a leak in the reveal
+
+A review pass over the campaign screens. The heading is the rename; the first
+item is the one that mattered.
+
+**DM notes were readable by players.** `storylines.body` and
+`storyline_beats.body` were labelled "Your notes" and "DM-facing", and the UI
+hid them behind `isDM`. But `player_read` on both tables is
+`USING (is_revealed)` — a **row** filter, not a column one. Revealing a
+storyline handed a player every column on it, notes included, straight from the
+API. Hidden in the page, exactly what §5 exists to prevent — and the DM-note
+dialog was meanwhile telling people their notes were "stored in a table players
+cannot reach", which was true of `dm_notes` and false of `body`.
+
+Both columns are gone. The prose moved into `dm_notes`, which is `dm_all` only
+with no reveal path, and the forms write there instead. Two rows of existing
+notes migrated.
+
+**Storylines are chapters.** The campaign is the storyline; what sits inside it
+is a chapter. `storylines` → `chapters`, `storyline_beats` → `chapter_beats`,
+and the columns on `campaign_checks`, `encounters` and `dm_notes` followed.
+Renaming a table leaves its constraints and indexes named after the old one, so
+those were renamed too — a stale name is a trap for whoever reads it next.
+
+**Things collected and never shown.** Three of them, all the same shape: a form
+gathered something, stored it, and no screen rendered it.
+
+| Collected | Where it went |
+|---|---|
+| A beat's "Your notes" | Written to `body`, never rendered |
+| A check's success and failure text | Stored, never rendered |
+| A chapter's "What the party knows" | Rendered, then clamped to two lines with an ellipsis |
+
+All three now render in full. `.campaign-card .summary` kept its two-line clamp
+for the campaigns grid, where it belongs; the chapter card uses `.prose`.
+
+**Nothing could be edited.** Chapters, beats and checks could be created and
+deleted and nothing in between. All three have an edit route now, and the check
+form is shared between create and edit so the two cannot drift on which fields
+exist or how a type maps onto them.
+
+**Smaller things.** "Its 1 beat go too" now agrees with itself. The Monsters tab
+no longer claims the Compendium does not exist, and monsters can be put on the
+roster from the campaign as well as from the Compendium. The Compendium gained
+an Items tab over SRD equipment, with add-to-character. The desktop sidebar
+gained logout and the switch to classic, which had lived only in the mobile
+drawer — hidden above the breakpoint, so a desktop had no way out.
+
+### 11.3a13 Two input bugs behind one report
+
+**A dialog closed when you selected text in it.** A click fires on the nearest
+common ancestor of where the press began and where it ended, so pressing inside
+a dialog, dragging past its edge and releasing put the click on the backdrop —
+and `e.target === host` threw the dialog away mid-edit. It now dismisses only
+when the press *started* on the backdrop too. The same gesture explains the
+mobile report: press a field, the keyboard opens and the layout shifts under
+your finger, and the release lands outside.
+
+**A number field silently refused to submit.** `<input type="number">` carries
+an implicit `step="1"`, so any fractional value fails native validation and the
+browser blocks the form — with no error the page can see. A goblin's challenge
+rating of 1/4 hit it, and so would any SRD item weighing 0.25 lb. Every number
+field here validates in its own `onSubmit`, so the browser's step check only
+ever bought a silent dead end; number inputs now carry `step="any"`.
 
 ### 11.3b Review fixes
 

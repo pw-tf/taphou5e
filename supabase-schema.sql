@@ -260,42 +260,41 @@ CREATE TABLE public.campaign_monsters (
     (source = 'srd_api' AND api_index IS NOT NULL) OR (source = 'homebrew' AND statblock IS NOT NULL))
 );
 
-CREATE TABLE public.storylines (
+CREATE TABLE public.chapters (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   campaign_id uuid NOT NULL,
   game_world_id uuid NOT NULL,
   title text NOT NULL,
   player_summary text,
-  body text,
   status text NOT NULL DEFAULT 'planned' CHECK (status = ANY (ARRAY['planned','active','completed','abandoned'])),
   is_revealed boolean NOT NULL DEFAULT false,
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT storylines_pkey PRIMARY KEY (id),
-  CONSTRAINT storylines_id_game_world_id_key UNIQUE (id, game_world_id),
-  CONSTRAINT storylines_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE
+  CONSTRAINT chapters_pkey PRIMARY KEY (id),
+  CONSTRAINT chapters_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT chapters_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE
 );
 
 -- is_revealed is deliberately separate from status: a beat can be completed and
 -- still secret, or pending and already revealed. Two independent axes.
-CREATE TABLE public.storyline_beats (
+CREATE TABLE public.chapter_beats (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  storyline_id uuid NOT NULL,
+  chapter_id uuid NOT NULL,
   game_world_id uuid NOT NULL,
   area_id uuid,
   title text NOT NULL,
-  body text,
+
   read_aloud text,
   status text NOT NULL DEFAULT 'pending' CHECK (status = ANY (ARRAY['pending','in_progress','completed','skipped'])),
   is_revealed boolean NOT NULL DEFAULT false,
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT storyline_beats_pkey PRIMARY KEY (id),
-  CONSTRAINT storyline_beats_id_game_world_id_key UNIQUE (id, game_world_id),
-  CONSTRAINT storyline_beats_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
-  CONSTRAINT storyline_beats_storyline_fkey FOREIGN KEY (storyline_id, game_world_id) REFERENCES public.storylines(id, game_world_id) ON DELETE CASCADE
+  CONSTRAINT chapter_beats_pkey PRIMARY KEY (id),
+  CONSTRAINT chapter_beats_id_game_world_id_key UNIQUE (id, game_world_id),
+  CONSTRAINT chapter_beats_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
+  CONSTRAINT chapter_beats_chapter_fkey FOREIGN KEY (chapter_id, game_world_id) REFERENCES public.chapters(id, game_world_id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.npcs (
@@ -327,7 +326,7 @@ CREATE TABLE public.encounters (
   campaign_id uuid NOT NULL,
   game_world_id uuid NOT NULL,
   area_id uuid,
-  storyline_beat_id uuid,
+  chapter_beat_id uuid,
   name text NOT NULL,
   description text,
   read_aloud text,
@@ -343,7 +342,7 @@ CREATE TABLE public.encounters (
   CONSTRAINT encounters_pkey PRIMARY KEY (id),
   CONSTRAINT encounters_id_game_world_id_key UNIQUE (id, game_world_id),
   CONSTRAINT encounters_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE SET NULL,
-  CONSTRAINT encounters_storyline_beat_id_fkey FOREIGN KEY (storyline_beat_id) REFERENCES public.storyline_beats(id) ON DELETE SET NULL,
+  CONSTRAINT encounters_chapter_beat_id_fkey FOREIGN KEY (chapter_beat_id) REFERENCES public.chapter_beats(id) ON DELETE SET NULL,
   CONSTRAINT encounters_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE,
   CONSTRAINT encounters_active_combatant_fkey FOREIGN KEY (active_combatant_id) REFERENCES public.encounter_combatants(id) ON DELETE SET NULL
 );
@@ -403,7 +402,7 @@ CREATE TABLE public.campaign_checks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   campaign_id uuid NOT NULL,
   game_world_id uuid NOT NULL,
-  storyline_beat_id uuid,
+  chapter_beat_id uuid,
   area_id uuid,
   npc_id uuid,
   encounter_id uuid,
@@ -421,11 +420,11 @@ CREATE TABLE public.campaign_checks (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT campaign_checks_pkey PRIMARY KEY (id),
   CONSTRAINT campaign_checks_campaign_fkey FOREIGN KEY (campaign_id, game_world_id) REFERENCES public.campaigns(id, game_world_id) ON DELETE CASCADE,
-  CONSTRAINT campaign_checks_storyline_beat_id_fkey FOREIGN KEY (storyline_beat_id) REFERENCES public.storyline_beats(id) ON DELETE CASCADE,
+  CONSTRAINT campaign_checks_chapter_beat_id_fkey FOREIGN KEY (chapter_beat_id) REFERENCES public.chapter_beats(id) ON DELETE CASCADE,
   CONSTRAINT campaign_checks_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE CASCADE,
   CONSTRAINT campaign_checks_npc_id_fkey FOREIGN KEY (npc_id) REFERENCES public.npcs(id) ON DELETE CASCADE,
   CONSTRAINT campaign_checks_encounter_id_fkey FOREIGN KEY (encounter_id) REFERENCES public.encounters(id) ON DELETE CASCADE,
-  CONSTRAINT campaign_checks_one_parent CHECK (num_nonnulls(storyline_beat_id, area_id, npc_id, encounter_id) = 1),
+  CONSTRAINT campaign_checks_one_parent CHECK (num_nonnulls(chapter_beat_id, area_id, npc_id, encounter_id) = 1),
   CONSTRAINT campaign_checks_shape CHECK (
     (check_type = 'skill_check' AND skill_name IS NOT NULL) OR
     (check_type = ANY (ARRAY['ability_check','saving_throw']) AND ability IS NOT NULL) OR
@@ -440,8 +439,8 @@ CREATE TABLE public.dm_notes (
   game_world_id uuid NOT NULL,
   campaign_id uuid,
   area_id uuid,
-  storyline_id uuid,
-  storyline_beat_id uuid,
+  chapter_id uuid,
+  chapter_beat_id uuid,
   npc_id uuid,
   encounter_id uuid,
   campaign_session_id uuid,
@@ -452,12 +451,12 @@ CREATE TABLE public.dm_notes (
   CONSTRAINT dm_notes_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE,
   CONSTRAINT dm_notes_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE,
   CONSTRAINT dm_notes_area_id_fkey FOREIGN KEY (area_id) REFERENCES public.areas(id) ON DELETE CASCADE,
-  CONSTRAINT dm_notes_storyline_id_fkey FOREIGN KEY (storyline_id) REFERENCES public.storylines(id) ON DELETE CASCADE,
-  CONSTRAINT dm_notes_storyline_beat_id_fkey FOREIGN KEY (storyline_beat_id) REFERENCES public.storyline_beats(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_chapter_id_fkey FOREIGN KEY (chapter_id) REFERENCES public.chapters(id) ON DELETE CASCADE,
+  CONSTRAINT dm_notes_chapter_beat_id_fkey FOREIGN KEY (chapter_beat_id) REFERENCES public.chapter_beats(id) ON DELETE CASCADE,
   CONSTRAINT dm_notes_npc_id_fkey FOREIGN KEY (npc_id) REFERENCES public.npcs(id) ON DELETE CASCADE,
   CONSTRAINT dm_notes_encounter_id_fkey FOREIGN KEY (encounter_id) REFERENCES public.encounters(id) ON DELETE CASCADE,
   CONSTRAINT dm_notes_campaign_session_id_fkey FOREIGN KEY (campaign_session_id) REFERENCES public.campaign_sessions(id) ON DELETE CASCADE,
-  CONSTRAINT dm_notes_one_parent CHECK (num_nonnulls(campaign_id, area_id, storyline_id, storyline_beat_id, npc_id, encounter_id, campaign_session_id) = 1)
+  CONSTRAINT dm_notes_one_parent CHECK (num_nonnulls(campaign_id, area_id, chapter_id, chapter_beat_id, npc_id, encounter_id, campaign_session_id) = 1)
 );
 
 -- Request-scoped DM identity. No policies and no grants: unreachable via the API.
