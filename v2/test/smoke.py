@@ -332,6 +332,17 @@ STUB = """
     createClient(url, key, opts) {
       window.__capturedHeaders = (opts && opts.global && opts.global.headers) || {};
       return {
+        // The classic app opens realtime channels on its home screen. v2 does
+        // not, but the invite prompt is tested on a classic page, so these
+        // have to exist for app.js to reach that screen at all.
+        channel: () => {
+          const ch = {};
+          ['on', 'off'].forEach(m => { ch[m] = () => ch; });
+          ch.subscribe = (cb) => { if (cb) cb('SUBSCRIBED'); return ch; };
+          ch.unsubscribe = () => Promise.resolve('ok');
+          return ch;
+        },
+        removeChannel: () => Promise.resolve('ok'),
         from: (table) => Object.assign(query(table), {
           update: writer(table, 'update'),
           insert: writer(table, 'insert'),
@@ -2532,6 +2543,98 @@ async def main():
         assert page2.url.endswith("index.html"), page2.url
         assert await page2.locator("#join-form").count() == 1
         ok("a default device stays on the classic login, untouched")
+
+        # ---------- 53. The invite to try v2 ----------
+        # A device that has never chosen gets asked, once, on the classic
+        # login. The router above proves an opted-in device never gets here.
+        await page2.wait_for_selector("#v2-invite", timeout=5000)
+        body = await page2.locator("#v2-invite .modal-content").inner_text()
+        assert "nothing is copied" in body, body
+        ok("the classic login offers the new layout, and says the data is shared")
+
+        # Dismissing without the checkbox is "not now", not "never".
+        await page2.click("#v2-invite-no")
+        await page2.wait_for_timeout(300)
+        assert await page2.locator("#v2-invite").count() == 0
+        stored = await page2.evaluate("localStorage.getItem('taphou5e-invite')")
+        assert stored and stored != "never", stored
+        assert await page2.evaluate("localStorage.getItem('taphou5e-ui')") is None, \
+            "dismissing must not count as choosing classic"
+        ok("'Not now' records when we asked, and chooses nothing")
+
+        await page2.reload(wait_until="domcontentloaded")
+        await page2.wait_for_timeout(800)
+        assert await page2.locator("#v2-invite").count() == 0, "it must not ask again straight away"
+        ok("the prompt does not come back on the next load")
+
+        # ...but it does after the snooze runs out.
+        await page2.evaluate("""() => {
+            const eightDays = Date.now() - 8 * 24 * 60 * 60 * 1000;
+            localStorage.setItem('taphou5e-invite', String(eightDays));
+        }""")
+        await page2.reload(wait_until="domcontentloaded")
+        await page2.wait_for_selector("#v2-invite", timeout=5000)
+        ok("a week later it asks again")
+
+        # The checkbox is the way to stop it for good.
+        await page2.check("#v2-invite-never")
+        await page2.click("#v2-invite-no")
+        await page2.wait_for_timeout(300)
+        assert await page2.evaluate("localStorage.getItem('taphou5e-invite')") == "never"
+        await page2.reload(wait_until="domcontentloaded")
+        await page2.wait_for_timeout(800)
+        assert await page2.locator("#v2-invite").count() == 0
+        ok("'don't show again' stops it permanently")
+
+        # Taking the offer opts the device in, which is also what stops the
+        # asking -- the router takes over from here.
+        await page2.evaluate("localStorage.removeItem('taphou5e-invite')")
+        await page2.reload(wait_until="domcontentloaded")
+        await page2.wait_for_selector("#v2-invite", timeout=5000)
+        await page2.click("#v2-invite-yes")
+        await page2.wait_for_url("**/v2/**", timeout=10000)
+        assert await page2.evaluate("localStorage.getItem('taphou5e-ui')") == "next"
+        ok(f"'Try it' opts the device in and lands on {page2.url.split('8777')[-1]}")
+
+        # And once opted in, the classic login is never reached to ask again.
+        await page2.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
+        await page2.wait_for_timeout(800)
+        assert "/v2/" in page2.url, page2.url
+        ok("an opted-in device is routed away before the prompt could appear")
+        await ctx2.close()
+
+        # ---------- 54. The invite on the classic home screen ----------
+        # Someone already signed in never sees the login page, so the offer has
+        # to reach them where they land.
+        ctx3 = await browser.new_context()
+        await ctx3.add_init_script(STUB)
+        await ctx3.add_init_script("""
+            try {
+              localStorage.setItem('dnd-session', JSON.stringify({
+                gameWorldId: 'w1', gameWorldName: 'Thornfell Reach',
+                role: 'dm', timestamp: Date.now() }));
+            } catch (e) {}
+        """)
+        page3 = await ctx3.new_page()
+        watch(page3, "classic-home")
+        await page3.goto(f"{BASE}/characters.html", wait_until="domcontentloaded")
+        await page3.wait_for_selector("#v2-invite", timeout=10000)
+        assert not await page3.locator("#home-page").evaluate("el => el.classList.contains('hidden')"), \
+            "the prompt must wait for the home screen"
+        ok("an already-signed-in device is asked on the classic home screen")
+        await ctx3.close()
+
+        # Without a session the character page redirects to the login, so the
+        # prompt must not fire over that.
+        ctx4 = await browser.new_context()
+        await ctx4.add_init_script(STUB)
+        page4 = await ctx4.new_page()
+        watch(page4, "classic-nosession")
+        await page4.goto(f"{BASE}/characters.html", wait_until="domcontentloaded")
+        await page4.wait_for_timeout(1200)
+        assert page4.url.endswith("index.html"), page4.url
+        ok("with no session the character page still just redirects to the login")
+        await ctx4.close()
 
         await browser.close()
 
