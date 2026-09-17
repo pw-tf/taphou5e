@@ -73,6 +73,16 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- Press-and-hold card menus: a normal tap still opening the card, a hold
+  opening the menu, the synthesised click afterwards *not* following the card's
+  link, and a hold that moves being treated as a scroll
+- Every `data-kind` the campaign detail resolver handles, since they share one
+  code path: storyline, NPC, roster monster and party member
+- Deleting a character refusing anything but the typed name, and accepting it
+  with different case and surrounding spaces
+- Action crowding: a page over three actions keeping the + menu on desktop with
+  an empty topbar, a page under it still using the topbar, and the menu's rows
+  all being one width inside one bordered panel
 - Deleting a campaign or an encounter: what the confirmation says cascades, and
   the delete write itself surviving the redirect back to the list
 - Encounter sharing: a ten-character code, the dialog saying what travels, an

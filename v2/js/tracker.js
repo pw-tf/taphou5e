@@ -602,6 +602,31 @@
         }
     };
 
+    // setColor takes the colour it should apply, so reaching it from a menu
+    // needs a picker of its own.
+    window.pickColor = id => {
+        const row = combatants.find(r => r.id === id);
+        if (!row) return;
+        openPanel({
+            title: `Colour for ${row.display_name}`,
+            body: `
+                <p class="hint">A colour boxes every creature that shares it into one block.</p>
+                <div class="swatches">
+                    <button class="swatch is-none${row.color ? '' : ' is-active'}"
+                            data-pick="" aria-label="No colour"></button>
+                    ${PALETTE.map(c => `
+                        <button class="swatch${row.color === c ? ' is-active' : ''}"
+                                style="background:${c}" data-pick="${c}" aria-label="Colour ${c}"></button>`).join('')}
+                </div>`,
+            onMount: host => {
+                $$('[data-pick]', host).forEach(sw => sw.addEventListener('click', () => {
+                    closeModal();
+                    window.setColor(id, sw.dataset.pick);
+                }));
+            }
+        });
+    };
+
     window.editNotes = id => {
         const row = combatants.find(r => r.id === id);
         if (!row) return;
@@ -729,7 +754,7 @@
         const styleAttr = row.color ? ` style="--row-color:${escapeHtml(row.color)}"` : '';
 
         return `
-            <div class="${classes.join(' ')}"${styleAttr}>
+            <div class="${classes.join(' ')}"${styleAttr} data-holdable data-id="${escapeHtml(row.id)}">
                 <div class="init-value">
                     ${isDM && enc.status !== 'completed'
                         ? `<input class="init-input mono" type="number" value="${row.initiative ?? ''}"
@@ -797,7 +822,7 @@
                             <div class="swatches">
                                 <button class="swatch is-none${row.color ? '' : ' is-active'}"
                                         onclick="setColor('${row.id}','')" aria-label="No colour"></button>
-                                ${['#c4452f','#d9a94a','#7fa65c','#3d5a72','#8a5fa8','#b9743a','#6b7280'].map(c => `
+                                ${PALETTE.map(c => `
                                     <button class="swatch${row.color === c ? ' is-active' : ''}"
                                             style="background:${c}" onclick="setColor('${row.id}','${c}')"
                                             aria-label="Colour ${c}"></button>`).join('')}
@@ -887,9 +912,10 @@
                 <span class="eyebrow">${escapeHtml(name(campaignId))}</span>
                 <span class="rule"></span>
             </div>
-            <div class="stack">
+            <div class="stack holdable">
                 ${groups[campaignId].map(e => `
-                    <a class="list-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}">
+                    <a class="list-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}"
+                       data-holdable data-id="${escapeHtml(e.id)}">
                         <div class="who">
                             <div class="name">${escapeHtml(e.name)}</div>
                             <div class="meta">${escapeHtml(e.status)}${
@@ -897,7 +923,26 @@
                         </div>
                         ${e.status === 'active' ? '<span class="mono nav-count is-live">LIVE</span>' : ''}
                     </a>`).join('')}
-            </div>`).join('');
+            </div>`).join('')
+            + (isDM ? '<p class="hint">Hold an encounter (or right-click) to share or delete it.</p>' : '');
+    }
+
+    function encounterMenu(row) {
+        const encounter = encounters.find(e => e.id === row.dataset.id);
+        if (!encounter || !isDM) return null;
+        const href = `monster-tracker.html?id=${encodeURIComponent(encounter.id)}`;
+        return {
+            title: encounter.name,
+            actions: [
+                { label: encounter.status === 'active' ? 'Resume' : 'Open',
+                  hint: encounter.status === 'active' ? `Round ${encounter.round || 1}` : encounter.status,
+                  run: () => { window.location.href = href; } },
+                { label: 'Share', hint: 'Get a code someone else can import',
+                  run: () => window.shareEncounter(encounter) },
+                { label: 'Delete', danger: true, hint: 'The roster and characters are left alone',
+                  run: () => window.deleteEncounter(encounter) }
+            ]
+        };
     }
 
     // ========================================
@@ -921,8 +966,9 @@
     // code, so it survives being read down a phone or pasted anywhere.
     // ========================================
 
-    window.shareEncounter = async () => {
-        const { data, error } = await db.rpc('encounter_share_create', { p_encounter_id: enc.id });
+    window.shareEncounter = async (target) => {
+        const subject = target || enc;
+        const { data, error } = await db.rpc('encounter_share_create', { p_encounter_id: subject.id });
         if (error || !data || !data.ok) {
             console.error('Share failed:', error || data);
             toast((data && data.error === 'not_dm')
@@ -1087,19 +1133,31 @@
     // Deleting an encounter takes its combatants with it by cascade. The
     // campaign's monster roster is untouched -- those rows are the campaign's,
     // not this fight's.
-    window.deleteEncounter = () => {
-        const count = combatants.length;
+    window.deleteEncounter = (target) => {
+        const subject = target || enc;
+        // From the list the combatants are not loaded, so the message names
+        // what goes rather than counting it.
+        const count = target ? null : combatants.length;
+        const scope = count === null
+            ? 'This removes the encounter and every combatant in it.'
+            : count
+                ? `This removes the encounter and its ${count} combatant${count === 1 ? '' : 's'}.`
+                : 'This removes the encounter. It has no combatants yet.';
+
         confirmModal({
-            title: `Delete ${enc.name}`,
-            message: count
-                ? `This removes the encounter and its ${count} combatant${count === 1 ? '' : 's'}. ` +
-                  'The campaign\'s monster roster and every character are left alone. This cannot be undone.'
-                : 'This removes the encounter. It has no combatants yet. This cannot be undone.',
+            title: `Delete ${subject.name}`,
+            message: `${scope} The campaign's monster roster and every character are left alone. `
+                   + 'This cannot be undone.',
             confirmLabel: 'Delete encounter',
             onConfirm: async () => {
-                const { error } = await db.from('encounters').delete().eq('id', enc.id);
+                const { error } = await db.from('encounters').delete().eq('id', subject.id);
                 if (error) throw new Error(error.message || 'Could not delete the encounter.');
-                window.location.href = 'monster-tracker.html';
+                if (target) {
+                    encounters = encounters.filter(e => e.id !== subject.id);
+                    draw();
+                } else {
+                    window.location.href = 'monster-tracker.html';
+                }
             }
         });
     };
@@ -1145,6 +1203,36 @@
             actions: trackerActions()
         });
         $('#main-content').innerHTML = enc ? trackerView() : listView();
+
+        if (enc) wireCardMenus('#main-content', '.init-row', combatantMenu);
+        else wireCardMenus('#main-content', '.list-row', encounterMenu);
+    }
+
+    // Everything the inline buttons do, plus the things that had no room on
+    // the row at all: colour, notes and removal.
+    function combatantMenu(row) {
+        const combatant = combatants.find(c => c.id === row.dataset.id);
+        if (!combatant || !isDM) return null;
+
+        const isParty = combatant.combatant_type === 'character';
+        return {
+            title: combatant.display_name,
+            actions: [
+                { label: 'Show details', hint: 'Stat block and conditions',
+                  run: () => window.showCombatant(combatant.id) },
+                { label: combatant.is_defeated ? 'Mark as up' : 'Mark as down',
+                  run: () => window.toggleDefeated(combatant.id) },
+                { label: 'Set colour', hint: 'Groups creatures into one block',
+                  run: () => window.pickColor(combatant.id) },
+                { label: 'Edit note', run: () => window.editNotes(combatant.id) },
+                { label: 'Edit armor class', run: () => window.editAC(combatant.id) },
+                // A character is in the encounter, not owned by it, so this
+                // only takes them off the initiative order.
+                { label: isParty ? 'Remove from encounter' : 'Remove', danger: true,
+                  hint: isParty ? 'They stay in the world and the campaign' : 'Stays on the campaign roster',
+                  run: () => window.removeCombatant(combatant.id) }
+            ]
+        };
     }
 
     (async function init() {

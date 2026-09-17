@@ -818,7 +818,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (182 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (203 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -839,6 +839,7 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (182 asserti
 | Encounter sharing by code | |
 | Character creation wizard | |
 | Level-up wizard, multi-level aware | |
+| Press-and-hold card menus | |
 
 Every hub tile and navigation item links to a real page.
 
@@ -1139,6 +1140,54 @@ and every bonus silently misses — and then `applyRacialEffects` writes
 `finalScores.strength` and friends, which are all `undefined`, over the six
 ability scores. The suite asserts the written scores are numbers, not just that
 the call happened.
+
+### 11.3a8 Card menus, and where actions live
+
+Three complaints with one cause: **actions had nowhere good to live.** The
+topbar was desktop-only and unbounded, so the tracker grew ten buttons across
+the top of the screen. The FAB menu sized each action to its own label, so ten
+of them read as ten unrelated bubbles. And editing or deleting a single card
+had no home at all on a phone -- some of it only existed inside the thing being
+edited, and some of it did not exist anywhere.
+
+**The card is now the control.** Press and hold a card, or right-click it,
+and the actions for that one thing come up. Three things decide whether the
+gesture is usable rather than infuriating:
+
+- **A hold that survives a scroll is a trap.** Every scroll starts as a touch
+  on a card, so movement past ten pixels cancels the timer.
+- **The browser fires a click after the touch ends**, which would follow the
+  card's own link and open the thing behind the menu. The next click is
+  swallowed in the capture phase.
+- **iOS shows its own selection callout** on a long press, so `.holdable`
+  suppresses it -- while leaving inputs inside a holdable list selectable.
+
+**Actions this had to create.** The gesture was only worth adding if it led
+somewhere, and several of its destinations did not exist:
+
+| Action | Before |
+|---|---|
+| Edit or delete a campaign from the list | Only from inside the campaign |
+| Delete or share an encounter from the list | Only with it open |
+| Edit an NPC | Could be created, never edited |
+| Delete a storyline, beat, area or NPC | Not possible |
+| Remove a monster from a roster | Not possible |
+| Delete a character | Not possible in v2 at all |
+
+Campaign-detail rows all declare a `data-kind` and share one resolver, so a new
+tab wires nothing: it marks its rows and adds a case.
+
+**Deleting a character asks for the name to be typed.** It is the largest thing
+a person builds here, thirteen tables cascade off it (verified against the live
+database), and a press-and-hold is easy to trigger by accident. A red button
+behind one tap is too thin a guard for that combination, so `confirmByName`
+requires the name, matched ignoring case and surrounding spaces.
+
+**Crowding is now bounded.** Above three actions a page keeps the + menu on
+desktop too and shows nothing in the topbar. A threshold rather than a per-page
+flag, so an eleventh tracker action cannot bring the problem back. The menu
+itself is one panel -- fixed width, full-width rows, hairline separators, one
+shadow -- instead of a stack of pills.
 
 ### 11.3b Review fixes
 

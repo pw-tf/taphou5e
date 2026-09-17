@@ -478,8 +478,15 @@ a.list-row, a.list-row:hover,
 .fab:hover { background: var(--accent-primary-hover); }
 .fab-wrap.open .fab { transform: rotate(45deg); }
 
+/* One panel, not a stack of pills. Each pill sized itself to its own label,
+   so ten actions read as ten unrelated bubbles of ten different widths. */
 .fab-menu {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  display: flex; flex-direction: column; align-items: stretch;
+  width: 232px; max-width: calc(100vw - var(--space-md) * 2);
+  max-height: min(60vh, 460px); overflow-y: auto;
+  padding: var(--space-6); border-radius: var(--radius-lg);
+  background: var(--bg-secondary); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
   /* visibility, not opacity alone: a transparent menu still sits in the tab
      order and the accessibility tree. Delaying it keeps the fade on close. */
   opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px);
@@ -492,21 +499,32 @@ a.list-row, a.list-row:hover,
               visibility 0s linear 0s;
 }
 .fab-item {
-  padding: 10px 16px; border-radius: var(--radius-full);
-  background: var(--bg-secondary); border: 1px solid var(--border-strong);
+  display: block; width: 100%; text-align: left;
+  padding: 11px 12px; border-radius: var(--radius-sm);
+  background: transparent; border: 0; box-shadow: none;
   color: var(--text-primary); font: inherit; font-size: var(--fs-13); font-weight: 500;
-  box-shadow: var(--shadow-md); cursor: pointer; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.fab-item.is-primary { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--accent-on); font-weight: 600; }
+/* A hairline between rows, but not above the first: a panel with a line
+   across its top edge looks like a rendering fault. */
+.fab-item + .fab-item { box-shadow: inset 0 1px 0 var(--border-subtle); border-radius: 0; }
+.fab-item + .fab-item:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+.fab-item.is-primary { color: var(--accent-primary); font-weight: 700; }
 .fab-item:hover { background: var(--bg-hover); }
-.fab-item.is-primary:hover { background: var(--accent-primary-hover); }
+.fab-item.is-primary:hover { background: var(--bg-hover); }
 
 /* The sheet and tracker have their own bottom furniture to clear. */
 .sheet-page ~ .fab-wrap, .fab-wrap.above-tabs { bottom: calc(var(--tab-bar-height) + var(--space-md)); }
 
+.topbar-actions { display: contents; }
+
 @media (min-width: 900px) {
-  /* Above the breakpoint the topbar already shows these. */
+  /* Above the breakpoint the topbar already shows these -- unless there are
+     too many to sit in a row, in which case the + button carries them here
+     too and the topbar shows none. */
   .fab-wrap { display: none; }
+  .fab-wrap.is-compact { display: flex; }
+  .topbar-actions.is-collapsed { display: none; }
 }
 
 /* 3. Compendium on a phone: the detail sat under a list of a hundred-plus rows,
@@ -811,3 +829,34 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
   background: transparent; color: var(--text-tertiary);
 }
 .seg button.is-on { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* ---------- Press-and-hold card menus ----------
+   The card is the control, so it must not offer iOS's own selection callout
+   or leave text highlighted behind the menu that opens. */
+.holdable, .holdable * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Inputs inside a holdable list still need selection and a caret. */
+.holdable input, .holdable textarea, .holdable select {
+  -webkit-user-select: auto; user-select: auto;
+}
+
+.card-menu { display: flex; flex-direction: column; gap: 2px; }
+.card-menu-item {
+  display: flex; flex-direction: column; gap: 1px; align-items: flex-start;
+  width: 100%; text-align: left; min-width: 0; cursor: pointer;
+  padding: 13px 14px; border-radius: var(--radius-md);
+  background: transparent; border: 0; color: var(--text-primary);
+  font: inherit; font-size: var(--fs-14);
+}
+.card-menu-item:hover { background: var(--bg-hover); }
+.card-menu-item .label { font-weight: 600; }
+.card-menu-item .hint { font-size: var(--fs-11); color: var(--text-tertiary); }
+.card-menu-item.is-danger .label { color: var(--danger); }
+
+/* A hint that the gesture exists, for the pointer that can hover. */
+@media (hover: hover) {
+  .holdable [data-holdable]:hover { cursor: context-menu; }
+}

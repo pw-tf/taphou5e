@@ -249,7 +249,7 @@
             const ch = byId[m.character_id];
             if (!ch) return '';
             return `
-                <div class="list-row party-row">
+                <div class="list-row party-row" data-holdable data-kind="party" data-id="${escapeHtml(m.id)}">
                     <div class="avatar">${escapeHtml((ch.name || '?').charAt(0).toUpperCase())}</div>
                     <div class="who">
                         <div class="name">${escapeHtml(ch.name)}</div>
@@ -448,7 +448,8 @@
             ${d.storylines.map(s => {
                 const beats = d.beats.filter(b => b.storyline_id === s.id);
                 return `
-                    <div class="campaign-card" style="cursor:default">
+                    <div class="campaign-card" data-holdable data-kind="storyline"
+                         data-id="${escapeHtml(s.id)}" style="cursor:default">
                         <div class="head">
                             <h3>${escapeHtml(s.title)}</h3>
                             <span class="status-pill is-${escapeHtml(s.status)}">${escapeHtml(s.status)}</span>
@@ -460,7 +461,8 @@
                             ${beats.map(b => {
                                 const bChecks = d.checks.filter(k => k.storyline_beat_id === b.id);
                                 return `
-                                    <div class="list-row" style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
+                                    <div class="list-row" data-holdable data-kind="beat" data-id="${escapeHtml(b.id)}"
+                                         style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
                                         <div style="display:flex;align-items:center;gap:var(--space-sm)">
                                             <div class="who">
                                                 <div class="name">${escapeHtml(b.title)}</div>
@@ -545,7 +547,8 @@
         const children = d.areas.filter(a => a.parent_area_id === area.id);
         return `
             <div class="${depth ? 'tree-child' : ''}">
-                <div class="list-row" style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
+                <div class="list-row" data-holdable data-kind="area" data-id="${escapeHtml(area.id)}"
+                     style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
                     <div style="display:flex;align-items:center;gap:var(--space-sm)">
                         <div class="who">
                             <div class="name">${escapeHtml(area.name)}</div>
@@ -630,7 +633,8 @@
                 ${isDM ? '<button class="btn btn-quiet btn-tiny" onclick="newNPC()">New</button>' : ''}
             </div>
             <div class="stack">${d.npcs.map(n => `
-                <div class="list-row" style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
+                <div class="list-row" data-holdable data-kind="npc" data-id="${escapeHtml(n.id)}"
+                     style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
                     <div style="display:flex;align-items:center;gap:var(--space-sm)">
                         <div class="avatar">${escapeHtml((n.name || '?').charAt(0).toUpperCase())}</div>
                         <div class="who">
@@ -689,7 +693,7 @@
                     </div>`;
         }
         return `<div class="stack">${d.monsters.map(m => `
-            <div class="list-row" style="cursor:default">
+            <div class="list-row" data-holdable data-kind="monster" data-id="${escapeHtml(m.id)}" style="cursor:default">
                 <div class="who">
                     <div class="name">${escapeHtml(m.name)}</div>
                     <div class="meta">${escapeHtml(m.source === 'homebrew' ? 'Homebrew' : 'SRD')}${
@@ -708,7 +712,8 @@
                     </div>`;
         }
         return `<div class="stack">${d.encounters.map(e => `
-            <a class="list-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}">
+            <a class="list-row" href="monster-tracker.html?id=${encodeURIComponent(e.id)}"
+               data-holdable data-kind="encounter" data-id="${escapeHtml(e.id)}">
                 <div class="who">
                     <div class="name">${escapeHtml(e.name)}</div>
                     <div class="meta">${escapeHtml(e.status)}${e.status === 'active' ? ` · round ${e.round || 0}` : ''}</div>
@@ -841,7 +846,203 @@
                             </button>`;
                 }).join('')}
             </div>
-            <div class="campaign-tab-body">${tabBody()}</div>`;
+            <div class="campaign-tab-body holdable">${tabBody()}</div>`;
+
+        wireCardMenus('.campaign-tab-body', '[data-holdable]', rowMenu);
+    }
+
+    // ========================================
+    // Press-and-hold row menus
+    //
+    // Every tab's rows are reachable by the same gesture, so one resolver
+    // switches on the kind the row declares rather than each tab wiring its
+    // own. Only a DM gets a menu: everything on it writes.
+    // ========================================
+
+    // Storylines, beats, areas, NPCs and roster monsters all delete the same
+    // way -- one row, by id, then redraw.
+    async function deleteRow(table, id, title, message) {
+        confirmModal({
+            title,
+            message,
+            confirmLabel: 'Delete',
+            onConfirm: async () => {
+                const { error } = await db.from(table).delete().eq('id', id);
+                if (error) throw new Error(error.message || 'Could not delete that.');
+                await refresh();
+            }
+        });
+    }
+
+    function rowMenu(row) {
+        if (!isDM) return null;
+        const id = row.dataset.id;
+
+        switch (row.dataset.kind) {
+            case 'party': {
+                const member = d.members.find(m => m.id === id);
+                const ch = member && d.worldChars.find(c => c.id === member.character_id);
+                if (!ch) return null;
+                return {
+                    title: ch.name,
+                    actions: [
+                        { label: 'Open sheet', run: () => {
+                            window.location.href = `character-sheet.html?id=${encodeURIComponent(ch.id)}`; } },
+                        member.status === 'active'
+                            ? { label: 'Remove from campaign', danger: true,
+                                hint: 'They stay in the world and can rejoin',
+                                run: () => window.leaveParty(member.id) }
+                            : { label: 'Re-add to campaign', run: () => window.rejoinParty(member.id) }
+                    ]
+                };
+            }
+
+            case 'storyline': {
+                const st = d.storylines.find(x => x.id === id);
+                if (!st) return null;
+                const beats = d.beats.filter(b => b.storyline_id === st.id).length;
+                return {
+                    title: st.title,
+                    actions: [
+                        { label: st.is_revealed ? 'Hide from players' : 'Reveal to players',
+                          run: () => window.toggleReveal('storylines', st.id, 'is_revealed', st.is_revealed) },
+                        { label: 'Add a beat', run: () => window.newBeat(st.id) },
+                        { label: 'Delete', danger: true,
+                          hint: beats ? `Its ${beats} beat${beats === 1 ? '' : 's'} go too` : 'It has no beats yet',
+                          run: () => deleteRow('storylines', st.id, `Delete ${st.title}`,
+                              (beats ? `This also deletes its ${beats} beat${beats === 1 ? '' : 's'} and their checks. `
+                                     : 'It has no beats yet. ') + 'This cannot be undone.') }
+                    ]
+                };
+            }
+
+            case 'beat': {
+                const beat = d.beats.find(b => b.id === id);
+                if (!beat) return null;
+                const checks = d.checks.filter(k => k.storyline_beat_id === beat.id).length;
+                return {
+                    title: beat.title,
+                    actions: [
+                        { label: beat.is_revealed ? 'Hide from players' : 'Reveal to players',
+                          run: () => window.toggleReveal('storyline_beats', beat.id, 'is_revealed', beat.is_revealed) },
+                        { label: 'Add a check', run: () => window.newCheck('storyline_beat_id', beat.id, beat.title) },
+                        { label: 'Delete', danger: true,
+                          hint: checks ? `Its ${checks} check${checks === 1 ? '' : 's'} go too` : undefined,
+                          run: () => deleteRow('storyline_beats', beat.id, `Delete ${beat.title}`,
+                              (checks ? `This also deletes its ${checks} check${checks === 1 ? '' : 's'}. ` : '')
+                              + 'Any encounter linked to it stays, unlinked. This cannot be undone.') }
+                    ]
+                };
+            }
+
+            case 'area': {
+                const area = d.areas.find(a => a.id === id);
+                if (!area) return null;
+                const children = d.areas.filter(a => a.parent_area_id === area.id).length;
+                const here = d.npcs.filter(n => n.area_id === area.id).length;
+                return {
+                    title: area.name,
+                    actions: [
+                        { label: area.is_discovered ? 'Mark undiscovered' : 'Mark discovered',
+                          run: () => window.toggleReveal('areas', area.id, 'is_discovered', area.is_discovered) },
+                        { label: 'Add an area inside', run: () => window.newArea(area.id) },
+                        { label: 'Add a check', run: () => window.newCheck('area_id', area.id, area.name) },
+                        { label: 'Delete', danger: true,
+                          hint: children ? `Its ${children} nested area${children === 1 ? '' : 's'} go too` : undefined,
+                          run: () => deleteRow('areas', area.id, `Delete ${area.name}`,
+                              (children ? `This also deletes the ${children} area${children === 1 ? '' : 's'} inside it. ` : '')
+                              + (here ? `${here} NPC${here === 1 ? '' : 's'} placed here stay, without a location. ` : '')
+                              + 'This cannot be undone.') }
+                    ]
+                };
+            }
+
+            case 'npc': {
+                const npc = d.npcs.find(n => n.id === id);
+                if (!npc) return null;
+                return {
+                    title: npc.name,
+                    actions: [
+                        { label: 'Edit', run: () => editNPC(npc) },
+                        { label: npc.is_known_to_players ? 'Hide from players' : 'Reveal to players',
+                          run: () => window.toggleReveal('npcs', npc.id, 'is_known_to_players', npc.is_known_to_players) },
+                        { label: 'Delete', danger: true,
+                          run: () => deleteRow('npcs', npc.id, `Delete ${npc.name}`,
+                              'Their DM notes go with them. This cannot be undone.') }
+                    ]
+                };
+            }
+
+            case 'monster': {
+                const monster = d.monsters.find(m => m.id === id);
+                if (!monster) return null;
+                return {
+                    title: monster.name,
+                    actions: [
+                        { label: 'Remove from roster', danger: true,
+                          // encounter_combatants cascades on this, which is
+                          // why the warning is worth making explicit.
+                          hint: 'Also removes it from any encounter using it',
+                          run: () => deleteRow('campaign_monsters', monster.id, `Remove ${monster.name}`,
+                              'This takes it off the campaign roster and out of every encounter that '
+                              + 'uses it. This cannot be undone.') }
+                    ]
+                };
+            }
+
+            case 'encounter': {
+                const encounter = d.encounters.find(e => e.id === id);
+                if (!encounter) return null;
+                return {
+                    title: encounter.name,
+                    actions: [
+                        { label: encounter.status === 'active' ? 'Resume' : 'Open',
+                          run: () => { window.location.href =
+                              `monster-tracker.html?id=${encodeURIComponent(encounter.id)}`; } },
+                        { label: 'Delete', danger: true,
+                          hint: 'The monster roster is left alone',
+                          run: () => deleteRow('encounters', encounter.id, `Delete ${encounter.name}`,
+                              'This removes the encounter and every combatant in it. The campaign\'s '
+                              + 'monster roster and every character are left alone. This cannot be undone.') }
+                    ]
+                };
+            }
+
+            default:
+                return null;
+        }
+    }
+
+    function editNPC(npc) {
+        openModal({
+            title: `Edit ${npc.name}`,
+            submitLabel: 'Save',
+            fields: [
+                { name: 'name', label: 'Name', required: true, value: npc.name },
+                { name: 'title', label: 'Title or role', value: npc.title || '' },
+                { name: 'faction', label: 'Faction', value: npc.faction || '' },
+                { name: 'area_id', label: 'Where they are', type: 'select', value: npc.area_id || '',
+                  options: [{ value: '', label: '— nowhere in particular —' }]
+                      .concat(d.areas.map(a => ({ value: a.id, label: a.name }))) },
+                { name: 'disposition', label: 'Disposition', type: 'select', value: npc.disposition,
+                  options: ['friendly', 'neutral', 'hostile', 'unknown']
+                      .map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) },
+                { name: 'description', label: 'What players can see', type: 'textarea', rows: 3,
+                  value: npc.description || '' },
+                { name: 'is_known_to_players', type: 'checkbox', label: '',
+                  checkboxLabel: 'Players know this NPC exists', value: npc.is_known_to_players }
+            ],
+            onSubmit: async values => {
+                const { error } = await db.from('npcs').update({
+                    name: values.name, title: values.title || null, faction: values.faction || null,
+                    area_id: values.area_id || null, disposition: values.disposition,
+                    description: values.description || null,
+                    is_known_to_players: values.is_known_to_players
+                }).eq('id', npc.id);
+                if (error) throw new Error(error.message || 'Could not save the NPC.');
+                await refresh();
+            }
+        });
     }
 
     (async function init() {

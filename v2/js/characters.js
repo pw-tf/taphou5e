@@ -60,7 +60,55 @@
                 <span class="rule"></span>
                 ${flagged ? `<span class="hint">${flagged} need${flagged === 1 ? 's' : ''} attention</span>` : ''}
             </div>
-            <div class="party-roster">${ordered.map(characterCard).join('')}</div>`;
+            <div class="party-roster holdable">${ordered.map(characterCard).join('')}</div>
+            ${isDM ? '<p class="hint">Hold a character (or right-click) for more.</p>' : ''}`;
+
+        wireCardMenus('.party-roster', '.character-card',
+            card => characterMenu(card, data.characters));
+    }
+
+    function characterMenu(card, characters) {
+        const character = characters.find(c => c.id === card.dataset.id);
+        if (!character) return null;
+
+        const href = `character-sheet.html?id=${encodeURIComponent(character.id)}`;
+        const actions = [
+            { label: 'Open sheet', hint: `Level ${character.level || 1} ${character.class || ''}`.trim(),
+              run: () => { window.location.href = href; } }
+        ];
+
+        if (character.pending_level_up) {
+            actions.push({ label: 'Level up', hint: 'Opens the wizard on their sheet',
+                           run: () => { window.location.href = href; } });
+        }
+
+        // Characters belong to the world, so only a DM removes one, and only
+        // ever deliberately -- see deleteCharacter.
+        if (isDM) actions.push({
+            label: 'Delete', danger: true, hint: 'Permanent, with everything on their sheet',
+            run: () => deleteCharacter(character)
+        });
+
+        return { title: character.name, actions };
+    }
+
+    // A character is the largest thing a person builds in this app, and a
+    // press-and-hold is easy to trigger by accident, so this asks for the
+    // name to be typed rather than accepting a tap on a red button.
+    function deleteCharacter(character) {
+        confirmByName({
+            title: `Delete ${character.name}`,
+            name: character.name,
+            confirmLabel: 'Delete character',
+            message: 'Their abilities, skills, spells, inventory, features and campaign '
+                   + 'memberships go with them, and they are removed from any encounter '
+                   + 'they are in. This cannot be undone.',
+            onConfirm: async () => {
+                const { error } = await db.from('characters').delete().eq('id', character.id);
+                if (error) throw new Error(error.message || 'Could not delete the character.');
+                render(await load());
+            }
+        });
     }
 
     (async function init() {

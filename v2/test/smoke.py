@@ -421,6 +421,66 @@ async def click_tab(page, label):
         await page.click(f'.tab-btn:has-text("{label}")')
 
 
+TOUCH_HOLD_JS = """({ x, y, ms }) => new Promise(resolve => {
+  const target = document.elementFromPoint(x, y);
+  const touch = new Touch({ identifier: 1, target, clientX: x, clientY: y });
+  const opts = { touches: [touch], targetTouches: [touch], changedTouches: [touch],
+                 bubbles: true, cancelable: true };
+  target.dispatchEvent(new TouchEvent('touchstart', opts));
+  setTimeout(() => {
+    target.dispatchEvent(new TouchEvent('touchend', opts));
+    // The browser synthesises a click after a touch; the page has to swallow
+    // it, so firing it here is part of what makes this a real test.
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    resolve();
+  }, ms);
+})"""
+
+TOUCH_SCROLL_JS = """({ x, y }) => new Promise(resolve => {
+  const target = document.elementFromPoint(x, y);
+  const at = (cx, cy) => {
+    const touch = new Touch({ identifier: 2, target, clientX: cx, clientY: cy });
+    return { touches: [touch], targetTouches: [touch], changedTouches: [touch],
+             bubbles: true, cancelable: true };
+  };
+  target.dispatchEvent(new TouchEvent('touchstart', at(x, y)));
+  // Past the slop threshold well before the hold would fire.
+  setTimeout(() => target.dispatchEvent(new TouchEvent('touchmove', at(x, y - 60))), 80);
+  setTimeout(() => { target.dispatchEvent(new TouchEvent('touchend', at(x, y - 60))); resolve(); }, 800);
+})"""
+
+MENU_SHAPE_JS = """() => {
+  const menu = document.querySelector('.fab-menu');
+  const items = Array.from(menu.querySelectorAll('.fab-item'));
+  const style = getComputedStyle(menu);
+  return {
+    menu: Math.round(menu.getBoundingClientRect().width),
+    items: items.map(i => Math.round(i.getBoundingClientRect().width)),
+    bordered: parseFloat(style.borderTopWidth) > 0
+  };
+}"""
+
+
+async def act(page, label):
+    """Trigger a page action by label, through whichever control is showing.
+
+    The topbar carries the actions on a wide screen, but a page with more than
+    three of them collapses into the + menu at every width, and below 900px
+    every page does. So look for a visible topbar button first and fall back
+    to opening the menu.
+    """
+    button = page.locator(f'.topbar-actions:not(.is-collapsed) button:has-text("{label}"), '
+                          f'.topbar-actions:not(.is-collapsed) a:has-text("{label}")')
+    if await button.count() and await button.first.is_visible():
+        await button.first.click()
+        return
+    wrap = page.locator("#fab-wrap")
+    if not await wrap.locator(".fab-wrap.open").count():
+        await page.click("#fab-toggle")
+        await page.wait_for_timeout(200)
+    await page.click(f'.fab-item:has-text("{label}")')
+
+
 async def fill_pin(page, group, digits):
     boxes = page.locator(f'[data-pin-group="{group}"] .pin-input')
     for i, d in enumerate(digits):
@@ -1120,7 +1180,7 @@ async def main():
         ok("a downed combatant dims rather than disappearing")
 
         # ---------- 29. Turn order ----------
-        await page.click('.topbar button:has-text("Roll initiative")')
+        await act(page, "Roll initiative")
         await page.wait_for_timeout(600)
         writes = await page.evaluate("window.__writes")
         rolled = [w for w in writes if w["table"] == "encounter_combatants"
@@ -1129,7 +1189,7 @@ async def main():
         assert 1 <= rolled[-1]["payload"]["initiative"] <= 20, rolled[-1]
         ok("rolling initiative only fills the blanks")
 
-        await page.click('.topbar button:has-text("Start encounter")')
+        await act(page, "Start encounter")
         await page.wait_for_timeout(600)
         writes = await page.evaluate("window.__writes")
         started = [w for w in writes if w["table"] == "encounters"][-1]
@@ -1161,7 +1221,7 @@ async def main():
         live = await page.locator(".init-row:not(.is-dead)").count()
         seen = []
         for _ in range(live):
-            await page.click('.topbar button:has-text("Next turn")')
+            await act(page, "Next turn")
             await page.wait_for_timeout(400)
             seen.append(await page.locator(".init-row.is-active .init-name").inner_text())
         writes = await page.evaluate("window.__writes")
@@ -1312,6 +1372,36 @@ async def main():
         assert await mp.locator(".topbar .btn").count() >= 1, "topbar should carry the actions"
         ok("above 900px the FAB hides and the topbar carries the actions")
 
+        # ...unless there are too many to sit in a row. The tracker had ten
+        # buttons across the top of a desktop screen; they belong in the menu.
+        await mp.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".init-row", timeout=10000)
+        assert await mp.locator("#fab-toggle").is_visible(), "a crowded topbar keeps the FAB on desktop"
+        showing = await mp.locator(".topbar-actions:not(.is-collapsed) .btn").count()
+        assert showing == 0, showing
+        ok("a page with more than three actions keeps the + menu on desktop and empties the topbar")
+
+        await mp.click("#fab-toggle")
+        await mp.wait_for_timeout(250)
+        labels = [t.strip() for t in await mp.locator(".fab-item").all_inner_texts()]
+        assert len(labels) > 3, labels
+        ok(f"the desktop menu carries all {len(labels)} tracker actions")
+
+        # One panel, not a stack of pills: every row the same width, inside a
+        # single bordered box.
+        shape = await mp.evaluate(MENU_SHAPE_JS)
+        assert len(set(shape["items"])) == 1, shape
+        assert shape["items"][0] < shape["menu"], shape
+        assert shape["bordered"], "the menu itself should be the bordered surface"
+        ok(f"menu rows are one width inside one panel ({shape['items'][0]}px in {shape['menu']}px)")
+
+        # A page under the limit still uses the topbar on desktop.
+        await mp.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
+        await mp.wait_for_selector(".topbar", timeout=10000)
+        assert not await mp.locator("#fab-toggle").is_visible()
+        assert await mp.locator(".topbar-actions:not(.is-collapsed) .btn").count() >= 1
+        ok("a page under the limit still shows its actions in the topbar")
+
         await mob.close()
 
         # ---------- 34. Tracker parity with the classic version ----------
@@ -1325,7 +1415,7 @@ async def main():
         await page.wait_for_selector(".init-row", timeout=10000)
 
         # Adding a monster must not require a trip to the Compendium first.
-        await page.click('.topbar button:has-text("Add monsters")')
+        await act(page, "Add monsters")
         await page.wait_for_selector("#add-search", timeout=5000)
         await page.fill("#add-search", "gob")
         await page.wait_for_timeout(400)
@@ -1601,7 +1691,7 @@ async def main():
 
         # Picking a suggestion must put the chosen name in the box, not leave
         # the fragment that was typed.
-        await page.click('.topbar button:has-text("Add monsters")')
+        await act(page, "Add monsters")
         await page.wait_for_selector("#add-search", timeout=5000)
         await page.fill("#add-search", "gob")
         await page.wait_for_timeout(400)
@@ -1623,9 +1713,9 @@ async def main():
 
         # Once running, the list goes flat and the colour returns to a stripe,
         # so turn order is never reshuffled by a colour.
-        await page.click('.topbar button:has-text("Roll initiative")')
+        await act(page, "Roll initiative")
         await page.wait_for_timeout(500)
-        await page.click('.topbar button:has-text("Start encounter")')
+        await act(page, "Start encounter")
         await page.wait_for_timeout(700)
         assert await page.locator(".colour-block").count() == 0, "colour blocks are a planning view"
         assert await page.locator(".init-row.has-color").count() == 2
@@ -1671,7 +1761,7 @@ async def main():
         # Deleting a campaign says what goes with it.
         await page.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
         await page.wait_for_selector(".campaign-tabs", timeout=10000)
-        await page.click('.topbar button:has-text("Delete campaign")')
+        await act(page, "Delete campaign")
         await page.wait_for_selector(".modal", timeout=5000)
         message = await page.locator(".modal-body .prose").inner_text()
         assert "storyline" in message and "NPC" in message and "encounter" in message, message
@@ -1694,7 +1784,7 @@ async def main():
         # Deleting an encounter is scoped to the encounter, not the roster.
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        await page.click('.topbar button:has-text("Delete encounter")')
+        await act(page, "Delete encounter")
         await page.wait_for_selector(".modal", timeout=5000)
         message = await page.locator(".modal-body .prose").inner_text()
         assert "combatant" in message and "roster" in message, message
@@ -1703,7 +1793,7 @@ async def main():
         await page.wait_for_timeout(300)
 
         # Linking an encounter to the moment in the story it belongs to.
-        await page.click('.topbar button:has-text("Link to a beat")')
+        await act(page, "Link to a beat")
         await page.wait_for_selector(".modal", timeout=5000)
         options = [t.strip() for t in await page.locator("#mf-storyline_beat_id option").all_inner_texts()]
         assert any("The first crossing" in o for o in options), options
@@ -1723,7 +1813,7 @@ async def main():
         # ---------- 40. Encounter sharing ----------
         await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
         await page.wait_for_selector(".init-row", timeout=10000)
-        await page.click('.topbar button:has-text("Share encounter")')
+        await act(page, "Share encounter")
         await page.wait_for_selector(".share-code", timeout=5000)
 
         code = (await page.locator(".share-code").inner_text()).strip()
@@ -1740,9 +1830,9 @@ async def main():
 
         # Importing rebuilds the recipe in the chosen campaign.
         await page.goto(f"{BASE}/v2/monster-tracker.html", wait_until="domcontentloaded")
-        await page.wait_for_selector(".topbar button", timeout=10000)
+        await page.wait_for_selector("#fab-toggle, .topbar-actions button", timeout=10000)
         await page.evaluate("window.__resetWrites()")
-        await page.click('.topbar button:has-text("Add a shared encounter")')
+        await act(page, "Add a shared encounter")
         await page.wait_for_selector(".modal", timeout=5000)
 
         # A wrong code is refused before anything is created.
@@ -2044,6 +2134,179 @@ async def main():
         ok("the wizard clears the level markers it consumed")
 
         await luctx.close()
+
+        # ---------- 46. Press-and-hold card menus ----------
+        # The gesture has to survive three things: a scroll that starts on a
+        # card, the click the browser fires afterwards, and a redraw.
+        hold = await browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
+        await hold.add_init_script(STUB)
+        hp = await hold.new_page()
+        watch(hp, "hold")
+
+        await hp.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await hp.fill("#world-name", "Thornfell Reach")
+        await fill_pin(hp, "join", "1379")
+        await hp.click("#join-form .btn-submit")
+        await hp.wait_for_selector(".party-roster", timeout=10000)
+
+        await hp.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".campaign-card", timeout=10000)
+
+        box = await hp.locator(".campaign-card").first.bounding_box()
+        cx, cy = box["x"] + box["width"] / 2, box["y"] + 24
+
+        # A short tap must still follow the link, not open a menu.
+        await hp.touchscreen.tap(cx, cy)
+        await hp.wait_for_timeout(600)
+        assert "campaign.html" in hp.url, hp.url
+        ok("a normal tap still opens the card")
+
+        await hp.go_back(wait_until="domcontentloaded")
+        await hp.wait_for_selector(".campaign-card", timeout=10000)
+
+        async def press_hold(page, x, y, ms=700):
+            await page.evaluate(TOUCH_HOLD_JS, {"x": x, "y": y, "ms": ms})
+
+        await press_hold(hp, cx, cy)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        ok("holding a campaign card opens its menu")
+
+        labels = [t.strip().split("\n")[0] for t in await hp.locator(".card-menu-item .label").all_inner_texts()]
+        assert "Delete" in labels and "Edit" in labels, labels
+        ok(f"the menu offers the actions that had no home before ({labels})")
+
+        # The menu must not have let the card's own link fire underneath it.
+        assert "campaigns.html" in hp.url, hp.url
+        ok("the click that follows a hold does not open the card behind the menu")
+
+        await hp.click("#modal-close")
+        await hp.wait_for_timeout(300)
+
+        # A hold that turns into a scroll is a trap, so movement cancels it.
+        await hp.evaluate(TOUCH_SCROLL_JS, {"x": cx, "y": cy})
+        await hp.wait_for_timeout(900)
+        assert await hp.locator(".card-menu").count() == 0, "a scroll must not open the menu"
+        ok("a hold that moves is a scroll, and opens nothing")
+
+        # Deleting through the menu writes the delete.
+        await press_hold(hp, cx, cy)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        await hp.click('.card-menu-item:has-text("Delete")')
+        await hp.wait_for_selector(".modal-body", timeout=5000)
+        message = await hp.locator(".modal-body").inner_text()
+        assert "storylines" in message and "stay in the world" in message, message
+        ok("deleting from the menu says what cascades and that characters survive")
+
+        await hp.evaluate("window.__resetWrites()")
+        await hp.click('.modal-actions button[type="submit"]')
+        await hp.wait_for_timeout(700)
+        writes = await hp.evaluate("window.__writes")
+        assert [w for w in writes if w["table"] == "campaigns" and w["verb"] == "delete"], writes
+        ok("the campaign delete is written from the card menu")
+
+        # ---------- 47. Deleting a character needs the name typed ----------
+        await hp.goto(f"{BASE}/v2/characters.html", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".character-card", timeout=10000)
+        cbox = await hp.locator(".character-card").first.bounding_box()
+        await press_hold(hp, cbox["x"] + cbox["width"] / 2, cbox["y"] + 24)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+
+        title = await hp.locator(".modal-head h2").inner_text()
+        await hp.click('.card-menu-item:has-text("Delete")')
+        await hp.wait_for_selector("#mf-typed", timeout=5000)
+        ok(f"a character's menu offers delete ({title})")
+
+        await hp.evaluate("window.__resetWrites()")
+        await hp.fill("#mf-typed", "something else")
+        await hp.click('.modal-actions button[type="submit"]')
+        await hp.wait_for_timeout(500)
+        assert "not the name" in await hp.locator(".modal-error").inner_text()
+        writes = await hp.evaluate("window.__writes")
+        assert not [w for w in writes if w["verb"] == "delete"], writes
+        ok("a character is not deleted unless the name is typed exactly")
+
+        await hp.fill("#mf-typed", f"  {title.replace('Delete ', '')}  ")
+        await hp.click('.modal-actions button[type="submit"]')
+        await hp.wait_for_timeout(700)
+        writes = await hp.evaluate("window.__writes")
+        assert [w for w in writes if w["table"] == "characters" and w["verb"] == "delete"], writes
+        ok("the typed name is matched ignoring case and surrounding spaces")
+
+        # ---------- 48. The campaign detail resolver ----------
+        # Every tab's rows share one gesture and one resolver, switching on the
+        # kind the row declares, so each kind needs to actually resolve.
+        await hp.goto(f"{BASE}/v2/campaign.html?id=cam1", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".campaign-tabs", timeout=10000)
+
+        async def hold_first(selector):
+            await hp.wait_for_selector(selector, timeout=5000)
+            b = await hp.locator(selector).first.bounding_box()
+            await press_hold(hp, b["x"] + min(b["width"] / 2, 120), b["y"] + 18)
+            await hp.wait_for_selector(".card-menu", timeout=5000)
+            out = [t.strip() for t in await hp.locator(".card-menu-item .label").all_inner_texts()]
+            head = await hp.locator(".modal-head h2").inner_text()
+            await hp.click("#modal-close")
+            await hp.wait_for_timeout(250)
+            return head, out
+
+        await hp.click('.campaign-tabs button:has-text("Storylines")')
+        title, labels = await hold_first('[data-kind="storyline"]')
+        assert "Delete" in labels and any("beat" in l.lower() for l in labels), labels
+        ok(f"a storyline resolves ({title}: {labels})")
+
+        await hp.click('.campaign-tabs button:has-text("NPCs")')
+        title, labels = await hold_first('[data-kind="npc"]')
+        assert labels[0] == "Edit" and "Delete" in labels, labels
+        ok(f"an NPC resolves, and can now be edited at all ({title})")
+
+        await hp.click('.campaign-tabs button:has-text("Monsters")')
+        title, labels = await hold_first('[data-kind="monster"]')
+        assert labels == ["Remove from roster"], labels
+        ok(f"a roster monster can be removed, which it could not before ({title})")
+
+        await hp.click('.campaign-tabs button:has-text("Party")')
+        title, labels = await hold_first('[data-kind="party"]')
+        assert "Open sheet" in labels, labels
+        assert any("campaign" in l for l in labels), labels
+        ok(f"a party member resolves ({title}: {labels})")
+
+        # ---------- 49. Combatant rows ----------
+        await hp.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".init-row", timeout=10000)
+        # Target the party row: initiative order decides which row is first,
+        # and the "stays in the world" wording is specific to a character.
+        b = await hp.locator(".init-row.is-party").first.bounding_box()
+        await press_hold(hp, b["x"] + 120, b["y"] + 18)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        labels = [t.strip() for t in await hp.locator(".card-menu-item .label").all_inner_texts()]
+        assert "Set colour" in labels and "Edit note" in labels, labels
+        ok(f"a combatant row reaches everything the inline buttons had no room for ({len(labels)} actions)")
+
+        # A character is in the encounter, not owned by it.
+        hint = await hp.locator('.card-menu-item:has-text("Remove") .hint').inner_text()
+        assert "stay in the world" in hint, hint
+        ok("removing a character from an encounter says they stay in the world")
+
+        await hp.click("#modal-close")
+        await hp.wait_for_timeout(250)
+
+        # setColor applies the colour it is given, so the menu needs a picker.
+        await press_hold(hp, b["x"] + 120, b["y"] + 18)
+        await hp.wait_for_selector(".card-menu", timeout=5000)
+        await hp.click('.card-menu-item:has-text("Set colour")')
+        await hp.wait_for_selector(".swatches", timeout=5000)
+        assert await hp.locator("[data-pick]").count() == 8, "no colour, plus the seven in the palette"
+        await hp.evaluate("window.__resetWrites()")
+        await hp.click('[data-pick="#7fa65c"]')
+        await hp.wait_for_timeout(600)
+        writes = await hp.evaluate("window.__writes")
+        coloured = [w for w in writes if w["table"] == "encounter_combatants"
+                    and (w["payload"] or {}).get("color") == "#7fa65c"]
+        assert coloured, writes
+        ok("the colour picker writes the chosen colour")
+
+        await hold.close()
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
