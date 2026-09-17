@@ -46,6 +46,13 @@
                         </svg>
                         Delete Character
                     </a>
+                    <div class="side-menu-divider"></div>
+                    <a id="sm-try-v2" class="side-menu-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2l2.4 6.2L21 9l-5 4.3L17.5 20 12 16.6 6.5 20 8 13.3 3 9l6.6-.8z"/>
+                        </svg>
+                        Switch to V2.0
+                    </a>
                     <div id="sm-delete-divider" class="side-menu-divider hidden"></div>
                     <a id="sm-logout" class="side-menu-item">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -182,6 +189,19 @@
     document.getElementById('sm-delete-char').addEventListener('click', () => {
         closeSideMenu();
         if (typeof openDeleteModal === 'function') openDeleteModal();
+    });
+
+    // Switching to the new layout. v2-invite.js owns the storage key so the
+    // menu, the login button and the prompt cannot drift apart; if it is not
+    // loaded on this page, fall back to the same two lines it would run.
+    document.getElementById('sm-try-v2').addEventListener('click', () => {
+        closeSideMenu();
+        if (window.Taphou5eInvite && window.Taphou5eInvite.switchToV2) {
+            window.Taphou5eInvite.switchToV2();
+            return;
+        }
+        try { localStorage.setItem('taphou5e-ui', 'next'); } catch (e) { /* private mode */ }
+        window.location.href = 'v2/';
     });
 
     document.getElementById('sm-logout').addEventListener('click', () => {

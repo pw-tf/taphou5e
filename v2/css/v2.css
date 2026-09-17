@@ -5,6 +5,14 @@
    Everything here uses tokens.css variables; no new colours are introduced.
    ========================================================================== */
 
+/* ---------- The hidden attribute must actually hide.
+   The UA rule is `[hidden] { display: none }`, which any author rule setting
+   a display wins against on specificity. `.login-card` sets `display: flex`,
+   so the create form rendered under the join form with the segmented switch
+   toggling nothing. Asserting it once here means no future `display` can
+   quietly break the attribute again. ---------- */
+[hidden] { display: none !important; }
+
 /* ---------- Focus. The handoff notes the current build has no focus ring
    at all, so every interactive element gets one. ---------- */
 a:focus-visible,
@@ -908,3 +916,60 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
   color: var(--text-primary); font: inherit; font-size: var(--fs-13); cursor: pointer;
 }
 .srd-hit:hover { background: var(--bg-hover); border-color: var(--accent-primary); }
+
+/* ---------- The logo, as the classic version wears it ----------
+   The mark beside the wordmark on the login screen, and a very faint version
+   of it behind every page, both lifted from styles.css so the two versions
+   look like the same product.
+
+   The source art is black on transparent. On the dark shell it has to be
+   inverted to white; on the light one it is already right. And because black
+   art on a cream background reads far harder than the same art on near-black,
+   the watermark is much fainter in light mode -- the classic app only ever
+   had to look right on one of the two.
+
+   Theme selectors follow tokens.css: an explicit data-theme, or the system
+   preference when no attribute is set. theme.js REMOVES the attribute for
+   "system", so `[data-theme="light"]` alone would never match there. */
+:root {
+  --logo-filter: brightness(0) invert(1);
+  /* How much of the page colour is washed over the mark. 96% leaves it
+     showing at 4%, which is what the classic app uses. */
+  --watermark-veil: 96%;
+}
+[data-theme="light"] {
+  --logo-filter: none;
+  --watermark-veil: 97.8%;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --logo-filter: none;
+    --watermark-veil: 97.8%;
+  }
+}
+
+.login-header h1 {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+}
+.login-logo { height: 36px; width: auto; filter: var(--logo-filter); }
+@media (min-width: 640px) { .login-logo { height: 48px; } }
+
+/* The watermark is a background layer on the page containers, not an
+   overlay. v1 uses `body::before` at z-index 0, but a fixed positioned
+   element paints ABOVE in-flow content, so the mark washes over whatever it
+   crosses -- most visibly the accent button.
+
+   Three layers, front to back: a flat wash of the page colour that fades the
+   mark, the mark itself, then the page colour. All three are backgrounds of
+   the same element, so every one of them sits behind all content, needs no
+   pointer-events guard, and cannot be caught by a stacking context later.
+   `fixed` keeps the mark still and one screen tall however long the page
+   runs, which is the one thing v1's overlay did well. */
+.login-container,
+.app-shell {
+  background:
+    linear-gradient(color-mix(in srgb, var(--bg-primary) var(--watermark-veil), transparent),
+                    color-mix(in srgb, var(--bg-primary) var(--watermark-veil), transparent)),
+    url('../../taphou5e.png') center / contain no-repeat fixed,
+    var(--bg-primary);
+}

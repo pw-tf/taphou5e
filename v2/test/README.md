@@ -73,6 +73,13 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- The login page opening on the join form alone, and the segmented control
+  swapping the two rather than only revealing one (`.login-card` sets
+  `display: flex`, which beats the UA's `[hidden] { display: none }`)
+- The deliberate switches to v2 surviving a turned-off prompt: the classic
+  sidebar item and the login page button, both opting the device in
+- The logo decoding on the v2 login screen, the faded mark being a background
+  layer on every page, and nothing sitting over the accent button
 - The invite on both classic screens: the login page, and the home screen for a
   device that still has a session (waiting for that screen rather than firing
   over the redirect), plus each answer's consequence — "not now" recording

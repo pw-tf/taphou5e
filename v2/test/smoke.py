@@ -745,8 +745,31 @@ async def main():
         ok(f"wrong PIN shows {msg!r}")
 
         # ---------- 8. Create form ----------
+        # The switch has to swap the forms, not just reveal one. `.login-card`
+        # sets display:flex, which beats the UA's `[hidden] { display: none }`
+        # on specificity, so both forms rendered at once and the segmented
+        # control appeared to do nothing.
+        assert await page.locator("#join-form").is_visible()
+        assert not await page.locator("#create-form").is_visible(), \
+            "only the join form should show on load"
+        ok("the login page opens on the join form alone")
+
         await page.click('button[data-mode="create"]')
         assert await page.locator("#create-form").is_visible()
+        assert not await page.locator("#join-form").is_visible(), \
+            "switching to create must hide join, not just show create"
+        active = (await page.locator(".segmented .is-active").first.inner_text()).strip()
+        assert "Create" in active, active
+        ok("the switch swaps the forms and marks the active side")
+
+        # And back again, including via the link under the join form.
+        await page.click('button[data-mode="join"]')
+        assert await page.locator("#join-form").is_visible()
+        assert not await page.locator("#create-form").is_visible()
+        await page.click('a[data-mode="create"]')
+        assert await page.locator("#create-form").is_visible()
+        assert not await page.locator("#join-form").is_visible()
+        ok("the switch works both ways, and so does the 'create one' link")
         await page.fill("#new-world-name", "ab")
         await page.click("#create-form .btn-submit")
         await page.wait_for_timeout(300)
@@ -2621,8 +2644,13 @@ async def main():
         # login. The router above proves an opted-in device never gets here.
         await page2.wait_for_selector("#v2-invite", timeout=5000)
         body = await page2.locator("#v2-invite .modal-content").inner_text()
+        assert "TAPHOU5E V2.0 now available!" in body, body
         assert "nothing is copied" in body, body
-        ok("the classic login offers the new layout, and says the data is shared")
+        bullets = await page2.locator(".v2-invite-list li").count()
+        assert bullets >= 4, bullets
+        for word in ("Campaigns", "tracker", "sheet", "phone"):
+            assert word in body, (word, body)
+        ok(f"the prompt leads with the version and lists {bullets} things that are new")
 
         # Dismissing without the checkbox is "not now", not "never".
         await page2.click("#v2-invite-no")
@@ -2694,7 +2722,107 @@ async def main():
         assert not await page3.locator("#home-page").evaluate("el => el.classList.contains('hidden')"), \
             "the prompt must wait for the home screen"
         ok("an already-signed-in device is asked on the classic home screen")
-        await ctx3.close()
+
+        # ---------- 54b. The deliberate switches ----------
+        # Someone who dismissed the prompt, or ticked the box, still needs a
+        # way across. The sidebar carries one; so does the login page.
+        # Signed in, and the prompt already turned off -- so the switch is the
+        # only way across, which is the whole reason it exists.
+        ctx5 = await browser.new_context()
+        await ctx5.add_init_script(STUB)
+        await ctx5.add_init_script("""
+            try {
+              localStorage.setItem('dnd-session', JSON.stringify({
+                gameWorldId: 'w1', gameWorldName: 'Thornfell Reach',
+                role: 'dm', timestamp: Date.now() }));
+              localStorage.setItem('taphou5e-invite', 'never');
+            } catch (e) {}
+        """)
+        page5 = await ctx5.new_page()
+        watch(page5, "classic-switch")
+        await page5.goto(f"{BASE}/characters.html", wait_until="domcontentloaded")
+        await page5.wait_for_selector("#sm-try-v2", timeout=10000)
+        assert await page5.locator("#v2-invite").count() == 0, "the prompt was turned off"
+        label = (await page5.locator("#sm-try-v2").inner_text()).strip()
+        assert "V2" in label, label
+        ok(f"the classic sidebar carries a switch ({label!r})")
+
+        # The drawer slides in on a transform, so the item is in the DOM but
+        # not clickable until the hamburger opens it.
+        await page5.click("#menu-btn")
+        await page5.wait_for_selector("#side-menu-overlay.open", timeout=5000)
+        await page5.click("#sm-try-v2")
+        await page5.wait_for_url("**/v2/**", timeout=10000)
+        assert await page5.evaluate("localStorage.getItem('taphou5e-ui')") == "next"
+        ok("the sidebar switch opts in even after the prompt was turned off")
+        await ctx5.close()
+
+        ctx6 = await browser.new_context()
+        await ctx6.add_init_script(STUB)
+        await ctx6.add_init_script("""
+            try { localStorage.setItem('taphou5e-invite', 'never'); } catch (e) {}
+        """)
+        page6 = await ctx6.new_page()
+        watch(page6, "classic-login-switch")
+        await page6.goto(f"{BASE}/index.html", wait_until="domcontentloaded")
+        await page6.wait_for_selector("#try-v2-btn", timeout=10000)
+        assert await page6.locator("#v2-invite").count() == 0, "the prompt was turned off"
+        ok("the classic login shows the switch even with the prompt turned off")
+
+        await page6.click("#try-v2-btn")
+        await page6.wait_for_url("**/v2/**", timeout=10000)
+        assert await page6.evaluate("localStorage.getItem('taphou5e-ui')") == "next"
+        ok("the login button opts in and crosses over")
+        await ctx6.close()
+
+        # ---------- 54c. The logo ----------
+        ctx7 = await browser.new_context()
+        await ctx7.add_init_script(STUB)
+        page7 = await ctx7.new_page()
+        watch(page7, "logo")
+        await page7.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page7.wait_for_selector(".login-logo", timeout=5000)
+
+        # A broken <img> still has a box, so assert the bitmap actually decoded.
+        loaded = await page7.evaluate("""() => {
+            const img = document.querySelector('.login-logo');
+            return { done: img.complete, w: img.naturalWidth, h: img.naturalHeight };
+        }""")
+        assert loaded["done"] and loaded["w"] > 0, loaded
+        ok(f"the login screen shows the logo ({loaded['w']}x{loaded['h']})")
+
+        # The watermark is a pseudo-element on body, so it survives renderShell
+        # replacing the body's contents on every draw.
+        await page7.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page7, "join", "1379")
+        await page7.click("#join-form .btn-submit")
+        await page7.wait_for_selector(".party-roster", timeout=10000)
+        mark = await page7.evaluate("""() => {
+            const shell = document.querySelector('.app-shell');
+            const s = getComputedStyle(shell);
+            return { image: s.backgroundImage, attachment: s.backgroundAttachment };
+        }""")
+        assert "taphou5e.png" in mark["image"], mark
+        # A scrim layer in front of the mark is what fades it; without that the
+        # logo would sit at full strength behind the page.
+        assert "gradient" in mark["image"], mark
+        assert "fixed" in mark["attachment"], mark
+        ok("every page carries the faded logo behind it")
+
+        # As a background layer it is behind all content by construction, so
+        # nothing can be washed over and nothing needs a pointer-events guard.
+        # Assert the accent button renders at its own colour.
+        await page7.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page7.wait_for_selector(".btn-accent", timeout=5000)
+        painted = await page7.evaluate("""() => {
+            const b = document.querySelector('.btn-accent');
+            const r = b.getBoundingClientRect();
+            const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            return b.contains(top) || top === b;
+        }""")
+        assert painted, "nothing should sit over the accent button"
+        ok("the mark is behind the page, not washed over the buttons")
+        await ctx7.close()
 
         # Without a session the character page redirects to the login, so the
         # prompt must not fire over that.
@@ -2707,6 +2835,7 @@ async def main():
         assert page4.url.endswith("index.html"), page4.url
         ok("with no session the character page still just redirects to the login")
         await ctx4.close()
+        await ctx3.close()
 
         await browser.close()
 

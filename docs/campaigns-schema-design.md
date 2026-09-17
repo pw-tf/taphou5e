@@ -785,6 +785,42 @@ the invite lands a DM in v2 already signed in. v1 stores `dmToken` but not
 does store, so a DM whose token has aged out still gets told rather than
 silently seeing empty campaign data.
 
+### 9.3b Switching, and the shared look
+
+The prompt (§9.3a) is the offer; these are the doors that stay open after it
+has been answered or turned off.
+
+- **The classic sidebar** carries "Switch to V2.0" on both pages that have a
+  side menu.
+- **The classic login** carries a button under the form.
+
+Both go through `Taphou5eInvite.switchToV2()`, so the storage key is written in
+one place and cannot drift. `sidemenu.js` falls back to the same two lines
+inline, because it also loads on pages where the invite file might not.
+
+The prompt's copy now leads with **"TAPHOU5E V2.0 now available!"** over a short
+list of what is new, rather than a paragraph.
+
+**The logo.** The mark now sits beside the wordmark on the v2 login screen, and
+a faded version of it sits behind every v2 page, as the classic version has
+always done. Two things the classic CSS could take for granted and v2 cannot:
+
+- **The art is black on transparent.** v1 only ever renders on a dark shell, so
+  it inverts the logo to white unconditionally. v2 has a light theme, so the
+  filter is a token that resolves per theme -- and the selector has to cover
+  *both* an explicit `data-theme` and the system preference, because `theme.js`
+  **removes** the attribute for "system". `[data-theme="light"]` alone would
+  never match the most common case.
+- **v1's watermark paints over the page.** It is `body::before` at `z-index: 0`,
+  and a fixed positioned element paints above in-flow content, so the mark
+  washes across whatever it crosses -- most visibly the accent button. v2 puts
+  it in the container's background stack instead: a scrim of the page colour,
+  the mark, then the page colour, all three behind every child by construction.
+  No `pointer-events` guard, and no stacking context can catch it later.
+
+The mark is also much fainter in light mode (2.2% against 4%), because black art
+on a cream background reads far harder than the same art on near-black.
+
 ### 9.4 What each version sees of the other's data
 
 Because of decision 2, this stays simple. A character never leaves its world, so **v1's roster is never
@@ -861,7 +897,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (234 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (244 assertions):
 
 | Built | Not yet |
 |---|---|
