@@ -801,25 +801,19 @@ inline, because it also loads on pages where the invite file might not.
 The prompt's copy now leads with **"TAPHOU5E V2.0 now available!"** over a short
 list of what is new, rather than a paragraph.
 
-**The logo.** The mark now sits beside the wordmark on the v2 login screen, and
-a faded version of it sits behind every v2 page, as the classic version has
-always done. Two things the classic CSS could take for granted and v2 cannot:
+**The logo.** The mark sits beside the wordmark on the v2 login screen, and
+again beside it in the sidebar and the mobile drawer. There is deliberately
+**no background watermark**: v1 fades the logo behind every page, and it was
+tried here, but it reads as noise on a light theme and washes over the accent
+button on a dark one. The mark earns its place in the chrome instead.
 
-- **The art is black on transparent.** v1 only ever renders on a dark shell, so
-  it inverts the logo to white unconditionally. v2 has a light theme, so the
-  filter is a token that resolves per theme -- and the selector has to cover
-  *both* an explicit `data-theme` and the system preference, because `theme.js`
-  **removes** the attribute for "system". `[data-theme="light"]` alone would
-  never match the most common case.
-- **v1's watermark paints over the page.** It is `body::before` at `z-index: 0`,
-  and a fixed positioned element paints above in-flow content, so the mark
-  washes across whatever it crosses -- most visibly the accent button. v2 puts
-  it in the container's background stack instead: a scrim of the page colour,
-  the mark, then the page colour, all three behind every child by construction.
-  No `pointer-events` guard, and no stacking context can catch it later.
-
-The mark is also much fainter in light mode (2.2% against 4%), because black art
-on a cream background reads far harder than the same art on near-black.
+One thing the classic CSS could take for granted and v2 cannot: **the art is
+black on transparent.** v1 only ever renders on a dark shell, so it inverts the
+logo to white unconditionally. v2 has a light theme, so the filter is a token
+that resolves per theme -- and the selector has to cover *both* an explicit
+`data-theme` and the system preference, because `theme.js` **removes** the
+attribute for "system". `[data-theme="light"]` alone would never match the most
+common case, and the logo would render white on cream.
 
 ### 9.4 What each version sees of the other's data
 

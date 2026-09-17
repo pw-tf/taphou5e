@@ -78,8 +78,8 @@ at it directly — edit `CHROME` at the top of the file, or run
   `display: flex`, which beats the UA's `[hidden] { display: none }`)
 - The deliberate switches to v2 surviving a turned-off prompt: the classic
   sidebar item and the login page button, both opting the device in
-- The logo decoding on the v2 login screen, the faded mark being a background
-  layer on every page, and nothing sitting over the accent button
+- The logo decoding on the v2 login screen and sitting before the wordmark in
+  the sidebar, and no page carrying a background image behind it
 - The invite on both classic screens: the login page, and the home screen for a
   device that still has a session (waiting for that screen rather than firing
   over the redirect), plus each answer's consequence — "not now" recording

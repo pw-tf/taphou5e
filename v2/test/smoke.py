@@ -2797,31 +2797,29 @@ async def main():
         await fill_pin(page7, "join", "1379")
         await page7.click("#join-form .btn-submit")
         await page7.wait_for_selector(".party-roster", timeout=10000)
-        mark = await page7.evaluate("""() => {
-            const shell = document.querySelector('.app-shell');
-            const s = getComputedStyle(shell);
-            return { image: s.backgroundImage, attachment: s.backgroundAttachment };
+        # The mark rides beside the wordmark in the drawer, and nothing is
+        # painted behind the page.
+        await page7.wait_for_selector(".brand-logo", timeout=5000)
+        brand = await page7.evaluate("""() => {
+            const img = document.querySelector('.brand-logo');
+            const wordmark = img.closest('.brand');
+            return { w: img.naturalWidth,
+                     text: wordmark.textContent.trim(),
+                     first: wordmark.firstElementChild === img };
         }""")
-        assert "taphou5e.png" in mark["image"], mark
-        # A scrim layer in front of the mark is what fades it; without that the
-        # logo would sit at full strength behind the page.
-        assert "gradient" in mark["image"], mark
-        assert "fixed" in mark["attachment"], mark
-        ok("every page carries the faded logo behind it")
+        assert brand["w"] > 0, brand
+        assert brand["text"] == "TAPHOU5E", brand
+        assert brand["first"], "the mark goes before the title"
+        ok("the sidebar wordmark is preceded by the logo")
 
-        # As a background layer it is behind all content by construction, so
-        # nothing can be washed over and nothing needs a pointer-events guard.
-        # Assert the accent button renders at its own colour.
-        await page7.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
-        await page7.wait_for_selector(".btn-accent", timeout=5000)
-        painted = await page7.evaluate("""() => {
-            const b = document.querySelector('.btn-accent');
-            const r = b.getBoundingClientRect();
-            const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-            return b.contains(top) || top === b;
+        clean = await page7.evaluate("""() => {
+            const shell = getComputedStyle(document.querySelector('.app-shell'));
+            const body = getComputedStyle(document.body, '::before');
+            return { shell: shell.backgroundImage, body: body.backgroundImage };
         }""")
-        assert painted, "nothing should sit over the accent button"
-        ok("the mark is behind the page, not washed over the buttons")
+        assert "taphou5e" not in clean["shell"], clean
+        assert "taphou5e" not in clean["body"], clean
+        ok("no page carries a background image behind it")
         await ctx7.close()
 
         # Without a session the character page redirects to the login, so the
