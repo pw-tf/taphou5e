@@ -622,7 +622,7 @@ function closeModal() {
 
 // fields: [{ name, label, type: 'text'|'textarea'|'number'|'select'|'checkbox',
 //            value, options: [{value,label}], placeholder, required, hint }]
-function openModal({ title, fields = [], submitLabel = 'Save', danger = false, onSubmit }) {
+function openModal({ title, fields = [], submitLabel = 'Save', danger = false, onSubmit, prefix = '', onMount }) {
     closeModal();
 
     const control = f => {
@@ -641,12 +641,19 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
         return `<input ${common} type="${f.type || 'text'}" value="${escapeHtml(f.value ?? '')}" placeholder="${escapeHtml(f.placeholder || '')}">`;
     };
 
-    const body = fields.map(f => `
+    const body = fields.map(f => {
+        // A hidden field carries a value the form needs but nobody edits --
+        // an SRD index, say. It gets no label and no row of its own.
+        if (f.type === 'hidden') {
+            return `<input type="hidden" id="mf-${f.name}" name="${f.name}" value="${escapeHtml(f.value ?? '')}">`;
+        }
+        return `
         <div class="form-group">
             ${f.type === 'checkbox' ? '' : `<label for="mf-${f.name}">${escapeHtml(f.label)}</label>`}
             ${control(f)}
             ${f.hint ? `<p class="hint">${escapeHtml(f.hint)}</p>` : ''}
-        </div>`).join('');
+        </div>`;
+    }).join('');
 
     document.body.insertAdjacentHTML('beforeend', `
         <div id="modal-host" class="modal-host">
@@ -656,6 +663,7 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
                     <button class="icon-btn" id="modal-close" aria-label="Close">&times;</button>
                 </div>
                 <form id="modal-form" class="modal-body">
+                    ${prefix}
                     ${body}
                     <div class="modal-error error-banner" hidden></div>
                     <div class="modal-actions">
@@ -679,8 +687,10 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
         if (e.key === 'Escape') { dismiss(); document.removeEventListener('keydown', esc); }
     });
 
-    const firstField = $('.modal-body input, .modal-body textarea, .modal-body select');
-    if (firstField) firstField.focus();
+    // A form with its own header (an SRD search, say) focuses that instead.
+    if (onMount) onMount(form);
+    const firstField = $('.modal-body input:not([type=hidden]), .modal-body textarea, .modal-body select');
+    if (firstField && !form.dataset.focusHandled) firstField.focus();
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
@@ -716,6 +726,86 @@ function openModal({ title, fields = [], submitLabel = 'Save', danger = false, o
             submit.setAttribute('aria-busy', 'false');
         }
     });
+}
+
+// An add form with an SRD search on top: pick an entry and the fields fill
+// themselves, or ignore it entirely and type your own. Homebrew has to stay
+// as easy as the official material -- v1 made the name field itself the
+// search box, which meant a custom name and a lookup fought over one input.
+function openSrdForm({ title, which, submitLabel = 'Add', filter, toValues, fields, onSubmit }) {
+    let index = null;
+    let failed = false;
+
+    openModal({
+        title,
+        submitLabel,
+        fields,
+        onSubmit,
+        prefix: `
+            <div class="form-group srd-search">
+                <label for="srd-lookup">Search the SRD</label>
+                <input id="srd-lookup" type="text" autocomplete="off"
+                       placeholder="Start typing, or skip and fill it in yourself">
+                <div id="srd-lookup-results" class="srd-results" role="listbox"></div>
+            </div>`,
+        onMount: async form => {
+            const box = $('#srd-lookup', form);
+            const out = $('#srd-lookup-results', form);
+            box.focus();
+            form.dataset.focusHandled = 'yes';
+
+            try {
+                index = await srdIndex(which);
+            } catch (err) {
+                // Offline, or the SRD is down. The form still works: this is
+                // a convenience, not the way in.
+                failed = true;
+                out.innerHTML = '<p class="hint">Search is unavailable. Fill the fields in yourself.</p>';
+                return;
+            }
+
+            const usable = filter ? index.filter(filter) : index;
+
+            box.addEventListener('input', () => {
+                if (failed) return;
+                const query = box.value.trim().toLowerCase();
+                if (query.length < 2) { out.innerHTML = ''; return; }
+
+                const hits = usable.filter(r => r.name.toLowerCase().includes(query)).slice(0, 8);
+                out.innerHTML = hits.length
+                    ? hits.map(r => `<button type="button" class="srd-hit" data-index="${escapeHtml(r.index)}"
+                            role="option">${escapeHtml(r.name)}</button>`).join('')
+                    : '<p class="hint">Nothing matches. Type the fields in yourself.</p>';
+
+                $$('.srd-hit', out).forEach(hit => hit.addEventListener('click', async () => {
+                    out.innerHTML = '<p class="hint">Loading&hellip;</p>';
+                    let values;
+                    try {
+                        values = toValues(await srdDetail(which, hit.dataset.index));
+                    } catch (err) {
+                        out.innerHTML = '<p class="hint">Could not load that entry. Fill the fields in yourself.</p>';
+                        return;
+                    }
+                    // Fill, don't replace: anything already typed by hand is
+                    // left alone, since the search is meant to save work.
+                    Object.entries(values).forEach(([name, value]) => {
+                        const field = $(`#mf-${name}`, form);
+                        if (!field || value === null || value === undefined) return;
+                        if (field.type === 'checkbox') field.checked = !!value;
+                        else field.value = value;
+                    });
+                    box.value = values.name || box.value;
+                    out.innerHTML = '';
+                }));
+            });
+        }
+    });
+}
+
+// The SRD writes descriptions as an array of paragraphs.
+function srdText(value) {
+    if (Array.isArray(value)) return value.join('\n\n');
+    return value || '';
 }
 
 // A destructive confirm, in the same dialog language as the forms above.

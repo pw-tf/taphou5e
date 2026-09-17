@@ -199,6 +199,334 @@
         toast('Long rest taken.');
     };
 
+    // ========================================
+    // Writing to the sheet
+    //
+    // The sheet was read-only everywhere except hit points, conditions,
+    // proficiency toggles and rests, which meant a player had to open the
+    // classic version to add a spell they had just learned. These close that.
+    //
+    // Each write follows the same shape as the HP handlers already here:
+    // change the local copy, redraw, then persist. A failed write says so and
+    // reloads, rather than leaving the screen disagreeing with the database.
+    // ========================================
+
+    async function persist(promise, failure) {
+        const { error } = await promise;
+        if (error) {
+            console.error(failure, error);
+            toast(failure, 'error');
+            await reload();
+            return false;
+        }
+        return true;
+    }
+
+    // One insert path for every child table: push the returned row into the
+    // local copy so the redraw shows it without a full reload.
+    async function addRow(table, payload, listKey) {
+        const { data, error } = await db.from(table).insert({
+            character_id: c.id, ...payload
+        }).select().single();
+
+        if (error || !data) {
+            console.error(`Could not add to ${table}:`, error);
+            toast('Could not save that. Check your connection and try again.', 'error');
+            return;
+        }
+        c[listKey] = (c[listKey] || []).concat(data);
+        draw();
+    }
+
+    async function removeRow(table, id, listKey) {
+        const before = c[listKey] || [];
+        c[listKey] = before.filter(row => row.id !== id);
+        detail = null;
+        draw();
+        await persist(db.from(table).delete().eq('id', id), 'Could not delete that.');
+    }
+
+    // ---- Spells ----------------------------------------------------------
+
+    window.sheetAddSpell = () => {
+        openSrdForm({
+            title: 'Add a spell',
+            which: 'spells',
+            toValues: spell => ({
+                name: spell.name,
+                level: spell.level ?? 0,
+                school: (spell.school || {}).name || '',
+                casting_time: spell.casting_time || '',
+                range: spell.range || '',
+                components: (spell.components || []).join(', '),
+                duration: spell.duration || '',
+                description: srdText(spell.desc),
+                api_index: spell.index || ''
+            }),
+            fields: [
+                { name: 'name', label: 'Name', required: true },
+                { name: 'level', label: 'Level', type: 'number', value: 0,
+                  hint: '0 is a cantrip.' },
+                { name: 'school', label: 'School' },
+                { name: 'casting_time', label: 'Casting time', placeholder: '1 action' },
+                { name: 'range', label: 'Range', placeholder: '120 feet' },
+                { name: 'components', label: 'Components', placeholder: 'V, S, M' },
+                { name: 'duration', label: 'Duration', placeholder: 'Instantaneous' },
+                { name: 'description', label: 'Description', type: 'textarea', rows: 4 },
+                { name: 'api_index', label: '', type: 'hidden' },
+                { name: 'prepared', type: 'checkbox', label: '',
+                  checkboxLabel: 'Prepared', value: false }
+            ],
+            onSubmit: async values => {
+                const level = Number(values.level);
+                if (!Number.isInteger(level) || level < 0 || level > 9) {
+                    throw new Error('Spell level must be between 0 and 9.');
+                }
+                await addRow('spells', {
+                    name: values.name, level,
+                    school: values.school || null,
+                    casting_time: values.casting_time || null,
+                    range: values.range || null,
+                    components: values.components || null,
+                    duration: values.duration || null,
+                    description: values.description || null,
+                    api_index: values.api_index || null,
+                    prepared: values.prepared
+                }, 'spells');
+            }
+        });
+    };
+
+    window.sheetTogglePrepared = async id => {
+        const spell = (c.spells || []).find(sp => sp.id === id);
+        if (!spell) return;
+        spell.prepared = !spell.prepared;
+        draw();
+        await persist(db.from('spells').update({ prepared: spell.prepared }).eq('id', id),
+                      'Could not change that spell.');
+    };
+
+    // ---- Spell slots -----------------------------------------------------
+
+    // Tap to spend, hold to give back. Spending is the common action during a
+    // session, so it is the one that costs a single tap.
+    window.sheetUseSlot = async (id, restore) => {
+        const slot = (c.spell_slots || []).find(sl => sl.id === id);
+        if (!slot) return;
+
+        const used = restore ? Math.max(0, (slot.used || 0) - 1)
+                             : Math.min(slot.total || 0, (slot.used || 0) + 1);
+        if (used === slot.used) {
+            toast(restore ? `No level ${slot.slot_level} slots to restore.`
+                          : `No level ${slot.slot_level} slots left.`);
+            return;
+        }
+        slot.used = used;
+        draw();
+        await persist(db.from('spell_slots').update({ used }).eq('id', id),
+                      'Could not update that slot.');
+    };
+
+    // ---- Weapons ---------------------------------------------------------
+
+    window.sheetAddWeapon = () => {
+        openSrdForm({
+            title: 'Add a weapon',
+            which: 'equipment',
+            toValues: item => {
+                const damage = item.damage || {};
+                return {
+                    name: item.name,
+                    damage: (damage.damage_dice) || '',
+                    damage_type: (damage.damage_type || {}).name || '',
+                    properties: (item.properties || []).map(pr => pr.name).join(', ')
+                };
+            },
+            fields: [
+                { name: 'name', label: 'Name', required: true },
+                { name: 'attack_bonus', label: 'Attack bonus', type: 'number', value: 0 },
+                { name: 'damage', label: 'Damage', placeholder: '1d8+3' },
+                { name: 'damage_type', label: 'Damage type', placeholder: 'Slashing' },
+                { name: 'properties', label: 'Properties', placeholder: 'Versatile, Finesse' },
+                { name: 'equipped', type: 'checkbox', label: '',
+                  checkboxLabel: 'Equipped', value: true }
+            ],
+            onSubmit: async values => {
+                await addRow('weapons', {
+                    name: values.name,
+                    attack_bonus: values.attack_bonus ?? 0,
+                    damage: values.damage || null,
+                    damage_type: values.damage_type || null,
+                    properties: values.properties || null,
+                    equipped: values.equipped
+                }, 'weapons');
+            }
+        });
+    };
+
+    // ---- Inventory -------------------------------------------------------
+
+    const ITEM_TYPES = ['Gear', 'Weapon', 'Armor', 'Consumable', 'Treasure', 'Other'];
+
+    window.sheetAddItem = () => {
+        openSrdForm({
+            title: 'Add an item',
+            which: 'equipment',
+            toValues: item => ({
+                name: item.name,
+                weight: item.weight ?? null,
+                item_type: ITEM_TYPES.find(t =>
+                    t.toLowerCase() === ((item.equipment_category || {}).name || '').toLowerCase()) || 'Gear',
+                description: srdText(item.desc)
+            }),
+            fields: [
+                { name: 'name', label: 'Name', required: true },
+                { name: 'quantity', label: 'Quantity', type: 'number', value: 1 },
+                { name: 'item_type', label: 'Type', type: 'select', value: 'Gear',
+                  options: ITEM_TYPES.map(t => ({ value: t, label: t })) },
+                { name: 'weight', label: 'Weight (lb)', type: 'number' },
+                { name: 'description', label: 'Description', type: 'textarea', rows: 3 },
+                { name: 'equipped', type: 'checkbox', label: '', checkboxLabel: 'Equipped', value: false },
+                { name: 'attuned', type: 'checkbox', label: '', checkboxLabel: 'Attuned', value: false }
+            ],
+            onSubmit: async values => {
+                const quantity = Number(values.quantity);
+                if (!Number.isInteger(quantity) || quantity < 1) {
+                    throw new Error('Quantity must be at least 1.');
+                }
+                await addRow('inventory_items', {
+                    name: values.name, quantity,
+                    item_type: values.item_type || 'Gear',
+                    weight: values.weight,
+                    description: values.description || null,
+                    equipped: values.equipped,
+                    attuned: values.attuned
+                }, 'inventory_items');
+            }
+        });
+    };
+
+    window.sheetItemQuantity = async (id, delta) => {
+        const item = (c.inventory_items || []).find(i => i.id === id);
+        if (!item) return;
+        const quantity = Math.max(0, (item.quantity ?? 1) + delta);
+        // Dropping the last one removes the row: an item with a quantity of
+        // zero is clutter nobody wants to tidy up by hand.
+        if (quantity === 0) {
+            await removeRow('inventory_items', id, 'inventory_items');
+            return;
+        }
+        item.quantity = quantity;
+        draw();
+        await persist(db.from('inventory_items').update({ quantity }).eq('id', id),
+                      'Could not update that item.');
+    };
+
+    window.sheetToggleItemFlag = async (id, field) => {
+        const item = (c.inventory_items || []).find(i => i.id === id);
+        if (!item) return;
+        item[field] = !item[field];
+        draw();
+        await persist(db.from('inventory_items').update({ [field]: item[field] }).eq('id', id),
+                      'Could not update that item.');
+    };
+
+    // ---- Features --------------------------------------------------------
+
+    window.sheetAddFeature = () => {
+        openSrdForm({
+            title: 'Add a feature or trait',
+            which: 'features',
+            toValues: feature => ({
+                name: feature.name,
+                description: srdText(feature.desc),
+                source: (feature.class || {}).name
+                    ? `${feature.class.name} Level ${feature.level || ''}`.trim()
+                    : ''
+            }),
+            fields: [
+                { name: 'name', label: 'Name', required: true },
+                { name: 'source', label: 'Source', placeholder: 'Fighter Level 3, Elf, a feat…' },
+                { name: 'description', label: 'Description', type: 'textarea', rows: 4 },
+                { name: 'uses_total', label: 'Uses', type: 'number',
+                  hint: 'Leave blank for a feature with no limited uses.' },
+                { name: 'uses_per_rest', label: 'Recharges on', type: 'select', value: '',
+                  options: [
+                      { value: '', label: '— never —' },
+                      { value: 'short', label: 'A short rest' },
+                      { value: 'short_or_long', label: 'A short or long rest' },
+                      { value: 'long', label: 'A long rest' }
+                  ] },
+                { name: 'is_bonus_action', type: 'checkbox', label: '',
+                  checkboxLabel: 'Used as a bonus action', value: false }
+            ],
+            onSubmit: async values => {
+                const total = values.uses_total;
+                if (total !== null && (!Number.isInteger(total) || total < 1)) {
+                    throw new Error('Uses must be a whole number of at least 1, or blank.');
+                }
+                await addRow('features_traits', {
+                    name: values.name,
+                    source: values.source || null,
+                    description: values.description || null,
+                    uses_total: total,
+                    uses_remaining: total,
+                    uses_per_rest: values.uses_per_rest || null,
+                    is_bonus_action: values.is_bonus_action
+                }, 'features_traits');
+            }
+        });
+    };
+
+    window.sheetUseFeature = async (id, restore) => {
+        const feature = (c.features_traits || []).find(f => f.id === id);
+        if (!feature || !feature.uses_total) return;
+
+        const remaining = restore
+            ? Math.min(feature.uses_total, (feature.uses_remaining ?? 0) + 1)
+            : Math.max(0, (feature.uses_remaining ?? 0) - 1);
+        if (remaining === feature.uses_remaining) {
+            toast(restore ? `${feature.name} is already full.` : `No uses of ${feature.name} left.`);
+            return;
+        }
+        feature.uses_remaining = remaining;
+        draw();
+        await persist(db.from('features_traits').update({ uses_remaining: remaining }).eq('id', id),
+                      'Could not update that feature.');
+    };
+
+    // ---- Currency --------------------------------------------------------
+
+    const COINS = [
+        ['platinum', 'Platinum'], ['gold', 'Gold'], ['electrum', 'Electrum'],
+        ['silver', 'Silver'], ['copper', 'Copper']
+    ];
+
+    window.sheetEditCurrency = () => {
+        const money = c.currency || {};
+        openModal({
+            title: 'Currency',
+            submitLabel: 'Save',
+            fields: COINS.map(([key, label]) => ({
+                name: key, label, type: 'number', value: money[key] ?? 0
+            })),
+            onSubmit: async values => {
+                const purse = {};
+                for (const [key, label] of COINS) {
+                    const amount = values[key] ?? 0;
+                    if (!Number.isInteger(amount) || amount < 0) {
+                        throw new Error(`${label} must be zero or more.`);
+                    }
+                    purse[key] = amount;
+                }
+                Object.assign(c.currency = c.currency || {}, purse);
+                draw();
+                await persist(db.from('currency').update(purse).eq('character_id', c.id),
+                              'Could not save your currency.');
+            }
+        });
+    };
+
     window.sheetTab = id => { activeTab = id; detail = null; draw(); };
     window.sheetShowDetail = (kind, id) => { detail = buildDetail(kind, id); draw(); };
     window.sheetCloseDetail = () => { detail = null; draw(); };
@@ -286,14 +614,31 @@
             <div class="skills-grid">${rows || '<p class="hint">No skills recorded.</p>'}</div>`;
     }
 
-    function listTab(kind, items, emptyText, renderRow) {
-        if (!items.length) return `<div class="empty-state"><p>${escapeHtml(emptyText)}</p></div>`;
-        return `<div class="stack">${items.map(renderRow).join('')}</div>`;
+    function listTab(kind, items, emptyText, renderRow, addCall) {
+        if (!items.length) {
+            return `<div class="empty-state">
+                        <p>${escapeHtml(emptyText)}</p>
+                        ${addCall ? `<button class="btn btn-accent" onclick="${addCall}">Add one</button>` : ''}
+                    </div>`;
+        }
+        return `<div class="stack holdable">${items.map(renderRow).join('')}</div>`;
+    }
+
+    // Every list on the sheet gets the same header: what it is, and the one
+    // button that adds to it.
+    function sectionHead(label, addCall) {
+        return `
+            <div class="section-head">
+                <span class="eyebrow">${escapeHtml(label)}</span>
+                <span class="rule"></span>
+                ${addCall ? `<button class="btn btn-quiet btn-tiny" onclick="${addCall}">Add</button>` : ''}
+            </div>`;
     }
 
     function actionsTab() {
         const weapons = listTab('weapon', c.weapons || [], 'No weapons recorded.', w => `
-            <div class="list-row" onclick="sheetShowDetail('weapon','${w.id}')" role="button" tabindex="0">
+            <div class="list-row" onclick="sheetShowDetail('weapon','${w.id}')" role="button" tabindex="0"
+                 data-holdable data-kind="weapon" data-id="${w.id}">
                 <div class="who">
                     <div class="name">${escapeHtml(w.name)}${w.equipped ? ' <span class="tag tag-accent">EQUIPPED</span>' : ''}</div>
                     <div class="meta">${escapeHtml(w.damage || '')} ${escapeHtml(w.damage_type || '')}</div>
@@ -302,28 +647,45 @@
             </div>`);
 
         const features = listTab('feature', c.features_traits || [], 'No features recorded.', f => `
-            <div class="list-row" onclick="sheetShowDetail('feature','${f.id}')" role="button" tabindex="0">
+            <div class="list-row" onclick="sheetShowDetail('feature','${f.id}')" role="button" tabindex="0"
+                 data-holdable data-kind="feature" data-id="${f.id}">
                 <div class="who">
                     <div class="name">${escapeHtml(f.name)}</div>
-                    <div class="meta">${escapeHtml(f.source || '')}${
-                        f.uses_total ? ` · ${f.uses_remaining ?? 0}/${f.uses_total} uses` : ''
-                    }</div>
+                    <div class="meta">${escapeHtml(f.source || '')}</div>
                 </div>
-            </div>`);
+                ${f.uses_total ? `
+                    <button class="charge${f.uses_remaining ? '' : ' is-spent'}"
+                            onclick="event.stopPropagation();sheetUseFeature('${f.id}',false)"
+                            title="Use one; hold to give it back"
+                            data-charge="${f.id}">
+                        <span class="mono">${f.uses_remaining ?? 0}/${f.uses_total}</span>
+                    </button>` : ''}
+            </div>`, 'sheetAddFeature()');
 
         return `
-            <div class="section-head"><span class="eyebrow">Weapons</span><span class="rule"></span></div>
+            ${sectionHead('Weapons', 'sheetAddWeapon()')}
             ${weapons}
-            <div class="section-head"><span class="eyebrow">Features &amp; traits</span><span class="rule"></span></div>
+            ${sectionHead('Features & traits', 'sheetAddFeature()')}
             ${features}`;
     }
 
     function spellsTab() {
         const slots = (c.spell_slots || []).slice().sort((a, b) => a.slot_level - b.slot_level);
         const slotRow = slots.length ? `
-            <div class="section-head"><span class="eyebrow">Spell slots</span><span class="rule"></span></div>
-            <div class="chipline slot-line">
-                ${slots.map(s => `<div class="chip">${(s.total || 0) - (s.used || 0)}/${s.total || 0}<span>L${s.slot_level}</span></div>`).join('')}
+            <div class="section-head">
+                <span class="eyebrow">Spell slots</span><span class="rule"></span>
+                <span class="hint">Tap to spend, hold to restore</span>
+            </div>
+            <div class="chipline slot-line holdable">
+                ${slots.map(sl => {
+                    const left = (sl.total || 0) - (sl.used || 0);
+                    return `<button class="chip slot-chip${left ? '' : ' is-spent'}"
+                                    onclick="sheetUseSlot('${sl.id}',false)"
+                                    data-holdable data-kind="slot" data-id="${sl.id}"
+                                    aria-label="Level ${sl.slot_level}: ${left} of ${sl.total || 0} left">
+                                ${left}/${sl.total || 0}<span>L${sl.slot_level}</span>
+                            </button>`;
+                }).join('')}
             </div>` : '';
 
         const byLevel = {};
@@ -336,73 +698,158 @@
                 <span class="eyebrow">${level === '0' ? 'Cantrips' : 'Level ' + level}</span>
                 <span class="rule"></span>
             </div>
-            <div class="stack">
-                ${byLevel[level].map(s => `
-                    <div class="list-row" onclick="sheetShowDetail('spell','${s.id}')" role="button" tabindex="0">
+            <div class="stack holdable">
+                ${byLevel[level].map(sp => `
+                    <div class="list-row" onclick="sheetShowDetail('spell','${sp.id}')" role="button" tabindex="0"
+                         data-holdable data-kind="spell" data-id="${sp.id}">
                         <div class="who">
-                            <div class="name">${escapeHtml(s.name)}${s.prepared ? ' <span class="tag tag-accent">PREPARED</span>' : ''}</div>
-                            <div class="meta">${escapeHtml(s.school || '')}${s.casting_time ? ' · ' + escapeHtml(s.casting_time) : ''}</div>
+                            <div class="name">${escapeHtml(sp.name)}</div>
+                            <div class="meta">${escapeHtml(sp.school || '')}${sp.casting_time ? ' · ' + escapeHtml(sp.casting_time) : ''}</div>
                         </div>
+                        <button class="prep-toggle${sp.prepared ? ' is-on' : ''}"
+                                onclick="event.stopPropagation();sheetTogglePrepared('${sp.id}')"
+                                aria-pressed="${!!sp.prepared}"
+                                aria-label="${sp.prepared ? 'Prepared' : 'Not prepared'}">PREP</button>
                     </div>`).join('')}
             </div>`).join('');
 
-        return slotRow + (groups || '<div class="empty-state"><p>No spells recorded.</p></div>');
+        return slotRow
+            + sectionHead('Spells', 'sheetAddSpell()')
+            + (groups || `<div class="empty-state">
+                              <p>No spells recorded.</p>
+                              <button class="btn btn-accent" onclick="sheetAddSpell()">Add a spell</button>
+                          </div>`);
     }
 
     function inventoryTab() {
         const money = c.currency || {};
         const coins = ['platinum', 'gold', 'electrum', 'silver', 'copper'];
         const purse = `
-            <div class="section-head"><span class="eyebrow">Currency</span><span class="rule"></span></div>
-            <div class="chipline">
+            ${sectionHead('Currency', 'sheetEditCurrency()')}
+            <div class="chipline" role="button" tabindex="0" onclick="sheetEditCurrency()"
+                 style="cursor:pointer" aria-label="Edit currency">
                 ${coins.map(k => `<div class="chip">${money[k] ?? 0}<span>${k.slice(0, 2).toUpperCase()}</span></div>`).join('')}
             </div>`;
 
         const items = listTab('item', c.inventory_items || [], 'Nothing carried.', i => `
-            <div class="list-row" onclick="sheetShowDetail('item','${i.id}')" role="button" tabindex="0">
+            <div class="list-row" onclick="sheetShowDetail('item','${i.id}')" role="button" tabindex="0"
+                 data-holdable data-kind="item" data-id="${i.id}">
                 <div class="who">
                     <div class="name">${escapeHtml(i.name)}${i.equipped ? ' <span class="tag tag-accent">EQUIPPED</span>' : ''}${
                         i.attuned ? ' <span class="tag tag-warning">ATTUNED</span>' : ''}</div>
                     <div class="meta">${escapeHtml(i.item_type || 'Gear')}${i.weight ? ` · ${i.weight} lb` : ''}</div>
                 </div>
-                <div class="mono lvl">×${i.quantity ?? 1}</div>
-            </div>`);
+                <div class="qty" onclick="event.stopPropagation()">
+                    <button onclick="sheetItemQuantity('${i.id}',-1)" aria-label="One fewer">&minus;</button>
+                    <span class="mono">${i.quantity ?? 1}</span>
+                    <button onclick="sheetItemQuantity('${i.id}',1)" aria-label="One more">+</button>
+                </div>
+            </div>`, 'sheetAddItem()');
 
         return `${purse}
-            <div class="section-head"><span class="eyebrow">Carried</span><span class="rule"></span></div>
+            ${sectionHead('Carried', 'sheetAddItem()')}
             ${items}`;
     }
 
+    // The eight prose fields on character_details, and the six short ones.
+    const DETAIL_FIELDS = [
+        ['personality_traits', 'Personality traits'], ['ideals', 'Ideals'],
+        ['bonds', 'Bonds'], ['flaws', 'Flaws'], ['backstory', 'Backstory'],
+        ['allies_organizations', 'Allies & organizations'],
+        ['additional_features', 'Additional features'], ['treasure', 'Treasure']
+    ];
+    const APPEARANCE_FIELDS = [
+        ['age', 'Age'], ['height', 'Height'], ['weight', 'Weight'],
+        ['eyes', 'Eyes'], ['skin', 'Skin'], ['hair', 'Hair']
+    ];
+
     function notesTab() {
         const d = c.character_details || {};
-        const fields = [
-            ['Personality traits', d.personality_traits], ['Ideals', d.ideals],
-            ['Bonds', d.bonds], ['Flaws', d.flaws], ['Backstory', d.backstory],
-            ['Allies & organizations', d.allies_organizations],
-            ['Additional features', d.additional_features], ['Treasure', d.treasure]
-        ].filter(([, value]) => value && String(value).trim());
+        const written = DETAIL_FIELDS.filter(([key]) => d[key] && String(d[key]).trim());
+        const physical = APPEARANCE_FIELDS.filter(([key]) => d[key] && String(d[key]).trim());
 
-        const physical = [
-            ['Age', d.age], ['Height', d.height], ['Weight', d.weight],
-            ['Eyes', d.eyes], ['Skin', d.skin], ['Hair', d.hair]
-        ].filter(([, value]) => value && String(value).trim());
-
-        if (!fields.length && !physical.length && !c.notes) {
-            return '<div class="empty-state"><p>No notes recorded. Add them in the classic version.</p></div>';
+        if (!written.length && !physical.length && !c.notes) {
+            return `<div class="empty-state">
+                        <p>Nothing written down yet.</p>
+                        <button class="btn btn-accent" onclick="sheetEditAppearance()">Describe them</button>
+                        <button class="btn" onclick="sheetEditNotes()">Add a note</button>
+                    </div>`;
         }
 
         return `
-            ${physical.length ? `
-                <div class="section-head"><span class="eyebrow">Appearance</span><span class="rule"></span></div>
-                <div class="chipline wrap">${physical.map(([k, v]) =>
-                    `<div class="chip">${escapeHtml(v)}<span>${escapeHtml(k)}</span></div>`).join('')}</div>` : ''}
-            ${c.notes ? `
-                <div class="section-head"><span class="eyebrow">Notes</span><span class="rule"></span></div>
-                <p class="prose">${escapeHtml(c.notes)}</p>` : ''}
-            ${fields.map(([label, value]) => `
-                <div class="section-head"><span class="eyebrow">${escapeHtml(label)}</span><span class="rule"></span></div>
-                <p class="prose">${escapeHtml(value)}</p>`).join('')}`;
+            ${sectionHead('Appearance', 'sheetEditAppearance()')}
+            ${physical.length
+                ? `<div class="chipline wrap" role="button" tabindex="0" style="cursor:pointer"
+                        onclick="sheetEditAppearance()" aria-label="Edit appearance">
+                       ${physical.map(([key, label]) =>
+                           `<div class="chip">${escapeHtml(d[key])}<span>${escapeHtml(label)}</span></div>`).join('')}
+                   </div>`
+                : '<p class="hint">No description yet.</p>'}
+            ${sectionHead('Notes', 'sheetEditNotes()')}
+            ${c.notes
+                ? `<p class="prose editable" role="button" tabindex="0" onclick="sheetEditNotes()">${escapeHtml(c.notes)}</p>`
+                : '<p class="hint">Nothing noted yet.</p>'}
+            ${DETAIL_FIELDS.map(([key, label]) => `
+                ${sectionHead(label, `sheetEditDetail('${key}')`)}
+                ${d[key] && String(d[key]).trim()
+                    ? `<p class="prose editable" role="button" tabindex="0"
+                          onclick="sheetEditDetail('${key}')">${escapeHtml(d[key])}</p>`
+                    : `<p class="hint">Nothing written yet.</p>`}`).join('')}`;
     }
+
+    // ---- Notes and details ------------------------------------------------
+
+    async function saveDetails(values) {
+        Object.assign(c.character_details = c.character_details || {}, values);
+        draw();
+        await persist(db.from('character_details').update(values).eq('character_id', c.id),
+                      'Could not save that.');
+    }
+
+    window.sheetEditDetail = key => {
+        const label = (DETAIL_FIELDS.find(([k]) => k === key) || [key, key])[1];
+        openModal({
+            title: label,
+            submitLabel: 'Save',
+            fields: [{ name: 'value', label, type: 'textarea', rows: 6,
+                       value: (c.character_details || {})[key] || '' }],
+            onSubmit: values => saveDetails({ [key]: values.value || null })
+        });
+    };
+
+    window.sheetEditAppearance = () => {
+        const d = c.character_details || {};
+        openModal({
+            title: 'Appearance',
+            submitLabel: 'Save',
+            fields: APPEARANCE_FIELDS.map(([key, label]) => ({
+                name: key, label, value: d[key] || ''
+            })),
+            onSubmit: async values => {
+                const next = {};
+                APPEARANCE_FIELDS.forEach(([key]) => { next[key] = values[key] || null; });
+                await saveDetails(next);
+            }
+        });
+    };
+
+    // characters.notes is a column on the character, not on character_details,
+    // which is why this one does not go through saveDetails.
+    window.sheetEditNotes = () => {
+        openModal({
+            title: 'Notes',
+            submitLabel: 'Save',
+            fields: [{ name: 'notes', label: 'Notes', type: 'textarea', rows: 8,
+                       value: c.notes || '',
+                       hint: 'Anything you want on the sheet. Your DM can see it.' }],
+            onSubmit: async values => {
+                c.notes = values.notes || null;
+                draw();
+                await persist(db.from('characters').update({ notes: c.notes }).eq('id', c.id),
+                              'Could not save your notes.');
+            }
+        });
+    };
 
     // ========================================
     // Detail pane
@@ -584,7 +1031,94 @@
             ${renderSideMenu('characters')}`;
 
         wireSideMenu();
+        wireCardMenus('.sheet-scroll', '[data-holdable]', sheetRowMenu);
         if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
+    }
+
+    // Holding a row reaches the things that have no room on it: deleting,
+    // equipping, attuning, and giving back a spent slot or charge.
+    function sheetRowMenu(row) {
+        const id = row.dataset.id;
+
+        switch (row.dataset.kind) {
+            case 'spell': {
+                const spell = (c.spells || []).find(sp => sp.id === id);
+                if (!spell) return null;
+                return {
+                    title: spell.name,
+                    actions: [
+                        { label: 'Show details', run: () => window.sheetShowDetail('spell', id) },
+                        { label: spell.prepared ? 'Mark unprepared' : 'Mark prepared',
+                          run: () => window.sheetTogglePrepared(id) },
+                        { label: 'Forget this spell', danger: true,
+                          run: () => removeRow('spells', id, 'spells') }
+                    ]
+                };
+            }
+
+            case 'slot': {
+                const slot = (c.spell_slots || []).find(sl => sl.id === id);
+                if (!slot) return null;
+                return {
+                    title: `Level ${slot.slot_level} slots`,
+                    actions: [
+                        { label: 'Restore one', hint: `${(slot.total || 0) - (slot.used || 0)} of ${slot.total || 0} left`,
+                          run: () => window.sheetUseSlot(id, true) },
+                        { label: 'Spend one', run: () => window.sheetUseSlot(id, false) }
+                    ]
+                };
+            }
+
+            case 'weapon': {
+                const weapon = (c.weapons || []).find(w => w.id === id);
+                if (!weapon) return null;
+                return {
+                    title: weapon.name,
+                    actions: [
+                        { label: 'Show details', run: () => window.sheetShowDetail('weapon', id) },
+                        { label: 'Delete', danger: true,
+                          run: () => removeRow('weapons', id, 'weapons') }
+                    ]
+                };
+            }
+
+            case 'item': {
+                const item = (c.inventory_items || []).find(i => i.id === id);
+                if (!item) return null;
+                return {
+                    title: item.name,
+                    actions: [
+                        { label: 'Show details', run: () => window.sheetShowDetail('item', id) },
+                        { label: item.equipped ? 'Unequip' : 'Equip',
+                          run: () => window.sheetToggleItemFlag(id, 'equipped') },
+                        { label: item.attuned ? 'End attunement' : 'Attune',
+                          run: () => window.sheetToggleItemFlag(id, 'attuned') },
+                        { label: 'Drop', danger: true,
+                          hint: `All ${item.quantity ?? 1} of them`,
+                          run: () => removeRow('inventory_items', id, 'inventory_items') }
+                    ]
+                };
+            }
+
+            case 'feature': {
+                const feature = (c.features_traits || []).find(f => f.id === id);
+                if (!feature) return null;
+                const actions = [
+                    { label: 'Show details', run: () => window.sheetShowDetail('feature', id) }
+                ];
+                if (feature.uses_total) {
+                    actions.push({ label: 'Restore one use',
+                        hint: `${feature.uses_remaining ?? 0} of ${feature.uses_total} left`,
+                        run: () => window.sheetUseFeature(id, true) });
+                }
+                actions.push({ label: 'Delete', danger: true,
+                    run: () => removeRow('features_traits', id, 'features_traits') });
+                return { title: feature.name, actions };
+            }
+
+            default:
+                return null;
+        }
     }
 
     // ========================================

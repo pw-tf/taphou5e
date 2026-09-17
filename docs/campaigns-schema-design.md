@@ -818,7 +818,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (203 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (219 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -840,6 +840,7 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (203 asserti
 | Character creation wizard | |
 | Level-up wizard, multi-level aware | |
 | Press-and-hold card menus | |
+| A writable character sheet | |
 
 Every hub tile and navigation item links to a real page.
 
@@ -1188,6 +1189,45 @@ desktop too and shows nothing in the topbar. A threshold rather than a per-page
 flag, so an eleventh tracker action cannot bring the problem back. The menu
 itself is one panel -- fixed width, full-width rows, hairline separators, one
 shadow -- instead of a stack of pills.
+
+### 11.3a9 The sheet was read-only
+
+Caught on review, and it was worse than it looked. v2's sheet could change hit
+points, death saves, conditions, proficiency toggles, and take rests. Everything
+else it **displayed and could not touch** -- ten capabilities v1 had:
+
+| | v1 | v2 before |
+|---|---|---|
+| Add or delete a spell | yes | no |
+| Mark a spell prepared | yes | no |
+| Spend or restore a spell slot | yes | showed them only |
+| Add or delete a weapon | yes | no |
+| Add or delete an item | yes | no |
+| Quantity, equipped, attuned | yes | no |
+| Edit currency | yes | no |
+| Add or delete a feature | yes | no |
+| Spend a feature's charges | yes | no |
+| Edit notes, backstory, appearance | yes | no |
+
+The notes tab told people to "add them in the classic version", which is the
+tell: the sheet was built as a play-from view and the write paths were never
+added. A sheet you have to leave to record a spell you just learned is not a
+sheet.
+
+**Adding is SRD-backed, with the search separate from the name.** `openSrdForm`
+puts a lookup above the form's own fields: pick an entry and the fields fill,
+or ignore it and type your own. v1 made the name field itself the search box,
+so a custom name and a lookup fought over one input. Filling never overwrites
+what has already been typed by hand, and if the SRD is unreachable the form
+still works -- the search is a convenience, not the way in.
+
+**Slots and charges are tap to spend, hold to restore.** Spending is what
+happens during a session, so it costs one tap; restoring is the correction, so
+it costs the gesture. Neither opens the detail pane behind the row, which is
+the bug that would make both useless. A rest still resets them wholesale.
+
+**Dropping the last of an item deletes it** rather than leaving a row reading
+zero, because nothing else would ever tidy that row up.
 
 ### 11.3b Review fixes
 
