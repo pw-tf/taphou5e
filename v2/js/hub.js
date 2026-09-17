@@ -96,7 +96,8 @@
                         ? `<div class="party-roster">${data.characters.map(characterCard).join('')}</div>`
                         : `<div class="empty-state">
                                <h3>No characters yet</h3>
-                               <p>Create your first character in the classic version; they will appear here.</p>
+                               <p>Create your first character and they will appear here.</p>
+                               <a class="btn btn-accent" href="character-new.html">Create a character</a>
                            </div>`
                 }
             </section>`);

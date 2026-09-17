@@ -549,7 +549,19 @@
                     </header>
 
                     <div class="sheet-content">
-                        <div class="sheet-scroll">${tabBody()}</div>
+                        <div class="sheet-scroll">
+                            ${c.pending_level_up || needsSubclassSelection(c) ? `
+                                <button class="levelup-banner" onclick="sheetLevelUp()">
+                                    <span class="body">
+                                        <span class="title">${c.pending_level_up ? 'Level up' : 'Choose a subclass'}</span>
+                                        <span class="meta">${c.pending_level_up
+                                            ? 'Hit points, improvements and new features are waiting.'
+                                            : `A level ${c.level} ${escapeHtml(c.class || '')} has a subclass to pick.`}</span>
+                                    </span>
+                                    <span class="go">&rarr;</span>
+                                </button>` : ''}
+                            ${tabBody()}
+                        </div>
                         ${detail ? `
                             <aside class="pane detail-open">
                                 <button class="icon-btn pane-close" onclick="sheetCloseDetail()" aria-label="Close">&times;</button>
@@ -629,4 +641,35 @@
         c = data;
         draw();
     })();
+
+    // ========================================
+    // Levelling
+    // ========================================
+
+    async function reload() {
+        const { data } = await db
+            .from('characters')
+            .select(`*,
+                ability_scores(*), skills(*), saving_throws(*), weapons(*),
+                inventory_items(*), spells(*), spell_slots(*), features_traits(*),
+                currency(*), character_details(*)`)
+            .eq('id', characterId)
+            .single();
+        if (!data) return;
+        const first = value => Array.isArray(value) ? (value[0] || null) : value;
+        data.ability_scores = first(data.ability_scores) || {};
+        data.currency = first(data.currency) || {};
+        data.character_details = first(data.character_details) || {};
+        c = data;
+        draw();
+    }
+
+    window.sheetLevelUp = () => {
+        if (typeof window.openLevelUp === 'function') window.openLevelUp(c, reload);
+    };
+
+    // v1 opens its wizard automatically when a subclass is missing. v2 shows
+    // the banner instead: a modal that appears over the sheet traps someone
+    // who opened it to check their hit points mid-fight, and the choice is
+    // one tap away either way.
 })();

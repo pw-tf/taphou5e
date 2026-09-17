@@ -25,10 +25,7 @@
             title: 'Characters',
             sub: `${session.gameWorldName} · ${data.characters.length} character${data.characters.length === 1 ? '' : 's'}`,
             counts: { characters: data.characters.length },
-            // Character creation still lives in the classic app: it drives the
-            // level-up engine and feature registry, which v2 has not taken on
-            // yet. Linking out is honest; a half-built form would not be.
-            actions: [{ label: 'Add character (classic)', href: '../characters.html' }]
+            actions: [{ label: 'New character', primary: true, href: 'character-new.html' }]
         });
 
         const main = $('#main-content');
@@ -42,8 +39,8 @@
             main.innerHTML = `
                 <div class="empty-state">
                     <h3>No characters yet</h3>
-                    <p>This world has no characters. Create one in the classic version and it will appear here.</p>
-                    <a class="btn btn-accent" href="../characters.html">Open the classic version</a>
+                    <p>Characters belong to the world, so one made here shows up in every campaign you pull them into.</p>
+                    <a class="btn btn-accent" href="character-new.html">Create a character</a>
                 </div>`;
             return;
         }

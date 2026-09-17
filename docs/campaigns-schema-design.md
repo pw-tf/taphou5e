@@ -818,11 +818,11 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (148 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (182 assertions):
 
 | Built | Not yet |
 |---|---|
-| Shell, tokens, theme control, root router | **Character creation and levelling up** — both still classic |
+| Shell, tokens, theme control, root router | The "try the new layout" invite on the classic login |
 | Login and world creation on the RPCs | |
 | Overview hub | |
 | Party roster | |
@@ -837,6 +837,8 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (148 asserti
 | Campaign and encounter deletion | |
 | Encounter ↔ storyline beat linking | |
 | Encounter sharing by code | |
+| Character creation wizard | |
+| Level-up wizard, multi-level aware | |
 
 Every hub tile and navigation item links to a real page.
 
@@ -1052,6 +1054,92 @@ encounter therefore **failed outright**, and would have broken the campaign
 deletion shipped in §11.3a4 the moment a campaign had one. Both are now
 `ON DELETE CASCADE`.
 
+### 11.3a6 Character creation and levelling
+
+**The rules engine is shared, not copied.** `level-up-engine.js` and
+`feature-registry.js` stay at the repository root and both versions load them,
+so a rules fix lands in v1 and v2 at once. The engine was written against
+`app.js` and expects `db`, `getModifier`, `HIT_DICE`, `ABILITIES` and
+`ABILITY_FULL`; `v2/js/rules.js` supplies them under those names, so the shared
+file needs no knowledge of which version loaded it. The engine's own modal
+(feat ability choice) builds a `.modal > .modal-backdrop + .modal-content`
+overlay where v2's `.modal` is the card, so v2 restyles that shape rather than
+editing a file v1 owns. Every custom property it uses was already an Ember token.
+
+`rules.js` also copies seven constants out of `app.js` — `SKILLS`, `ABILITIES`,
+`ABILITY_FULL`, `HIT_DICE`, `ASI_LEVELS`, `SUBCLASSES`, `FEATS` — because
+`app.js` is 5,000 lines with side effects and cannot be loaded by a v2 page. A
+copy that silently drifts would be a rules bug in both versions at once, so the
+suite compares the text of each declaration across the two files.
+
+**Creation** is a four-step wizard: identity, abilities, review, campaign. v1's
+single long form is fine on a desktop and miserable at 390px. Abilities offer
+standard array, point buy, roll 4d6 and manual entry; v1 had only the last two.
+Point buy enforces the PHB cost table, where 14 and 15 cost two points each —
+the whole reason the table exists — and the review step shows every derived
+number before anything is written. The campaign step is offered to DMs only,
+because `campaign_characters` is `dm_all` / `player_read` and a player's insert
+would be refused by the policy.
+
+**Levelling** opens from a banner on the sheet. It is multi-level aware exactly
+as v1 is: a DM granting three levels at once gets three hit point choices and
+every ASI in the range, driven by the `preGrantLevel_<id>` key v2's DM panel
+already writes. The completion path mirrors `app.js`'s `completeLevelUp` step
+for step, including Tough's retroactive hit points and the single ability score
+write after every ASI has been folded in.
+
+Two deliberate differences from v1:
+
+- **No auto-opening wizard.** v1 opens the wizard over the sheet when a
+  subclass is missing. A modal that appears over the sheet traps someone who
+  opened it to check their hit points mid-fight, and the banner puts the choice
+  one tap away regardless.
+- **Subclass features actually save.** v1 matches the chosen subclass against
+  the SRD by exact name, but the SRD says "Berserker" where the app says "Path
+  of the Berserker" — so it finds a match for only four of the twelve classes
+  and silently saves no subclass features for the rest. v2 falls back to
+  matching the SRD name as a whole phrase inside the chosen one, which resolves
+  all twelve.
+
+### 11.3a7 What reading the engine turned up
+
+Three findings, all confirmed against the live database.
+
+**v1 loads the engine and never calls it.** `characters.html` includes both
+files, but `app.js` contains no reference to `window.LevelUpEngine`. It reaches
+`FeatureRegistry` directly for feat effects and does everything else by hand.
+`character_effects` has **0 rows across 264 characters**, which is what that
+looks like from the data side.
+
+The consequence is that v1 has never applied racial ability bonuses, class
+saving throw proficiencies or racial speed at creation. Of 264 characters, 27
+have a proficient saving throw, and those were toggled by hand on the sheet.
+`showHalfElfAbilityChoice` is exported and called from nowhere, so a Half-Elf's
+two +1s have never been collected at all.
+
+v2 calls `enhanceCharacterCreation`, so a character made in v2 gets all of it.
+That is a **behaviour change against §8's contract**, and the mitigation is
+that it is never a surprise: the wizard shows the racial bonus on each score as
+you set it, and the review step shows the adjusted totals with the breakdown
+(`15 +2 race`) before anything is written.
+
+**`enhanceLevelUpCompletion` cannot work against this schema.** Its last step is
+`recalculateCharacterStats`, which writes `passive_perception` — a column
+`characters` does not have. It also recomputes `armor_class` from equipment,
+which would discard the AC the tracker lets a DM set by hand. v2 therefore does
+**not** call it, and applies feat and feature effects the way v1 does, straight
+from `FeatureRegistry`. Fixing the engine would mean editing a file v1 loads;
+since v1 never calls the function, the fix is safe but not urgent, and it is
+left as a decision rather than taken quietly.
+
+**The engine keys ability scores by their long names.** `applyRacialBonuses`
+does `result[ability] += bonus` against `RACIAL_ABILITY_BONUSES`, whose keys are
+`strength`, `dexterity` and so on. Hand it the short keys the rest of v2 uses
+and every bonus silently misses — and then `applyRacialEffects` writes
+`finalScores.strength` and friends, which are all `undefined`, over the six
+ability scores. The suite asserts the written scores are numbers, not just that
+the call happened.
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:
@@ -1114,7 +1202,10 @@ a live encounter, and a spell only if it is already on a character sheet.
 
 1. ~~**`login.js` change (§5.5) needs sign-off**~~ — approved, shipped and merged to `main`. The PIN
    hashes are gone from `game_worlds` and both versions log in through `world_login`.
-2. **DM token lifetime** — drafted at 12 hours. A long session runs past that; shorter is safer.
-3. **Rate limiting thresholds** for `world_login` — suggest 10 failures per world per 15 minutes.
-4. **Player tokens.** The player PIN currently grants read access to every world's data via the anon key.
+2. **Fix `recalculateCharacterStats`?** It writes a `passive_perception` column that does not exist and
+   recomputes `armor_class` over a manually set value (§11.3a7). v1 never calls it, so the fix is safe —
+   but it means editing a file v1 loads, which needs sign-off.
+3. **DM token lifetime** — drafted at 12 hours. A long session runs past that; shorter is safer.
+4. **Rate limiting thresholds** for `world_login` — suggest 10 failures per world per 15 minutes.
+5. **Player tokens.** The player PIN currently grants read access to every world's data via the anon key.
    Worth deciding whether players should also carry a token so player-tier reads scope to their own world.

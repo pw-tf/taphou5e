@@ -79,9 +79,27 @@ at it directly — edit `CHROME` at the top of the file, or run
   unknown code refused before anything is created, a lower-case code with stray
   spaces still importing, and an import creating the roster monsters the recipe
   needs, at full health with their colour and group intact
+- The rules constants v2 copies out of v1's `app.js` still matching it, compared
+  as text so a silent drift fails the suite
+- Character creation: the wizard naming what blocks it, racial bonuses shown on
+  the scores before saving, standard array using each number once, point buy's
+  27-point budget (and 14 to 15 costing two points, not one), the Half-Elf
+  choice v1 never asked for, and the five scaffolding tables being seeded
+- That the shared engine ran and wrote **numbers** into `ability_scores` --
+  it keys scores by their long names, so short keys would write `undefined`
+  over all six
+- Levelling: a multi-level grant opening as one run, one hit point choice per
+  level gained, steps that do not apply skipping themselves, and the finish
+  writing level, proficiency, hit dice, the hit point gain on both current and
+  maximum, class *and* subclass features, and clearing the pending flag
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
 network at all.
+
+The stub serves the same `<table>_single` row whatever id the page asked for, so
+a test needing a different character on the sheet injects its own stub with
+`stub_with(characters_single=...)` in a fresh context rather than steering the
+query. The level-up section does this for Korr.
 
 Recorded writes are mirrored into `sessionStorage`, so an assertion can read
 what a page wrote even after the page redirected — importing a shared encounter

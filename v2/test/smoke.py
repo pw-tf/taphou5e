@@ -13,6 +13,8 @@ BASE = "http://localhost:8777"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
 # Hosts this sandbox blocks by policy; failures against them are expected.
+ABILITY_CODES = ["str", "dex", "con", "int", "wis", "cha"]
+
 BLOCKED = ("jsdelivr.net", "supabase.co", "googleapis.com", "gstatic.com", "buymeacoffee.com")
 
 FIXTURES = {
@@ -162,6 +164,30 @@ FIXTURES = {
         "components": ["V", "S", "M"], "material": "a tiny ball of bat guano",
         "duration": "Instantaneous", "desc": ["A bright streak flashes."],
         "higher_level": ["Damage increases by 1d6."]},
+    # A Barbarian levelling 4 -> 6: level 5 has features, level 6 is an ASI
+    # level for nobody (Barbarians take theirs at 4, 8, 12...), and neither
+    # level has spellcasting, so the spell step must skip itself.
+    "srd_class_levels": {
+        "barbarian": {
+            "5": {"level": 5, "features": [
+                     {"index": "barbarian-extra-attack", "name": "Extra Attack"},
+                     {"index": "barbarian-fast-movement", "name": "Fast Movement"}]},
+            "6": {"level": 6, "features": [
+                     {"index": "barbarian-path-feature", "name": "Path Feature"}]},
+        },
+        "wizard": {
+            "6": {"level": 6, "features": [{"index": "wizard-arcane-tradition", "name": "Arcane Tradition"}],
+                  "spellcasting": {"spells_known_at_level": 4,
+                                   "spell_slots_level": {"1": 4, "2": 3, "3": 3}}},
+        },
+        "fighter": {
+            "4": {"level": 4, "features": [{"index": "fighter-asi", "name": "Ability Score Improvement"}]},
+        },
+    },
+    "srd_subclasses": {"results": [
+        {"index": "berserker", "name": "Berserker", "url": "/api/subclasses/berserker"}]},
+    "srd_subclass_levels": {
+        "berserker-5": {"features": [{"index": "berserker-mindless-rage", "name": "Mindless Rage"}]}},
     "encounters_single": {"id": "e1", "campaign_id": "cam1", "game_world_id": "w1",
                           "name": "Ambush at the Ford", "status": "planned", "round": 0,
                           "active_combatant_id": None, "hide_monster_hp": True,
@@ -224,6 +250,9 @@ STUB = """
     ['select','eq','order','limit','neq','in','is'].forEach(m => { q[m] = () => q; });
     q.single = () => Promise.resolve({
       data: FIXTURES[table + '_single'] || (FIXTURES[table] || [])[0] || null, error: null });
+    // The level-up wizard uses maybeSingle for "is this already saved?" reads,
+    // which must resolve to null rather than the first fixture row.
+    q.maybeSingle = () => Promise.resolve({ data: null, error: null });
     q.then = (res, rej) => Promise.resolve({ data: FIXTURES[table] || [], error: null }).then(res, rej);
     return q;
   }
@@ -247,6 +276,7 @@ STUB = """
         return w; };
       w.select = () => w;
       w.single = () => Promise.resolve({ data: { id: 'new-id' }, error: null });
+      w.maybeSingle = () => Promise.resolve({ data: null, error: null });
       w.then = (res, rej) => Promise.resolve({ data: null, error: null }).then(res, rej);
       return w;
     };
@@ -263,6 +293,18 @@ STUB = """
     if (/\/api\/spells$/.test(url))            return json(FIXTURES.srd_spells);
     if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
     if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
+    // Class levels drive the level-up wizard's feature and spell steps.
+    const lvl = url.match(/\/api\/classes\/([a-z]+)\/levels\/(\d+)$/);
+    if (lvl) {
+      const table = FIXTURES.srd_class_levels[lvl[1]] || {};
+      return table[lvl[2]] ? json(table[lvl[2]])
+                           : Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    }
+    if (/\/api\/classes\/[a-z]+\/subclasses$/.test(url)) return json(FIXTURES.srd_subclasses);
+    const feat = url.match(/\/api\/features\/([a-z0-9-]+)$/);
+    if (feat) return json({ name: feat[1], desc: ['Fixture text for ' + feat[1] + '.'] });
+    const sub = url.match(/\/api\/subclasses\/([a-z-]+)\/levels\/(\d+)$/);
+    if (sub) return json(FIXTURES.srd_subclass_levels[sub[1] + '-' + sub[2]] || { features: [] });
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
   };
 
@@ -310,7 +352,45 @@ STUB = """
     }
   };
 })();
-""".replace("__FIXTURES__", json.dumps(FIXTURES))
+"""
+
+
+def stub_with(**overrides):
+    """The stub with some fixture tables replaced.
+
+    The stub embeds its fixtures at injection time and returns the same
+    `<table>_single` row whatever id the page asked for, so a test that needs
+    a different character on the sheet injects its own stub in a fresh context
+    rather than trying to steer the query.
+    """
+    data = dict(FIXTURES)
+    data.update(overrides)
+    return STUB_SRC.replace("__FIXTURES__", json.dumps(data))
+
+
+STUB_SRC = STUB
+STUB = STUB.replace("__FIXTURES__", json.dumps(FIXTURES))
+
+# Korr, for the level-up wizard. The DM panel raises `level` and records the
+# level before the grant; the wizard then walks the levels in between. So a
+# 4 -> 6 grant looks like this: level already 6, preGrantLevel 4, and the hit
+# points still those of a level 4 Barbarian until the wizard adds them.
+KORR = {
+    "id": "c3", "game_world_id": "w1", "name": "Korr", "player_name": "Sam",
+    "race": "Goliath", "class": "Barbarian", "subclass": None, "level": 6,
+    "armor_class": 15, "speed": 40, "initiative_bonus": 1, "proficiency_bonus": 2,
+    "current_hit_points": 22, "hit_point_maximum": 52, "temporary_hit_points": 0,
+    "hit_dice_total": "4d12", "hit_dice_remaining": 4,
+    "death_save_successes": 0, "death_save_failures": 0,
+    "active_conditions": [], "pending_level_up": True, "experience_points": 6000,
+    "notes": "",
+    "ability_scores": {"strength": 18, "dexterity": 12, "constitution": 10,
+                       "intelligence": 8, "wisdom": 10, "charisma": 11},
+    "saving_throws": [], "skills": [], "weapons": [], "inventory_items": [],
+    "spells": [], "spell_slots": [], "features_traits": [],
+    "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
+    "character_details": {},
+}
 
 errors, failed = [], []
 results = []
@@ -347,7 +427,61 @@ async def fill_pin(page, group, digits):
         await boxes.nth(i).fill(d)
 
 
+def check_rules_parity():
+    """v2/js/rules.js copies its rules constants out of v1's app.js.
+
+    They are copies on purpose -- app.js is 5,000 lines with side effects and
+    cannot be loaded by a v2 page -- but a copy that silently drifts is a rules
+    bug in both versions at once. This compares the text of each one.
+    """
+    import re
+
+    app = open("/home/user/taphou5e/app.js").read()
+    rules = open("/home/user/taphou5e/v2/js/rules.js").read()
+
+    def block_of(src, name):
+        """The declaration's text, from `const NAME =` to its balanced close.
+
+        Brace counting rather than line matching, because these range from a
+        one-line array to a forty-line object and both forms appear in each
+        file.
+        """
+        start = src.index(f"const {name} = ")
+        depth, i, seen = 0, src.index("=", start) + 1, False
+        while i < len(src):
+            ch = src[i]
+            if ch in "[{":
+                depth += 1
+                seen = True
+            elif ch in "]}":
+                depth -= 1
+                if seen and depth == 0:
+                    i += 1
+                    break
+            i += 1
+        # Normalise whitespace so indentation differences are not drift.
+        return re.sub(r"\s+", " ", src[start:i])
+
+    for name in ("SKILLS", "ABILITIES", "ABILITY_FULL", "HIT_DICE", "ASI_LEVELS",
+                 "SUBCLASSES", "FEATS"):
+        try:
+            a, b = block_of(app, name), block_of(rules, name)
+        except ValueError:
+            raise AssertionError(f"{name} is missing from one of the two files")
+        assert a == b, f"{name} has drifted between app.js and v2/js/rules.js"
+    ok(f"the rules constants v2 copies still match v1's ({7} of them)")
+
+    # These are expressions, not blocks, so compare them literally.
+    for line in ("const getModifier = score => Math.floor((score - 10) / 2);",
+                 "const getProfBonus = level => Math.ceil(level / 4) + 1;"):
+        assert line in app and line in rules, line
+    assert "const SUBCLASS_LEVEL = 3;" in app and "const SUBCLASS_LEVEL = 3;" in rules
+    ok("the modifier, proficiency and subclass-level rules match v1 exactly")
+
+
 async def main():
+    check_rules_parity()
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(executable_path=CHROME)
         ctx = await browser.new_context(viewport={"width": 1280, "height": 900})
@@ -1011,8 +1145,16 @@ async def main():
         # rather than sending the highlight jumping between them.
         assert await page.locator(".enc-group h2").count() == 0, "groups are a planning view"
         running_order = [n.strip() for n in await page.locator(".init-name").all_inner_texts()]
-        assert running_order[0].startswith("Sythra"), running_order
-        ok(f"a running encounter shows one flat initiative order ({running_order[0][:9]} first)")
+        # Initiative for the blanks is rolled, so naming a combatant here is a
+        # coin toss -- what the tracker guarantees is the ordering itself.
+        rolls = await page.evaluate("""() => Array.from(document.querySelectorAll('.init-row'))
+            .map(r => {
+              const input = r.querySelector('.init-input');
+              return Number(input ? input.value : r.querySelector('.init-value b').textContent);
+            })""")
+        assert len(rolls) == len(running_order), (rolls, running_order)
+        assert rolls == sorted(rolls, reverse=True), rolls
+        ok(f"a running encounter shows one flat initiative order, highest first ({rolls})")
 
         # Advancing past the last live combatant wraps and increments the round.
         # The downed one must never take a turn.
@@ -1642,6 +1784,266 @@ async def main():
         assert rows[0]["current_hit_points"] == rows[0]["max_hit_points"] == 9, rows[0]
         assert rows[1]["max_hit_points"] == 6, rows[1]
         ok("imported creatures keep their colour, group and rolled hit points, at full health")
+
+        # ---------- 42. Character creation ----------
+        await page.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".wizard", timeout=10000)
+
+        # The wizard says what is missing rather than a dead Next button.
+        assert await page.locator("#wz-next").is_disabled()
+        assert "name" in (await page.locator(".wizard-blocker").inner_text()).lower()
+        ok("the wizard names what is blocking it instead of only disabling Next")
+
+        await page.fill("#wz-name", "Ysolde Marr")
+        await page.fill("#wz-player", "Kim")
+        await page.select_option("#wz-race", "Half-Orc")
+        await page.select_option("#wz-class", "Barbarian")
+        await page.wait_for_timeout(250)
+
+        hint = await page.locator("#wz-race-hint").inner_text()
+        assert "STR +2" in hint and "CON +1" in hint, hint
+        ok(f"the race hint shows the bonuses before anything is saved ({hint})")
+
+        assert "d12" in await page.locator("#wz-class-hint").inner_text()
+        ok("the class hint shows its hit die")
+
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+
+        # Standard array: six numbers, each used once.
+        await page.click('[data-method="standard"]')
+        await page.wait_for_timeout(200)
+        assert await page.locator("#wz-next").is_disabled()
+        ok("the array step blocks until all six numbers are assigned")
+
+        for ability, index in [("str", "0"), ("con", "1"), ("dex", "2"),
+                               ("wis", "3"), ("cha", "4"), ("int", "5")]:
+            await page.select_option(f'[data-array="{ability}"]', index)
+            await page.wait_for_timeout(120)
+
+        # 15 was taken by STR, so nobody else can be given it.
+        dex_options = page.locator('[data-array="dex"] option')
+        disabled = await dex_options.nth(1).is_disabled()
+        assert disabled, "a number already assigned elsewhere should be disabled"
+        ok("a number assigned to one ability cannot be assigned to another")
+
+        row = page.locator('.ability-assign-row:has([data-array="str"]) .score-readout')
+        text = await row.inner_text()
+        # 15 from the array, +2 from Half-Orc, so the sheet stores 17 (+3).
+        assert "+2" in text and "17" in text and "+3" in text, text
+        ok(f"the racial bonus is shown on the score before saving ({text.split()})")
+
+        assert not await page.locator("#wz-next").is_disabled()
+        await page.click("#wz-next")
+        await page.wait_for_selector(".review-scores", timeout=5000)
+
+        review = await page.locator(".review-grid").inner_text()
+        # Barbarian d12, CON 13+1 = 14 (+2): 12 + 2 = 14 hit points at level 1.
+        assert "14" in review, review
+        ok("review shows the hit points the engine will store")
+
+        # ---------- 43. Point buy ----------
+        await page.click("#wz-back")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+        await page.click('[data-method="pointbuy"]')
+        await page.wait_for_timeout(250)
+
+        budget = await page.locator(".budget").inner_text()
+        assert "27" in budget, budget
+        ok("point buy starts with the full 27 point budget")
+
+        # Every score starts at 8, so nothing can go lower.
+        assert await page.locator('[data-buy="str"][data-delta="-1"]').is_disabled()
+        ok("point buy will not take a score below 8")
+
+        # 8 -> 15 costs 9 points; do it three times and the budget is spent.
+        for ability in ("str", "con", "dex"):
+            for _ in range(7):
+                await page.click(f'[data-buy="{ability}"][data-delta="1"]')
+                await page.wait_for_timeout(60)
+
+        budget = await page.locator(".budget").inner_text()
+        assert "0 points left" in budget, budget
+        ok("three 15s spend exactly the 27 point budget")
+
+        # 14 -> 15 costs two points, not one, which is the whole point of the
+        # table -- so with nothing left, no score can rise.
+        for ability in ABILITY_CODES:
+            assert await page.locator(f'[data-buy="{ability}"][data-delta="1"]').is_disabled(), ability
+        ok("with the budget spent, no score can be raised")
+
+        await page.click('[data-buy="str"][data-delta="-1"]')
+        await page.wait_for_timeout(200)
+        budget = await page.locator(".budget").inner_text()
+        assert "2 points left" in budget, budget
+        ok("stepping 15 back down to 14 refunds two points, not one")
+
+        # ---------- 44. Half-Elf, and what creation writes ----------
+        await page.click("#wz-back")
+        await page.wait_for_selector("#wz-race", timeout=5000)
+        await page.select_option("#wz-race", "Half-Elf")
+        await page.wait_for_timeout(250)
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+
+        assert await page.locator('[data-halfelf]').count() == 5, "Charisma is excluded"
+        ok("a Half-Elf is offered the five abilities other than Charisma")
+
+        assert await page.locator("#wz-next").is_disabled()
+        assert "Half-Elf" in await page.locator(".wizard-blocker").inner_text()
+        ok("the wizard blocks until the Half-Elf choice is made")
+
+        await page.click('[data-halfelf="strength"]')
+        await page.click('[data-halfelf="constitution"]')
+        await page.wait_for_timeout(200)
+        assert not await page.locator("#wz-next").is_disabled()
+        ok("choosing two abilities unblocks the step")
+
+        await page.evaluate("window.__resetWrites()")
+        await page.click("#wz-next")
+        await page.wait_for_selector(".review-scores", timeout=5000)
+        await page.click("#wz-next")
+        await page.wait_for_timeout(1200)
+
+        writes = await page.evaluate("window.__writes")
+        made = [w for w in writes if w["table"] == "characters" and w["verb"] == "insert"]
+        assert made, [w["table"] for w in writes]
+        char = made[-1]["payload"]
+        assert char["name"] == "Ysolde Marr" and char["player_name"] == "Kim", char
+        assert char["race"] == "Half-Elf" and char["class"] == "Barbarian", char
+        assert char["game_world_id"] == "w1", char
+        ok("creation writes the character to this world")
+
+        tables = [w["table"] for w in writes if w["verb"] == "insert"]
+        for scaffold in ("ability_scores", "skills", "saving_throws", "currency", "character_details"):
+            assert scaffold in tables, (scaffold, tables)
+        ok("the five scaffolding tables v1 seeds are seeded here too")
+
+        skills = [w for w in writes if w["table"] == "skills" and w["verb"] == "insert"][-1]
+        assert isinstance(skills["payload"], list) and len(skills["payload"]) == 18, skills
+        ok("all eighteen skills are written in one insert")
+
+        # The engine keys scores by their LONG names. Handing it short keys
+        # silently misses every bonus and then writes undefined over all six,
+        # so this asserts the shape, not just that the call happened.
+        effects = [w for w in writes if w["table"] == "character_effects" and w["verb"] == "insert"]
+        assert effects, "the engine should record racial effects"
+        targets = sorted(e["target"] for e in effects[-1]["payload"])
+        assert "charisma" in targets, targets
+        assert "strength" in targets and "constitution" in targets, targets
+        ok(f"the shared engine ran and recorded the racial effects ({targets})")
+
+        scores_write = [w for w in writes if w["table"] == "ability_scores" and w["verb"] == "update"]
+        assert scores_write, "the engine should write the adjusted scores"
+        adjusted = scores_write[-1]["payload"]
+        assert all(isinstance(v, int) for v in adjusted.values()), adjusted
+        ok(f"the adjusted scores are numbers, not undefined ({sorted(adjusted)[:3]}...)")
+
+        # ---------- 45. Level-up wizard ----------
+        # Korr is a level 4 Barbarian owed a level, granted from 4 to 6. The
+        # sheet stub serves one character whatever the id, so this needs its
+        # own context carrying Korr as the single character.
+        luctx = await browser.new_context()
+        await luctx.add_init_script(stub_with(characters_single=KORR))
+        await luctx.add_init_script("""
+            try {
+              localStorage.setItem('dnd-session', JSON.stringify({
+                gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
+                dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(),
+                timestamp: Date.now() }));
+              localStorage.setItem('preGrantLevel_c3', '4');
+              localStorage.setItem('targetLevel_c3', '6');
+            } catch (e) {}
+        """)
+        lu = await luctx.new_page()
+        watch(lu, "levelup")
+
+        await lu.goto(f"{BASE}/v2/character-sheet.html?id=c3", wait_until="domcontentloaded")
+        await lu.wait_for_selector(".sheet-header", timeout=10000)
+
+        assert await lu.locator(".levelup-banner").count() == 1
+        ok("a character owed a level gets a banner on their sheet")
+
+        await lu.click(".levelup-banner")
+        await lu.wait_for_selector(".wizard-steps", timeout=10000)
+        await lu.wait_for_timeout(900)
+
+        title = await lu.locator(".modal-head h2").inner_text()
+        assert "4" in title and "6" in title, title
+        ok(f"a multi-level grant opens as one run across the range ({title})")
+
+        # Two levels gained means two hit point choices, not one repeated.
+        rows = await lu.locator(".hp-choice-row").count()
+        assert rows == 2, rows
+        ok("each level gained gets its own hit point choice")
+
+        steps = [t.strip() for t in await lu.locator(".wizard-steps li .label").all_inner_texts()]
+        # Barbarians take ASIs at 4, 8, 12 -- neither 5 nor 6 is one. The class
+        # has no spellcasting either, so both steps must skip themselves.
+        assert "ASI" not in steps, steps
+        assert "Spells" not in steps, steps
+        assert "Subclass" in steps, steps
+        ok(f"steps that do not apply skip themselves ({steps})")
+
+        await lu.click("#lu-avg-all")
+        await lu.wait_for_timeout(300)
+        total = await lu.locator(".wizard-body .hint").last.inner_text()
+        # d12 Barbarian, CON 10 (+0): average is 7 a level, so 14 for two.
+        assert "+14" in total, total
+        ok(f"taking the average for all fills every level ({total.strip()})")
+
+        await lu.click("#lu-next")
+        await lu.wait_for_selector(".pick-list", timeout=5000)
+        assert await lu.locator('[data-subclass]').count() >= 7
+        assert await lu.locator("#lu-next").is_disabled()
+        ok("the subclass step blocks until one is chosen")
+
+        await lu.click('[data-subclass="Path of the Berserker"]')
+        await lu.wait_for_timeout(200)
+        await lu.click("#lu-next")
+        await lu.wait_for_selector(".review-grid", timeout=5000)
+
+        summary = await lu.locator(".review-grid").inner_text()
+        # Level 6 proficiency is +3, hit dice become 6d12.
+        assert "+3" in summary and "6d12" in summary, summary
+        ok(f"the summary shows the level 6 proficiency and hit dice")
+
+        features = await lu.locator(".pick-list").inner_text()
+        assert "Extra Attack" in features and "Path Feature" in features, features
+        ok("features from every level in the range are listed, not just the last")
+
+        await lu.evaluate("window.__resetWrites()")
+        await lu.click("#lu-next")
+        await lu.wait_for_timeout(1500)
+
+        writes = await lu.evaluate("window.__writes")
+        updates = [w for w in writes if w["table"] == "characters" and w["verb"] == "update"]
+        assert updates, [w["table"] for w in writes]
+        final = updates[-1]["payload"]
+        assert final["level"] == 6, final
+        assert final["proficiency_bonus"] == 3, final
+        assert final["hit_dice_total"] == "6d12", final
+        assert final["pending_level_up"] is False, final
+        ok("finishing writes the target level, proficiency, hit dice and clears the flag")
+
+        hp = [w for w in updates if "hit_point_maximum" in w["payload"]]
+        assert hp, [w["payload"] for w in updates]
+        # Korr was 52/22; +14 across two levels.
+        assert hp[-1]["payload"]["hit_point_maximum"] == 66, hp[-1]
+        assert hp[-1]["payload"]["current_hit_points"] == 36, hp[-1]
+        ok("the hit point gain is added to both maximum and current")
+
+        saved_features = [w for w in writes if w["table"] == "features_traits" and w["verb"] == "insert"]
+        names = [w["payload"]["name"] for w in saved_features]
+        assert "Extra Attack" in names, names
+        assert "Mindless Rage" in names, "subclass features should be saved too"
+        ok(f"class and subclass features are both saved ({len(names)} rows)")
+
+        left = await lu.evaluate("localStorage.getItem('preGrantLevel_c3')")
+        assert left is None, left
+        ok("the wizard clears the level markers it consumed")
+
+        await luctx.close()
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
