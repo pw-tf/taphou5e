@@ -861,7 +861,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (228 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (234 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -1272,6 +1272,40 @@ the bug that would make both useless. A rest still resets them wholesale.
 
 **Dropping the last of an item deletes it** rather than leaving a row reading
 zero, because nothing else would ever tidy that row up.
+
+### 11.3a10 Two tables, one list of attacks
+
+Raised on review: should an equipped weapon in inventory show as an action?
+
+It should, and it could not. **The two tabs read two different tables.** Actions
+reads `weapons`; Inventory reads `inventory_items`. An item typed `Weapon` in
+inventory had no path to Actions whatever its `equipped` flag said. In the live
+database that is **39 inventory rows typed Weapon** -- Greatsword, Longsword,
+Shortbow, Scimitar, Dagger, Quarterstaff -- and **not one** has a matching
+`weapons` row. Those characters were carrying weapons with no way to attack
+with them.
+
+`equipped` was decorative on the other side too. Actions listed every weapon
+regardless and only badged the equipped ones, and nothing in either version
+could toggle the flag -- v1's starting equipment writes `equipped: false` for
+everything, and 207 of 208 rows are still false.
+
+**The rule now:** a `weapons` row is always an action, equipped sorted to the
+top; an `inventory_items` row typed `Weapon` is an action **only while
+equipped**. Picking a dagger up and equipping it puts it on the tab; unequipping
+takes it off. Weapons proper are never hidden for being unequipped, because a
+Barbarian mid-fight should still see the javelins they are about to throw.
+
+**Damage for a carried weapon comes from the SRD.** `inventory_items` has no
+`damage` or `damage_type` column, so there is nowhere to store it; the name is
+matched against the SRD equipment index and the numbers filled in after the
+fact, with a redraw when they land. A name the SRD does not know is cached as
+empty so it is not looked up again, and the row still lists -- without numbers,
+which is what it did before any of this existed.
+
+This needed no schema change and no backfill, which is why the sort was chosen
+over filtering Actions down to equipped weapons: filtering would have emptied
+almost every character's Actions tab on deploy.
 
 ### 11.3b Review fixes
 

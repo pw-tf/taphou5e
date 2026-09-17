@@ -211,6 +211,53 @@
     // reloads, rather than leaving the screen disagreeing with the database.
     // ========================================
 
+    // ---- SRD damage for carried weapons -----------------------------------
+
+    // inventory_items stores a name and nothing else about how a weapon hits,
+    // so the numbers come from the SRD, keyed by lower-cased name. Resolved
+    // once per page load; a name the SRD does not know is remembered as empty
+    // so it is not looked up again on every redraw.
+    var srdWeaponCache = {};
+    var srdWeaponPending = false;
+
+    async function fillCarriedWeaponStats() {
+        if (srdWeaponPending) return;
+
+        const wanted = (c.inventory_items || [])
+            .filter(i => i.item_type === 'Weapon' && i.equipped)
+            .map(i => i.name)
+            .filter(name => srdWeaponCache[name.toLowerCase()] === undefined);
+
+        if (!wanted.length) return;
+        srdWeaponPending = true;
+
+        try {
+            const index = await srdIndex('equipment');
+            for (const name of wanted) {
+                const key = name.toLowerCase();
+                const match = index.find(e => e.name.toLowerCase() === key);
+                if (!match) { srdWeaponCache[key] = {}; continue; }
+                try {
+                    const detail = await srdDetail('equipment', match.index);
+                    const damage = detail.damage || {};
+                    srdWeaponCache[key] = {
+                        damage: damage.damage_dice || null,
+                        damage_type: (damage.damage_type || {}).name || null
+                    };
+                } catch (err) {
+                    srdWeaponCache[key] = {};
+                }
+            }
+        } catch (err) {
+            // Offline, or the SRD is down. The rows still list; they just
+            // carry no damage, which is what they did before this existed.
+            wanted.forEach(name => { srdWeaponCache[name.toLowerCase()] = {}; });
+        }
+
+        srdWeaponPending = false;
+        if (activeTab === 'actions') draw();
+    }
+
     async function persist(promise, failure) {
         const { error } = await promise;
         if (error) {
@@ -362,6 +409,15 @@
                 }, 'weapons');
             }
         });
+    };
+
+    window.sheetToggleWeaponEquipped = async id => {
+        const weapon = (c.weapons || []).find(w => w.id === id);
+        if (!weapon) return;
+        weapon.equipped = !weapon.equipped;
+        draw();
+        await persist(db.from('weapons').update({ equipped: weapon.equipped }).eq('id', id),
+                      'Could not update that weapon.');
     };
 
     // ---- Inventory -------------------------------------------------------
@@ -635,16 +691,65 @@
             </div>`;
     }
 
+    // What you can attack with comes from two tables. `weapons` is the weapon
+    // list proper and is always shown, equipped sorted to the top. An
+    // inventory item typed Weapon is something being carried, and only counts
+    // as an action while it is equipped -- pick a dagger up, equip it, and it
+    // is there to swing.
+    //
+    // inventory_items has no damage columns, so an inventory weapon's numbers
+    // are looked up from the SRD by name. srdWeaponStats fills them in after
+    // the fact; until then the row shows without them rather than waiting.
+    function attackList() {
+        const owned = (c.weapons || []).map(w => ({
+            id: w.id, kind: 'weapon', name: w.name, equipped: !!w.equipped,
+            damage: w.damage, damage_type: w.damage_type,
+            attack_bonus: w.attack_bonus || 0, fromInventory: false
+        }));
+
+        const carried = (c.inventory_items || [])
+            .filter(i => i.item_type === 'Weapon' && i.equipped)
+            .map(i => {
+                const stats = srdWeaponCache[i.name.toLowerCase()] || {};
+                return {
+                    id: i.id, kind: 'item', name: i.name, equipped: true,
+                    damage: stats.damage || null, damage_type: stats.damage_type || null,
+                    attack_bonus: null, fromInventory: true,
+                    quantity: i.quantity ?? 1
+                };
+            });
+
+        // Equipped first, then by name, so the thing in your hands is at the
+        // top of the list you are reading mid-turn.
+        return owned.concat(carried).sort((a, b) => {
+            if (a.equipped !== b.equipped) return a.equipped ? -1 : 1;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+    }
+
     function actionsTab() {
-        const weapons = listTab('weapon', c.weapons || [], 'No weapons recorded.', w => `
-            <div class="list-row" onclick="sheetShowDetail('weapon','${w.id}')" role="button" tabindex="0"
-                 data-holdable data-kind="weapon" data-id="${w.id}">
-                <div class="who">
-                    <div class="name">${escapeHtml(w.name)}${w.equipped ? ' <span class="tag tag-accent">EQUIPPED</span>' : ''}</div>
-                    <div class="meta">${escapeHtml(w.damage || '')} ${escapeHtml(w.damage_type || '')}</div>
-                </div>
-                <div class="mono lvl">${formatMod(w.attack_bonus || 0)}</div>
-            </div>`);
+        // Fire and forget: it redraws itself once the names resolve.
+        fillCarriedWeaponStats();
+        const attacks = attackList();
+        const weapons = attacks.length
+            ? `<div class="stack holdable">${attacks.map(a => `
+                <div class="list-row" onclick="sheetShowDetail('${a.kind}','${a.id}')" role="button" tabindex="0"
+                     data-holdable data-kind="${a.kind}" data-id="${a.id}">
+                    <div class="who">
+                        <div class="name">${escapeHtml(a.name)}${
+                            a.quantity > 1 ? ` <span class="mono">&times;${a.quantity}</span>` : ''}${
+                            a.equipped ? ' <span class="tag tag-accent">EQUIPPED</span>' : ''}</div>
+                        <div class="meta">${
+                            a.damage
+                                ? `${escapeHtml(a.damage)} ${escapeHtml(a.damage_type || '')}`
+                                : a.fromInventory ? 'Carried &mdash; no damage recorded' : ''}</div>
+                    </div>
+                    ${a.attack_bonus === null ? '' : `<div class="mono lvl">${formatMod(a.attack_bonus)}</div>`}
+                </div>`).join('')}</div>`
+            : `<div class="empty-state">
+                   <p>Nothing to attack with. Add a weapon, or equip one you are carrying.</p>
+                   <button class="btn btn-accent" onclick="sheetAddWeapon()">Add a weapon</button>
+               </div>`;
 
         const features = listTab('feature', c.features_traits || [], 'No features recorded.', f => `
             <div class="list-row" onclick="sheetShowDetail('feature','${f.id}')" role="button" tabindex="0"
@@ -1076,6 +1181,9 @@
                     title: weapon.name,
                     actions: [
                         { label: 'Show details', run: () => window.sheetShowDetail('weapon', id) },
+                        { label: weapon.equipped ? 'Unequip' : 'Equip',
+                          hint: 'Equipped weapons sort to the top',
+                          run: () => window.sheetToggleWeaponEquipped(id) },
                         { label: 'Delete', danger: true,
                           run: () => removeRow('weapons', id, 'weapons') }
                     ]
@@ -1090,6 +1198,11 @@
                     actions: [
                         { label: 'Show details', run: () => window.sheetShowDetail('item', id) },
                         { label: item.equipped ? 'Unequip' : 'Equip',
+                          // A carried weapon is only an action while equipped,
+                          // so this is the switch that puts it on the tab.
+                          hint: item.item_type === 'Weapon'
+                              ? (item.equipped ? 'Takes it off your actions' : 'Adds it to your actions')
+                              : undefined,
                           run: () => window.sheetToggleItemFlag(id, 'equipped') },
                         { label: item.attuned ? 'End attunement' : 'Attune',
                           run: () => window.sheetToggleItemFlag(id, 'attuned') },
