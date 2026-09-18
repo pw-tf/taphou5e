@@ -42,3 +42,12 @@ grouped checks on `ability` alone, which reported 11 of 12 as unset). See
 table the anon key may write to without a world PIN behind it, so the policy
 shape (insert-only, with `is_read`/`is_archived` pinned in the WITH CHECK) is
 the thing to read before changing anything about it.
+
+## Not yet applied
+
+`PENDING_world_session_lockdown.sql` and `PENDING_verify_lockdown.sql` are
+prepared, not applied. They close the hole that allowed the 2026-09-18 deletion
+of every world (see `docs/campaigns-schema-design.md` §11.3a19). Apply the
+lockdown only **after** the point-in-time restore has landed — a restore rolls
+the database back past anything applied before it — then run the verification
+and rename both files to their applied timestamps.

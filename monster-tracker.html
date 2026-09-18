@@ -226,11 +226,19 @@
         function initSupabase() {
             try {
                 if (typeof window.supabase === 'undefined') return;
-                mtDb = window.supabase.createClient(MT_SUPABASE_URL, MT_SUPABASE_ANON_KEY);
                 const raw = localStorage.getItem('dnd-session') || sessionStorage.getItem('dnd-session');
                 if (raw) {
                     mtSession = JSON.parse(raw);
                 }
+                // The session token has to ride as a header or the character
+                // picker reads nothing: every table is scoped to the world the
+                // token belongs to. The client is built after the session is
+                // parsed for that reason.
+                const mtHeaders = {};
+                if (mtSession && mtSession.dmToken) mtHeaders['x-dm-token'] = mtSession.dmToken;
+                mtDb = window.supabase.createClient(MT_SUPABASE_URL, MT_SUPABASE_ANON_KEY, {
+                    global: { headers: mtHeaders }
+                });
             } catch (e) {
                 console.error('Failed to init Supabase for monster tracker:', e);
             }

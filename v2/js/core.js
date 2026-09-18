@@ -78,6 +78,17 @@ function requireSession() {
         window.location.replace('login.html');
         return false;
     }
+    // Every table is scoped to a world session now. A session stored before
+    // that -- players were never issued a token -- reads nothing and writes
+    // nothing, which looks like an empty world rather than an error. Send them
+    // back to the login rather than leaving them staring at a blank roster.
+    // (v1 gets this for free: validateSession reads game_worlds and bounces on
+    // a miss.)
+    if (!session.dmToken) {
+        clearSession();
+        window.location.replace('login.html');
+        return false;
+    }
     return true;
 }
 

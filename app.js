@@ -4,7 +4,23 @@
 const SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
 
+// The world session token rides as a request header. Postgres reads it via
+// request.headers in the row level security policies, which is what scopes
+// every read and write to the world you actually logged into.
+//
+// This file is otherwise frozen. It changed because without the header the
+// classic app can no longer read or write anything: the tables used to carry
+// `USING (true)`, which is what let someone delete every world on 2026-09-18.
+// login.js already stores the token; it was simply never sent.
+const dbHeaders = {};
+try {
+    const rawSession = localStorage.getItem('dnd-session') || sessionStorage.getItem('dnd-session');
+    const parsedSession = rawSession ? JSON.parse(rawSession) : null;
+    if (parsedSession && parsedSession.dmToken) dbHeaders['x-dm-token'] = parsedSession.dmToken;
+} catch (e) { /* private mode, or nothing stored yet */ }
+
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: dbHeaders },
     realtime: {
         params: {
             eventsPerSecond: 10

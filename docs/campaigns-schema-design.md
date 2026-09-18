@@ -1650,6 +1650,77 @@ The pager renders only when there is more than one page. A lone page of three
 worlds does not need a control telling you so, and the section heading already
 carries the count.
 
+### 11.3a19 The day the worlds were deleted
+
+On 2026-09-18 someone deleted every game world in the database. The foreign
+keys did the rest: `characters` and `campaigns` are `ON DELETE CASCADE` from
+`game_worlds`, so 194 worlds took 265 characters and the entire authored
+campaign tree with them. They then bulk-inserted ~416,000 junk worlds
+(`slop machine …`, `who deleted all the worlds again??-N`) through the same
+opening. Over a thousand rows share a `created_at` to the microsecond, so those
+were single bulk PostgREST calls, not the app.
+
+**It was not SQL injection.** A world named `; drop table ;` was stored as an
+inert string. No function in `public` or `private` uses dynamic SQL — all ten
+were checked — and PostgREST parameterises. The `-N` counters on the junk names
+are the attacker working around the `UNIQUE` index on `game_worlds.name`.
+
+**The hole was thirteen policies**, one per table, each reading:
+
+```sql
+FOR ALL TO PUBLIC USING (true) WITH CHECK (true)
+```
+
+on `game_worlds`, `characters`, and the eleven per-character tables. The anon
+key is published in the source of every page — it has to be, this is a static
+site — so `USING (true)` on `DELETE` meant anyone who opened devtools could
+empty the database.
+
+Worth being precise about what *did* hold: the campaign layer's own security
+was never bypassed. `dm_all` / `player_read` keyed on the `x-dm-token` header
+worked exactly as §11.3a12 intended, and no DM note was read. It simply did not
+matter, because the parent worlds were deletable by anyone.
+
+**The fix extends that working mechanism to everything else.** `world_login`
+already issued a DM a random token, stored hashed in `dm_sessions` and sent
+back as `x-dm-token`. Now it issues players one too, and all thirteen tables
+are scoped to "the world this session belongs to". Deleting or renaming a world
+stays DM-only.
+
+Three details that shaped it:
+
+**The wire field is still called `dm_token` for both roles.** Both clients
+already do `if (result.dm_token) session.dmToken = …` and send it as the
+header, so players get a working session with no change to either `login.js` —
+and v1's is frozen. The role lives server-side in `dm_sessions.role`. Both
+versions gate DM-only UI on `session.role`, never on token presence, so a
+player holding a token exposes no DM surface.
+
+**v1 had to change anyway.** `app.js` built its Supabase client with no headers
+at all — it never sent the token `login.js` had been storing all along — while
+doing fifty-odd direct table writes. `monster-tracker.html` had the same gap in
+its own client. Both now send it. This is a deliberate exception to the freeze:
+without it the classic app can read and write nothing.
+
+**A stale player session bounces to the login.** Players were never issued a
+token before this, so every session stored earlier reads nothing and writes
+nothing — which looks like an empty world rather than an error. v1 gets the
+bounce for free, because `validateSession` already re-reads `game_worlds` and
+clears the session on a miss. v2 checks for the token in `requireSession`.
+
+Two abuse limits came with it. `world_create` was unthrottled and ran ~132,000
+times in an afternoon; it is now five per address per hour, recorded in
+`world_create_attempts` the way `pin_attempts` guards the login. And a
+statement-level trigger refuses any single `DELETE` taking more than three
+worlds or twenty-five characters, so the exact shape of this attack fails loudly
+instead of succeeding silently. It uses a transition table, so it costs nothing
+per row.
+
+The migration ships with `PENDING_verify_lockdown.sql`, which creates a
+throwaway world, proves each boundary from the attacker's position (`set role
+anon`, no token) and cleans up. A clean run is the evidence; the claims above
+are not assumed.
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:
