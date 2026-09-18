@@ -891,7 +891,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (264 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (274 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -1449,6 +1449,46 @@ browser blocks the form — with no error the page can see. A goblin's challenge
 rating of 1/4 hit it, and so would any SRD item weighing 0.25 lb. Every number
 field here validates in its own `onSubmit`, so the browser's step check only
 ever bought a silent dead end; number inputs now carry `step="any"`.
+
+### 11.3a14 Starting gear, and levelling during creation
+
+**The starting kit is back.** v1 offers the class and background kit on
+creation; v2 dropped it. `CLASS_STARTING_EQUIPMENT` and
+`BACKGROUND_STARTING_EQUIPMENT` are copied into `rules.js` verbatim, under the
+same parity check as the other rules constants (now nine of them, compared as
+text so a silent divergence fails the suite). 5e gives real choices here — "a
+martial weapon and a shield OR two martial weapons" — and v1 flattens each class
+to one representative list. Matching v1 matters more than being thorough: a
+character created in either version should arrive carrying the same thing.
+
+A Gear step lists exactly what it would add, and is offered at any level with a
+line noting it is the level 1 kit when the character is higher. Weapons go to
+`weapons`, armour and gear to `inventory_items`, coin onto the purse — the same
+split v1 writes, which is also why an equipped inventory weapon counts as an
+action (§11.3a10).
+
+**Levels above the first are the level-up wizard's.** Creating a level 10
+character used to write the level 10 row and skip everything a level brings:
+three ability score improvements, a subclass, features, spells. Creation now
+writes the character at **level 1 hit points** with `pending_level_up` set and
+`preGrantLevel` at 1, then opens the multi-level wizard for levels 2..N before
+the sheet is ever reached.
+
+That is deliberately the same path a DM's grant takes, so a level 10 character
+built here is indistinguishable from one levelled up to 10 — rather than a
+second implementation of the rules to keep in step with the first.
+
+Two things this had to get right:
+
+- **The engine is told level 1, not the target.** `enhanceCharacterCreation`
+  sizes hit points for whatever level it is given; handing it the target would
+  have it write the average for every level and the wizard would then add them
+  again. The insert writes level 1 hit points explicitly too, so the double
+  count cannot happen even if the engine fails to load.
+- **The dialog can be closed.** Someone who dismisses it mid-flow would
+  otherwise be left with a level 10 character carrying level 1 hit points and
+  nothing on screen saying so. The campaign step behind it now says what is
+  still owed and offers to resume; the sheet's banner catches it as well.
 
 ### 11.3b Review fixes
 

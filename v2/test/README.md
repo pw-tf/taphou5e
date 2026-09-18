@@ -73,6 +73,13 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- The starting kit: the gear step listing the class and background kit with its
+  coin, taking it writing weapons to `weapons` and gear to `inventory_items`
+  with the background's gold on the purse, and skipping it writing neither
+- Creating above level 1: the row written at level 1 hit points and flagged,
+  the level-up wizard opening for the levels above with one hit point choice
+  each and the improvements the range owes, and the step behind it saying what
+  is still owed if the dialog is closed
 - Chapters (formerly storylines): a check showing its success and failure text,
   chapter and beat notes coming from `dm_notes` rather than a column a revealed
   row would hand to players, the summary not being clamped, and edit routes for

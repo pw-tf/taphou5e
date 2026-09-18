@@ -15,7 +15,17 @@
 (function () {
     if (!requireSession()) return;
 
-    const STEPS = ['Identity', 'Abilities', 'Review', 'Campaign'];
+    // Ids rather than positions: inserting a step used to mean renumbering
+    // every branch that mentioned one, which is how a step gets missed.
+    const STEPS = [
+        { id: 'identity',  label: 'Identity' },
+        { id: 'abilities', label: 'Abilities' },
+        { id: 'gear',      label: 'Gear' },
+        { id: 'review',    label: 'Review' },
+        { id: 'campaign',  label: 'Campaign' }
+    ];
+    const stepId = () => STEPS[state.step].id;
+    const stepIndex = id => STEPS.findIndex(x => x.id === id);
 
     const state = {
         step: 0,
@@ -29,10 +39,13 @@
         arraySlots: {},                           // ability -> index into STANDARD_ARRAY
         rolled: null,                             // the six rolls, once rolled
         halfElf: [],                              // two long ability names
+        // Gear
+        takeKit: true,                            // start with the class kit
         // Campaign
         campaigns: [],
         campaignId: '',
-        createdId: null
+        createdId: null,
+        levelled: false                           // the level-up wizard finished
     };
 
     // ---- Step gating ---------------------------------------------------
@@ -40,14 +53,14 @@
     // Each step says what is missing rather than silently disabling Next, so
     // a blocked wizard always explains itself.
     function blockers() {
-        if (state.step === 0) {
+        if (stepId() === 'identity') {
             if (!state.name.trim()) return 'Give the character a name.';
             if (!state.playerName.trim()) return 'Say who is playing them.';
             if (state.level === null) return 'Give them a level between 1 and 20.';
             if (state.level < 1 || state.level > 20) return 'Level must be between 1 and 20.';
             return null;
         }
-        if (state.step === 1) {
+        if (stepId() === 'abilities') {
             if (state.method === 'standard') {
                 const used = Object.values(state.arraySlots).filter(v => v !== undefined && v !== '');
                 if (used.length < 6) return 'Assign all six numbers from the array.';
@@ -70,12 +83,24 @@
         return withRacialBonuses(state.scores, state.race, state.halfElf);
     }
 
+    // The engine and the ability_scores table both key by the long names.
+    function withLongKeys(scores) {
+        const out = {};
+        ABILITIES.forEach(a => out[ABILITY_LONG[a]] = scores[a]);
+        return out;
+    }
+
     function derived() {
         const level = clampLevel(state.level);
         const final = finalScores();
         const conMod = getModifier(final.con);
         return {
             final,
+            level,
+            // What the row starts at. Levels above the first are the wizard's
+            // to add, so writing the target level's total here would have them
+            // counted twice -- once now and once per level in the wizard.
+            hpAtOne: calcHP(state.cls, 1, conMod),
             hp: calcHP(state.cls, level, conMod),
             ac: 10 + getModifier(final.dex),
             initiative: getModifier(final.dex),
@@ -90,10 +115,10 @@
     function progress() {
         return `
             <ol class="wizard-steps" aria-label="Progress">
-                ${STEPS.map((label, i) => `
+                ${STEPS.map((step, i) => `
                     <li class="${i === state.step ? 'is-current' : i < state.step ? 'is-done' : ''}">
                         <span class="dot">${i < state.step ? '&check;' : i + 1}</span>
-                        <span class="label">${escapeHtml(label)}</span>
+                        <span class="label">${escapeHtml(step.label)}</span>
                     </li>`).join('')}
             </ol>`;
     }
@@ -106,7 +131,9 @@
             <div class="wizard-nav">
                 <button class="btn" id="wz-back" ${state.step === 0 ? 'disabled' : ''}>Back</button>
                 <button class="btn btn-accent" id="wz-next" ${blocked || state.saving ? 'disabled' : ''}>
-                    ${state.saving ? 'Creating&hellip;' : last ? 'Finish' : state.step === 2 ? 'Create character' : 'Next'}
+                    ${state.saving ? 'Creating&hellip;'
+                        : last ? 'Finish'
+                        : stepId() === 'review' ? 'Create character' : 'Next'}
                 </button>
             </div>`;
     }
@@ -393,6 +420,78 @@
         }));
     }
 
+    // ---- Step 3: starting gear -------------------------------------------
+
+    function stepGear() {
+        const kit = startingKitSummary(state.cls, state.background);
+        const level = clampLevel(state.level);
+
+        if (kit.empty) {
+            return `
+                <div class="empty-state">
+                    <h3>No starting kit</h3>
+                    <p>A ${escapeHtml(state.cls)} with the ${escapeHtml(state.background)} background
+                       has nothing recorded to start with. Add gear from the sheet once they exist.</p>
+                </div>`;
+        }
+
+        const group = (label, rows, render) => rows.length ? `
+            <div class="section-head"><span class="eyebrow">${label}</span><span class="rule"></span></div>
+            <div class="stack">${rows.map(render).join('')}</div>` : '';
+
+        return `
+            <p class="hint">
+                ${escapeHtml(state.cls)} and ${escapeHtml(state.background)} start with the following.
+                ${level > 1
+                    ? `This is the level 1 kit &mdash; at level ${level} it is a baseline to edit rather than what they would really carry.`
+                    : ''}
+            </p>
+            <div class="method-grid" role="radiogroup" aria-label="Starting gear">
+                <button class="method-tile${state.takeKit ? ' is-on' : ''}" role="radio"
+                        aria-checked="${state.takeKit}" data-kit="yes">
+                    <span class="title">Start equipped</span>
+                    <span class="blurb">Add everything below</span>
+                </button>
+                <button class="method-tile${state.takeKit ? '' : ' is-on'}" role="radio"
+                        aria-checked="${!state.takeKit}" data-kit="no">
+                    <span class="title">Start with nothing</span>
+                    <span class="blurb">An empty pack and no coin</span>
+                </button>
+            </div>
+            ${group('Weapons', kit.weapons, w => `
+                <div class="list-row">
+                    <div class="who">
+                        <div class="name">${escapeHtml(w.name)}</div>
+                        <div class="meta">${escapeHtml(w.damage || '')} ${escapeHtml(w.damage_type || '')}</div>
+                    </div>
+                </div>`)}
+            ${group('Armour', kit.armour, a => `
+                <div class="list-row">
+                    <div class="who">
+                        <div class="name">${escapeHtml(a.name)}</div>
+                        <div class="meta">${escapeHtml(a.description || '')}</div>
+                    </div>
+                </div>`)}
+            ${group('Gear', kit.gear, g => `
+                <div class="list-row">
+                    <div class="who">
+                        <div class="name">${escapeHtml(g.name)}</div>
+                        <div class="meta">${escapeHtml(g.description || '')}</div>
+                    </div>
+                    ${(g.quantity || 1) > 1 ? `<div class="mono lvl">&times;${g.quantity}</div>` : ''}
+                </div>`)}
+            ${kit.gold ? `
+                <div class="section-head"><span class="eyebrow">Coin</span><span class="rule"></span></div>
+                <div class="chipline"><div class="chip">${kit.gold}<span>GP</span></div></div>` : ''}`;
+    }
+
+    function wireGear() {
+        $$('[data-kit]').forEach(b => b.addEventListener('click', () => {
+            state.takeKit = b.dataset.kit === 'yes';
+            render();
+        }));
+    }
+
     // ---- Step 3: review --------------------------------------------------
 
     function stepReview() {
@@ -417,7 +516,8 @@
                 }).join('')}
             </div>
             <div class="review-grid">
-                <div><span class="k">Hit points</span><span class="mono v">${d.hp}</span></div>
+                <div><span class="k">Hit points</span><span class="mono v">${
+                    d.level > 1 ? d.hpAtOne : d.hp}</span></div>
                 <div><span class="k">Armor class</span><span class="mono v">${d.ac}</span></div>
                 <div><span class="k">Initiative</span><span class="mono v">${formatMod(d.initiative)}</span></div>
                 <div><span class="k">Speed</span><span class="mono v">${d.speed} ft</span></div>
@@ -426,7 +526,10 @@
             </div>
             <p class="hint">
                 ${saves ? `Saving throw proficiency in ${escapeHtml(saves)}. ` : ''}
-                Skills, equipment and spells are set on the sheet once they exist.
+                ${d.level > 1
+                    ? `Creating them starts at level 1; the wizard then walks levels 2 to ${d.level}, `
+                      + 'asking for hit points, improvements, a subclass and features as they come.'
+                    : 'Skills and spells are set on the sheet once they exist.'}
             </p>`;
     }
 
@@ -436,23 +539,33 @@
         if (!state.createdId) {
             return `<div class="error-banner">The character was not created. Go back and try again.</div>`;
         }
+
+        const owed = clampLevel(state.level) > 1 && !state.levelled
+            ? `<button class="levelup-banner" onclick="resumeLevelling()">
+                   <span class="body">
+                       <span class="title">Levels 2 to ${clampLevel(state.level)} are still owed</span>
+                       <span class="meta">Hit points, improvements and a subclass. Their sheet will ask too.</span>
+                   </span>
+                   <span class="go">&rarr;</span>
+               </button>`
+            : '';
         // campaign_characters is dm_all / player_read: a player's insert would
         // be refused by the policy, so don't offer a choice that cannot work.
         if (!isDM) {
-            return `
+            return owed + `
                 <div class="empty-state">
                     <h3>${escapeHtml(state.name)} is in the world</h3>
                     <p>Your DM adds characters to a campaign from the campaign page. ${escapeHtml(state.name)} is ready either way.</p>
                 </div>`;
         }
         if (!state.campaigns.length) {
-            return `
+            return owed + `
                 <div class="empty-state">
                     <h3>${escapeHtml(state.name)} is in the world</h3>
                     <p>This world has no campaigns yet. Characters belong to the world, so they can be pulled into a campaign whenever you make one.</p>
                 </div>`;
         }
-        return `
+        return owed + `
             <div class="review-head">
                 <h3>${escapeHtml(state.name)} is in the world</h3>
                 <p class="meta">Add them to a campaign now, or leave it &mdash; they can be pulled in from any campaign later.</p>
@@ -471,6 +584,8 @@
                     </button>`).join('')}
             </div>`;
     }
+
+    window.resumeLevelling = () => { runLevelling(); };
 
     function wireCampaign() {
         $$('[data-campaign]').forEach(b => b.addEventListener('click', () => {
@@ -503,8 +618,9 @@
             armor_class: d.ac,
             initiative_bonus: d.initiative,
             speed: d.speed,
-            hit_point_maximum: d.hp,
-            current_hit_points: d.hp,
+            hit_point_maximum: d.hpAtOne,
+            current_hit_points: d.hpAtOne,
+            pending_level_up: level > 1,
             temporary_hit_points: 0,
             hit_dice_total: `${level}d${hd}`,
             hit_dice_remaining: level,
@@ -546,13 +662,108 @@
         if (window.LevelUpEngine) {
             const base = {};
             ABILITIES.forEach(a => base[ABILITY_LONG[a]] = state.scores[a]);
+            // Level 1, always: the hit points for every level above it come
+            // from the level-up wizard, one choice at a time. Handing the
+            // engine the target level would have it write the average for all
+            // of them and the wizard would then add them a second time.
             await window.LevelUpEngine.enhanceCharacterCreation(
-                id, { race: state.race, class: state.cls, level },
+                id, { race: state.race, class: state.cls, level: 1 },
                 base, state.halfElf
             );
         }
 
+        if (state.takeKit) await insertStartingKit(id);
+
         return id;
+    }
+
+    // The class and background kit, in the same shape v1 writes it: weapons to
+    // the weapons table, armour and gear to inventory, coin onto the purse.
+    async function insertStartingKit(id) {
+        const kit = startingKitSummary(state.cls, state.background);
+        if (kit.empty) return;
+
+        try {
+            if (kit.weapons.length) {
+                await db.from('weapons').insert(kit.weapons.map(w => ({
+                    character_id: id,
+                    name: w.name, damage: w.damage, damage_type: w.damage_type,
+                    properties: w.properties, attack_bonus: w.attack_bonus || 0,
+                    equipped: !!w.equipped
+                })));
+            }
+
+            const carried = kit.armour.concat(kit.gear);
+            if (carried.length) {
+                await db.from('inventory_items').insert(carried.map(item => ({
+                    character_id: id,
+                    name: item.name, description: item.description || null,
+                    quantity: item.quantity ?? 1, weight: item.weight ?? null,
+                    item_type: item.item_type || 'Gear',
+                    equipped: false, attuned: false
+                })));
+            }
+
+            if (kit.gold) {
+                await db.from('currency').update({ gold: kit.gold }).eq('character_id', id);
+            }
+        } catch (err) {
+            // The character exists and is usable; gear can be added by hand.
+            console.error('Could not add the starting kit:', err);
+            toast('The character was created, but the starting kit was not added.', 'error');
+        }
+    }
+
+    // Levels 2 and up are handed to the level-up wizard rather than being
+    // written here. It already walks a range, asking for hit points per level
+    // and every improvement, subclass, spell and feature the range owes -- and
+    // it is the same path a DM grant takes, so a level 10 character built here
+    // is indistinguishable from one levelled up to 10.
+    async function runLevelling() {
+        const target = clampLevel(state.level);
+        const id = state.createdId;
+
+        try {
+            // preGrantLevel is what tells the wizard where the range starts;
+            // the row already says `target`, so this makes the span 2..target.
+            localStorage.setItem(`preGrantLevel_${id}`, '1');
+            localStorage.setItem(`targetLevel_${id}`, String(target));
+        } catch (e) { /* private mode: the wizard falls back to the row */ }
+
+        if (typeof window.openLevelUp !== 'function') {
+            toast('Finish levelling them up from their sheet.', 'error');
+            return;
+        }
+
+        // Everything the wizard needs is already known here, except the
+        // ability scores -- the engine adjusted those for race on the way in,
+        // so they are read back rather than assumed.
+        const { data: stored } = await db
+            .from('ability_scores').select('*').eq('character_id', id).single();
+
+        const character = {
+            id,
+            name: state.name.trim(),
+            class: state.cls,
+            subclass: state.subclass.trim() || null,
+            level: target,
+            experience_points: 0,
+            pending_level_up: true,
+            hit_point_maximum: derived().hpAtOne,
+            current_hit_points: derived().hpAtOne,
+            ability_scores: stored || withLongKeys(finalScores()),
+            // A character this new owns none of these yet, and saying so
+            // saves the wizard three queries that can only come back empty.
+            features_traits: [],
+            spells: [],
+            spell_slots: []
+        };
+
+        window.openLevelUp(character, () => {
+            state.levelled = true;
+            // Back to the campaign step, which is where the wizard left off.
+            render();
+        });
     }
 
     async function joinCampaign() {
@@ -585,7 +796,7 @@
 
         // Leaving review is where the write happens; the campaign step needs
         // a character to attach to.
-        if (state.step === 2) {
+        if (stepId() === 'review') {
             state.saving = true;
             render();
             try {
@@ -599,12 +810,18 @@
                 return;
             }
             state.saving = false;
-            state.step = 3;
+            state.step = stepIndex('campaign');
             render();
+
+            // Everything a level brings -- hit points, improvements, a
+            // subclass, features -- is owed before the character is finished,
+            // so the level-up wizard runs here rather than waiting on the
+            // sheet. It is the same one the DM panel's grants use.
+            if (clampLevel(state.level) > 1) await runLevelling();
             return;
         }
 
-        if (state.step === 3) {
+        if (stepId() === 'campaign') {
             state.saving = true;
             render();
             try {
@@ -627,7 +844,7 @@
         if (state.step === 0) return;
         // The character already exists by the campaign step; stepping back
         // into review would offer to create a second one.
-        if (state.step === 3) return;
+        if (stepId() === 'campaign') return;
         state.step -= 1;
         render();
     }
@@ -642,9 +859,10 @@
         });
 
         const body =
-            state.step === 0 ? stepIdentity() :
-            state.step === 1 ? stepAbilities() :
-            state.step === 2 ? stepReview() : stepCampaign();
+            stepId() === 'identity'  ? stepIdentity() :
+            stepId() === 'abilities' ? stepAbilities() :
+            stepId() === 'gear'      ? stepGear() :
+            stepId() === 'review'    ? stepReview() : stepCampaign();
 
         main.innerHTML = `
             <section class="wizard">
@@ -653,9 +871,10 @@
                 ${footer()}
             </section>`;
 
-        if (state.step === 0) wireIdentity();
-        if (state.step === 1) wireAbilities();
-        if (state.step === 3) wireCampaign();
+        if (stepId() === 'identity')  wireIdentity();
+        if (stepId() === 'abilities') wireAbilities();
+        if (stepId() === 'gear')      wireGear();
+        if (stepId() === 'campaign')  wireCampaign();
 
         $('#wz-next').addEventListener('click', next);
         $('#wz-back').addEventListener('click', back);

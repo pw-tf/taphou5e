@@ -522,6 +522,33 @@ MENU_SHAPE_JS = """() => {
 }"""
 
 
+async def wizard_back_to(page, selector):
+    """Step back through the wizard until `selector` is on screen.
+
+    Same reason as wizard_to_review: callers should not have to count steps.
+    """
+    for _ in range(4):
+        if await page.locator(selector).count():
+            return
+        await page.click("#wz-back")
+        await page.wait_for_timeout(250)
+    assert await page.locator(selector).count(), f"never reached {selector}"
+
+
+async def wizard_to_review(page):
+    """Advance the creation wizard from abilities to review.
+
+    The gear step sits between them; naming it here keeps every caller from
+    having to know that.
+    """
+    await page.click("#wz-next")
+    await page.wait_for_selector('.method-grid[aria-label="Starting gear"], .review-scores',
+                                 timeout=5000)
+    if await page.locator('.method-grid[aria-label="Starting gear"]').count():
+        await page.click("#wz-next")
+    await page.wait_for_selector(".review-scores", timeout=5000)
+
+
 async def act(page, label):
     """Trigger a page action by label, through whichever control is showing.
 
@@ -584,13 +611,14 @@ def check_rules_parity():
         return re.sub(r"\s+", " ", src[start:i])
 
     for name in ("SKILLS", "ABILITIES", "ABILITY_FULL", "HIT_DICE", "ASI_LEVELS",
-                 "SUBCLASSES", "FEATS"):
+                 "SUBCLASSES", "FEATS",
+                 "CLASS_STARTING_EQUIPMENT", "BACKGROUND_STARTING_EQUIPMENT"):
         try:
             a, b = block_of(app, name), block_of(rules, name)
         except ValueError:
             raise AssertionError(f"{name} is missing from one of the two files")
         assert a == b, f"{name} has drifted between app.js and v2/js/rules.js"
-    ok(f"the rules constants v2 copies still match v1's ({7} of them)")
+    ok(f"the rules constants v2 copies still match v1's ({9} of them)")
 
     # These are expressions, not blocks, so compare them literally.
     for line in ("const getModifier = score => Math.floor((score - 10) / 2);",
@@ -2008,8 +2036,7 @@ async def main():
         ok(f"the racial bonus is shown on the score before saving ({text.split()})")
 
         assert not await page.locator("#wz-next").is_disabled()
-        await page.click("#wz-next")
-        await page.wait_for_selector(".review-scores", timeout=5000)
+        await wizard_to_review(page)
 
         review = await page.locator(".review-grid").inner_text()
         # Barbarian d12, CON 13+1 = 14 (+2): 12 + 2 = 14 hit points at level 1.
@@ -2017,8 +2044,7 @@ async def main():
         ok("review shows the hit points the engine will store")
 
         # ---------- 43. Point buy ----------
-        await page.click("#wz-back")
-        await page.wait_for_selector(".method-grid", timeout=5000)
+        await wizard_back_to(page, '[data-method="pointbuy"]')
         await page.click('[data-method="pointbuy"]')
         await page.wait_for_timeout(250)
 
@@ -2053,8 +2079,7 @@ async def main():
         ok("stepping 15 back down to 14 refunds two points, not one")
 
         # ---------- 44. Half-Elf, and what creation writes ----------
-        await page.click("#wz-back")
-        await page.wait_for_selector("#wz-race", timeout=5000)
+        await wizard_back_to(page, "#wz-race")
         await page.select_option("#wz-race", "Half-Elf")
         await page.wait_for_timeout(250)
         await page.click("#wz-next")
@@ -2074,10 +2099,9 @@ async def main():
         ok("choosing two abilities unblocks the step")
 
         await page.evaluate("window.__resetWrites()")
+        await wizard_to_review(page)
         await page.click("#wz-next")
-        await page.wait_for_selector(".review-scores", timeout=5000)
-        await page.click("#wz-next")
-        await page.wait_for_timeout(1200)
+        await page.wait_for_timeout(1400)
 
         writes = await page.evaluate("window.__writes")
         made = [w for w in writes if w["table"] == "characters" and w["verb"] == "insert"]
@@ -2909,6 +2933,139 @@ async def main():
         await page.wait_for_timeout(300)
         assert await page.locator("#modal-host").count() == 0, "a backdrop press should still dismiss"
         ok("a press that starts and ends on the backdrop still dismisses")
+
+        # ---------- 62. The starting kit ----------
+        await page.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await page.wait_for_selector("#wz-name", timeout=10000)
+        await page.fill("#wz-name", "Hrothgar")
+        await page.fill("#wz-player", "Sam")
+        await page.select_option("#wz-class", "Barbarian")
+        await page.wait_for_timeout(250)
+        await page.select_option("#wz-background", "Acolyte")
+        await page.wait_for_timeout(250)
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+        await page.click('[data-method="manual"]')
+        await page.wait_for_timeout(200)
+        await page.click("#wz-next")
+        await page.wait_for_selector('.method-grid[aria-label="Starting gear"]', timeout=5000)
+
+        gear = await page.locator(".wizard-body").inner_text()
+        # A Barbarian's kit, plus the Acolyte's gear and coin.
+        assert "Greataxe" in gear and "Javelin" in gear, gear
+        assert "Holy Symbol" in gear, gear
+        assert "15" in gear and "GP" in gear, gear
+        ok("the gear step lists the class and background kit, with its coin")
+
+        await page.evaluate("window.__resetWrites()")
+        await wizard_to_review(page)
+        await page.click("#wz-next")
+        await page.wait_for_timeout(1400)
+
+        writes = await page.evaluate("window.__writes")
+        weapons = [w for w in writes if w["table"] == "weapons" and w["verb"] == "insert"]
+        assert weapons, [w["table"] for w in writes]
+        names = [row["name"] for row in weapons[-1]["payload"]]
+        assert "Greataxe" in names and names.count("Javelin") == 4, names
+        ok(f"taking the kit writes the class weapons ({len(names)} of them)")
+
+        carried = [w for w in writes if w["table"] == "inventory_items" and w["verb"] == "insert"][-1]
+        carried_names = [row["name"] for row in carried["payload"]]
+        assert "Explorer's Pack" in carried_names, carried_names
+        assert "Holy Symbol" in carried_names, "background gear comes too"
+        ok("armour and gear go to the inventory, not the weapons table")
+
+        purse = [w for w in writes if w["table"] == "currency" and w["verb"] == "update"]
+        assert purse and purse[-1]["payload"]["gold"] == 15, purse
+        ok("the background's coin lands on the purse")
+
+        # ---------- 63. Skipping the kit ----------
+        await page.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await page.wait_for_selector("#wz-name", timeout=10000)
+        await page.fill("#wz-name", "Pauper")
+        await page.fill("#wz-player", "Sam")
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+        await page.click('[data-method="manual"]')
+        await page.wait_for_timeout(200)
+        await page.click("#wz-next")
+        await page.wait_for_selector('[data-kit="no"]', timeout=5000)
+        await page.click('[data-kit="no"]')
+        await page.wait_for_timeout(200)
+        await page.evaluate("window.__resetWrites()")
+        await wizard_to_review(page)
+        await page.click("#wz-next")
+        await page.wait_for_timeout(1400)
+
+        writes = await page.evaluate("window.__writes")
+        assert not [w for w in writes if w["table"] == "weapons"], "no kit means no weapons"
+        purse = [w for w in writes if w["table"] == "currency" and w["verb"] == "update"]
+        assert not purse, "no kit means no coin"
+        ok("starting with nothing writes no weapons and no coin")
+
+        # ---------- 64. Creating above level 1 ----------
+        # The character is written at level 1 and the level-up wizard runs for
+        # the levels above it, so every improvement is offered before the
+        # sheet rather than being silently skipped.
+        await page.goto(f"{BASE}/v2/character-new.html", wait_until="domcontentloaded")
+        await page.wait_for_selector("#wz-level", timeout=10000)
+        await page.fill("#wz-name", "Veteran")
+        await page.fill("#wz-player", "Sam")
+        await page.select_option("#wz-class", "Barbarian")
+        await page.wait_for_timeout(250)
+        level = page.locator("#wz-level")
+        await level.click()
+        await page.keyboard.type("6")
+        await page.locator("#wz-name").click()
+        await page.wait_for_timeout(200)
+        assert await level.input_value() == "6"
+
+        await page.click("#wz-next")
+        await page.wait_for_selector(".method-grid", timeout=5000)
+        await page.click('[data-method="manual"]')
+        await page.wait_for_timeout(200)
+        await wizard_to_review(page)
+
+        review = await page.locator(".wizard-body").inner_text()
+        assert "levels 2 to 6" in review, review
+        ok("review says the wizard will walk the levels above the first")
+
+        await page.evaluate("window.__resetWrites()")
+        await page.click("#wz-next")
+        await page.wait_for_selector(".wizard-steps", timeout=10000)
+        await page.wait_for_timeout(1200)
+
+        writes = await page.evaluate("window.__writes")
+        made = [w for w in writes if w["table"] == "characters" and w["verb"] == "insert"][-1]
+        # A d12 Barbarian with CON 10: 12 hit points at level 1, not level 6's.
+        assert made["payload"]["hit_point_maximum"] == 12, made
+        assert made["payload"]["level"] == 6, made
+        assert made["payload"]["pending_level_up"] is True, made
+        ok("the row is written at level 1 hit points, flagged for the levels above")
+
+        title = await page.locator(".modal-head h2").inner_text()
+        assert "1" in title and "6" in title, title
+        rows = await page.locator(".hp-choice-row").count()
+        assert rows == 5, f"levels 2 to 6 is five choices, got {rows}"
+        ok(f"the level-up wizard opens for levels 2 to 6 ({title})")
+
+        # Scoped to the dialog: the creation wizard's own step list is still
+        # on the page behind it, so a bare .wizard-steps matches both.
+        steps = [t.strip() for t in
+                 await page.locator("#modal-host .wizard-steps li .label").all_inner_texts()]
+        # Barbarians take an ability score improvement at 4, which is in range.
+        assert "ASI" in steps, steps
+        assert "Subclass" in steps, steps
+        assert "Identity" not in steps, "this should be the level-up wizard's steps, not creation's"
+        ok(f"the improvements a level 6 Barbarian is owed are offered ({steps})")
+
+        # The dialog can be closed, so the step behind it has to say what is
+        # still owed rather than letting someone leave with level 1 hit points.
+        await page.click("#modal-close")
+        await page.wait_for_timeout(400)
+        banner = await page.locator(".levelup-banner").inner_text()
+        assert "2 to 6" in banner, banner
+        ok("closing the wizard leaves the step saying what is still owed")
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
