@@ -891,7 +891,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (307 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (314 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -1629,6 +1629,26 @@ Every field on a card is free text typed by an anonymous submitter, so it is
 all escaped on the way out and the message keeps its line breaks through
 `white-space: pre-wrap` rather than through markup the page would have to
 trust. One fixture report carries a `<script>` tag for exactly that reason.
+
+### 11.3a18 Ten worlds a page
+
+The worlds table rendered every row. With 194 worlds that is a wall, and the
+sections below it are unreachable without a long scroll past data nobody asked
+to see all of. It now pages at ten.
+
+Two details worth keeping:
+
+**Sorting returns to page one.** A new order makes "page 7" meaningless — the
+rows there are not the rows you were looking at, and nothing on screen explains
+why. Starting over is the only reading of it that is not confusing.
+
+**The page number is clamped, not reset, on a redraw.** A refresh keeps your
+place, and a page that no longer exists (worlds deleted since the last load)
+lands on the last one that does rather than rendering an empty table.
+
+The pager renders only when there is more than one page. A lone page of three
+worlds does not need a control telling you so, and the section heading already
+carries the count.
 
 ### 11.3b Review fixes
 

@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 307 assertions.
+version router. 314 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -184,6 +184,10 @@ the passes or the select-on-focus behaviour is never exercised.
   a report back from the Archived tab
 - That a report's message renders as text: one fixture carries a `<script>`
   tag, and the page must show it rather than run it
+- The worlds table paging at ten a page: the row count, what the pager says,
+  Previous dead on the first page and Next dead on the last, the remainder
+  landing on the last page, re-sorting returning to page one rather than
+  stranding you deep in a new order, and no pager at all when everything fits
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
 network at all.

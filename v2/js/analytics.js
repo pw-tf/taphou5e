@@ -37,7 +37,11 @@ const SECTIONS = [
 
 let data = null;                                    // last successful load
 let worldSort = { key: 'characters', dir: -1 };     // table sort state
+let worldPage = 0;                                  // worlds table, zero-based
 let showArchived = false;                           // feedback inbox filter
+
+// 194 worlds in one table is a wall. Ten is a screenful.
+const WORLDS_PER_PAGE = 10;
 
 // ========================================
 // Helpers
@@ -390,12 +394,20 @@ function worldsTable(rows) {
         return ((Number(x) || 0) - (Number(y) || 0)) * worldSort.dir;
     });
 
+    // Clamped rather than reset, so a refresh keeps your place -- and a page
+    // that no longer exists (worlds deleted since the last load) lands on the
+    // last one that does rather than rendering an empty table.
+    const pages = Math.max(1, Math.ceil(sorted.length / WORLDS_PER_PAGE));
+    worldPage = Math.min(Math.max(worldPage, 0), pages - 1);
+    const from = worldPage * WORLDS_PER_PAGE;
+    const page = sorted.slice(from, from + WORLDS_PER_PAGE);
+
     const head = WORLD_COLUMNS.map(col => `
         <th class="sortable" data-sort="${col.key}">${escapeHtml(col.label)}${
             worldSort.key === col.key ? `<span class="arrow">${worldSort.dir < 0 ? '↓' : '↑'}</span>` : ''
         }</th>`).join('');
 
-    const body = sorted.map(r => `
+    const body = page.map(r => `
         <tr>
             <td class="name">${escapeHtml(r.name)}</td>
             <td><span class="status-pill${r.active ? ' is-active' : ' is-completed'}">${r.active ? 'Active' : 'Archived'}</span></td>
@@ -413,13 +425,35 @@ function worldsTable(rows) {
             <td class="muted">${escapeHtml(formatDate(r.created))}</td>
         </tr>`).join('');
 
+    // Only when there is somewhere to go. A lone page of three worlds does not
+    // need a pager telling you so -- the section heading already has the count.
+    const pager = pages > 1 ? `
+        <div class="an-pager">
+            <span class="range">${num(from + 1)}–${num(from + page.length)} of ${num(sorted.length)} worlds</span>
+            <div class="controls">
+                <button class="btn btn-quiet" type="button" data-world-page="prev"
+                        ${worldPage === 0 ? 'disabled' : ''}>Previous</button>
+                <span class="mono page-of">Page ${worldPage + 1} of ${pages}</span>
+                <button class="btn btn-quiet" type="button" data-world-page="next"
+                        ${worldPage >= pages - 1 ? 'disabled' : ''}>Next</button>
+            </div>
+        </div>` : '';
+
     return `
-        <div class="an-table-wrap">
-            <table class="an-table" id="worlds-table">
-                <thead><tr>${head}</tr></thead>
-                <tbody>${body}</tbody>
-            </table>
+        <div id="worlds-block">
+            <div class="an-table-wrap">
+                <table class="an-table" id="worlds-table">
+                    <thead><tr>${head}</tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </div>
+            ${pager}
         </div>`;
+}
+
+function redrawWorlds() {
+    const block = $('#worlds-block');
+    if (block) block.outerHTML = worldsTable(worldRows(data));
 }
 
 function renderCampaigns(d) {
@@ -922,14 +956,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Sorting redraws the table alone, so the rest of the page stays put.
     $('#content').addEventListener('click', event => {
+        if (!data) return;
+
+        const step = event.target.closest('[data-world-page]');
+        if (step) {
+            worldPage += step.getAttribute('data-world-page') === 'next' ? 1 : -1;
+            redrawWorlds();
+            return;
+        }
+
         const header = event.target.closest('th[data-sort]');
-        if (!header || !data) return;
+        if (!header) return;
         const key = header.getAttribute('data-sort');
         worldSort = worldSort.key === key
             ? { key, dir: -worldSort.dir }
             : { key, dir: key === 'name' || key === 'leveling' ? 1 : -1 };
-        const table = $('#worlds-table');
-        if (table) table.closest('.an-table-wrap').outerHTML = worldsTable(worldRows(data));
+        // A new order makes page 7 meaningless, so sorting starts over.
+        worldPage = 0;
+        redrawWorlds();
     });
 
     $('#content').addEventListener('click', event => {

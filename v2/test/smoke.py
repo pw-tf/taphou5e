@@ -535,6 +535,15 @@ ANALYTICS_CHARACTERS = [
     _ac("a6", "Dorn", "Dave", "w2", "Fighter", "Dwarf", 2, "Soldier", "Lawful Neutral", "2026-03-10T09:00:00Z"),
 ]
 
+# Twenty-three worlds, to page through at ten a page. Kept separate from
+# ANALYTICS_WORLDS so every assertion about the three-world dashboard stays put.
+PAGED_WORLDS = [
+    {"id": f"p{n:02d}", "name": f"World {n:02d}", "is_active": n % 3 != 0,
+     "leveling_mode": "xp" if n % 2 else "milestone",
+     "created_at": f"2026-0{1 + n % 9}-0{1 + n % 8}T10:00:00Z"}
+    for n in range(1, 24)
+]
+
 # Reports for the inbox. One carries a script tag on purpose: everything in a
 # card is free text typed by an anonymous submitter.
 ANALYTICS_FEEDBACK = [
@@ -3670,6 +3679,11 @@ async def main():
         assert top[6] == "6", top                # chapters, from the RPC
         ok("the worlds table joins party counts to the campaign counts from the RPC")
 
+        # Three worlds fit on one page, so there is nothing to page through and
+        # no pager saying so -- the section heading already carries the count.
+        assert await page8.locator("#sec-worlds .an-pager").count() == 0
+        ok("a table that fits on one page shows no pager at all")
+
         # Sorting redraws the table alone; the page must not jump back to the top.
         await page8.click('#worlds-table th[data-sort="name"]')
         await page8.wait_for_timeout(120)
@@ -3794,6 +3808,67 @@ async def main():
         assert await page9.locator("#worlds-table tbody tr").count() == 3
         ok("a refused analytics_overview() locks only the campaign section; the rest still renders")
         await ctx9.close()
+
+        # ---------- Worlds table: paging ----------
+        ctx11 = await browser.new_context(viewport={"width": 1440, "height": 1000})
+        await ctx11.add_init_script(stub_with(
+            game_worlds=PAGED_WORLDS,
+            characters=[],
+            analytics_overview=ANALYTICS_OVERVIEW,
+            feedback=[]))
+        page11 = await ctx11.new_page()
+        watch(page11, "analytics-paging")
+        await page11.goto(f"{BASE}/analytics.html", wait_until="domcontentloaded")
+        await page11.fill("#gate-email", "owner@example.com")
+        await page11.fill("#gate-password", "letmein")
+        await page11.click("#gate-submit")
+        await page11.wait_for_selector("#worlds-table", timeout=10000)
+
+        # Sort by name so the order under test is the one being asserted, not
+        # whatever the default sort happens to leave equal rows in.
+        await page11.click('#worlds-table th[data-sort="name"]')
+        await page11.wait_for_timeout(150)
+
+        rows11 = page11.locator("#worlds-table tbody tr")
+        assert await rows11.count() == 10, await rows11.count()
+        ok("23 worlds render 10 rows, not 23")
+
+        pager = page11.locator("#sec-worlds .an-pager")
+        assert "1–10 of 23 worlds" in await pager.locator(".range").inner_text()
+        assert "Page 1 of 3" in await pager.locator(".page-of").inner_text()
+        assert await pager.locator('[data-world-page="prev"]').is_disabled()
+        assert not await pager.locator('[data-world-page="next"]').is_disabled()
+        ok("the pager says where you are, and Previous is dead on the first page")
+
+        first_page = [n.strip() for n in await page11.locator("#worlds-table td.name").all_inner_texts()]
+        assert first_page[0] == "World 01" and first_page[-1] == "World 10", first_page
+
+        await page11.click('[data-world-page="next"]')
+        await page11.wait_for_timeout(200)
+        second = [n.strip() for n in await page11.locator("#worlds-table td.name").all_inner_texts()]
+        assert second[0] == "World 11" and second[-1] == "World 20", second
+        assert "11–20 of 23 worlds" in await pager.locator(".range").inner_text()
+        ok("Next moves to the following ten, and none of them repeat")
+
+        await page11.click('[data-world-page="next"]')
+        await page11.wait_for_timeout(200)
+        last = [n.strip() for n in await page11.locator("#worlds-table td.name").all_inner_texts()]
+        assert last == ["World 21", "World 22", "World 23"], last
+        assert await pager.locator('[data-world-page="next"]').is_disabled()
+        assert "21–23 of 23 worlds" in await pager.locator(".range").inner_text()
+        ok("the last page holds the remainder, and Next is dead there")
+
+        # A new order makes "page 3" meaningless, so sorting starts over.
+        await page11.click('#worlds-table th[data-sort="characters"]')
+        await page11.wait_for_timeout(200)
+        assert "Page 1 of 3" in await pager.locator(".page-of").inner_text()
+        assert await page11.locator("#worlds-table tbody tr").count() == 10
+        ok("re-sorting returns to the first page rather than stranding you deep in a new order")
+
+        # Paging is a redraw of the table block alone.
+        assert await page11.locator(".an-section").count() == 7
+        ok("paging leaves the rest of the dashboard alone")
+        await ctx11.close()
 
         await browser.close()
 
