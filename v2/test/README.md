@@ -73,6 +73,11 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Check authoring: attaching to exactly one parent, sending only the field the
   check type uses, and refusing an out-of-range DC before it reaches the database
 - The root router: opted-in devices go to v2, everyone else stays on classic
+- The level-up dialog holding its scroll position when the improvement below
+  the fold is stepped, which a rebuild used to reset
+- Subclass rows: every one of the 102 carrying a summary, the info button
+  expanding in place without closing the wizard or selecting the subclass, an
+  SRD subclass showing its real description and a non-SRD one saying so
 - The starting kit: the gear step listing the class and background kit with its
   coin, taking it writing weapons to `weapons` and gear to `inventory_items`
   with the background's gold on the purse, and skipping it writing neither

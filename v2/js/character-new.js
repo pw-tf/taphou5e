@@ -852,6 +852,11 @@
     // ---- Render ----------------------------------------------------------
 
     function render() {
+        // renderShell replaces document.body, which resets the page scroll.
+        // Stepping an ability score near the bottom of the list would throw
+        // the page back to the top on every press.
+        const scrollY = window.scrollY;
+
         const main = renderShell({
             active: 'characters',
             title: 'New character',
@@ -878,6 +883,8 @@
 
         $('#wz-next').addEventListener('click', next);
         $('#wz-back').addEventListener('click', back);
+
+        if (scrollY) window.scrollTo(0, scrollY);
     }
 
     render();

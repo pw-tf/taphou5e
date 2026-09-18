@@ -222,6 +222,9 @@ FIXTURES = {
         {"index": "berserker", "name": "Berserker", "url": "/api/subclasses/berserker"}]},
     "srd_subclass_levels": {
         "berserker-5": {"features": [{"index": "berserker-mindless-rage", "name": "Mindless Rage"}]}},
+    "srd_subclass_berserker": {
+        "index": "berserker", "name": "Berserker",
+        "desc": ["For some barbarians, rage is a means to an end: that end being violence."]},
     "encounters_single": {"id": "e1", "campaign_id": "cam1", "game_world_id": "w1",
                           "name": "Ambush at the Ford", "status": "planned", "round": 0,
                           "active_combatant_id": None, "hide_monster_hp": True,
@@ -355,6 +358,7 @@ STUB = """
     if (feat) return json({ name: feat[1], desc: ['Fixture text for ' + feat[1] + '.'] });
     const sub = url.match(/\/api\/subclasses\/([a-z-]+)\/levels\/(\d+)$/);
     if (sub) return json(FIXTURES.srd_subclass_levels[sub[1] + '-' + sub[2]] || { features: [] });
+    if (/\/api\/subclasses\/berserker$/.test(url)) return json(FIXTURES.srd_subclass_berserker);
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
   };
 
@@ -509,6 +513,9 @@ TOUCH_SCROLL_JS = """({ x, y }) => new Promise(resolve => {
   setTimeout(() => target.dispatchEvent(new TouchEvent('touchmove', at(x, y - 60))), 80);
   setTimeout(() => { target.dispatchEvent(new TouchEvent('touchend', at(x, y - 60))); resolve(); }, 800);
 })"""
+
+BLANK_SUMMARIES_JS = """() =>
+  Object.values(SUBCLASSES).flat().filter(n => !subclassSummary(n))"""
 
 MENU_SHAPE_JS = """() => {
   const menu = document.querySelector('.fab-menu');
@@ -2191,7 +2198,7 @@ async def main():
         ok(f"taking the average for all fills every level ({total.strip()})")
 
         await lu.click("#lu-next")
-        await lu.wait_for_selector(".pick-list", timeout=5000)
+        await lu.wait_for_selector(".subclass-list", timeout=5000)
         assert await lu.locator('[data-subclass]').count() >= 7
         assert await lu.locator("#lu-next").is_disabled()
         ok("the subclass step blocks until one is chosen")
@@ -3066,6 +3073,118 @@ async def main():
         banner = await page.locator(".levelup-banner").inner_text()
         assert "2 to 6" in banner, banner
         ok("closing the wizard leaves the step saying what is still owed")
+
+        # ---------- 65. The wizard keeps its place ----------
+        # openPanel rebuilds the dialog on every redraw, which resets its
+        # scroll. With two levels owing an improvement, pressing + on the
+        # lower one threw the dialog back to the top on every click.
+        lvl = await browser.new_context(viewport={"width": 390, "height": 720})
+        await lvl.add_init_script(stub_with(characters_single=KORR))
+        await lvl.add_init_script("""
+            try {
+              localStorage.setItem('dnd-session', JSON.stringify({
+                gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
+                dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(),
+                timestamp: Date.now() }));
+              localStorage.setItem('preGrantLevel_c3', '3');
+              localStorage.setItem('targetLevel_c3', '8');
+            } catch (e) {}
+        """)
+        lp = await lvl.new_page()
+        watch(lp, "levelup-scroll")
+        await lp.goto(f"{BASE}/v2/character-sheet.html?id=c3", wait_until="domcontentloaded")
+        await lp.wait_for_selector(".levelup-banner", timeout=10000)
+        await lp.click(".levelup-banner")
+        await lp.wait_for_selector(".wizard-steps", timeout=10000)
+        await lp.wait_for_timeout(900)
+
+        await lp.click("#lu-avg-all")
+        await lp.wait_for_timeout(300)
+        await lp.click("#lu-next")
+        await lp.wait_for_selector("[data-asi]", timeout=5000)
+
+        # A Barbarian takes improvements at 4 and 8, so the range 4..8 owes
+        # two -- the second is well below the fold.
+        blocks = await lp.locator(".asi-block").count()
+        assert blocks == 2, f"levels 4 and 8 both owe an improvement, got {blocks}"
+
+        scroller = "#modal-host .modal"
+        await lp.evaluate(f"document.querySelector('{scroller}').scrollTop = 99999")
+        await lp.wait_for_timeout(200)
+        before = await lp.evaluate(f"document.querySelector('{scroller}').scrollTop")
+        assert before > 0, "the dialog should be scrollable for this to mean anything"
+
+        last_plus = lp.locator('.asi-block').last.locator('[data-delta="1"]').first
+        await last_plus.click()
+        await lp.wait_for_timeout(400)
+        after = await lp.evaluate(f"document.querySelector('{scroller}').scrollTop")
+        assert after > before - 40, f"scroll jumped from {before} to {after}"
+        ok(f"pressing + on the lower improvement keeps the dialog's place ({before} -> {after})")
+
+        # ---------- 66. Subclass info ----------
+        # Both improvements owe two points each before the step will let go.
+        for i in range(2):
+            block = lp.locator(".asi-block").nth(i)
+            for _ in range(2):
+                plus = block.locator('[data-delta="1"]:not([disabled])').first
+                if await plus.count():
+                    await plus.click()
+                    await lp.wait_for_timeout(200)
+        assert not await lp.locator("#lu-next").is_disabled(), \
+            await lp.locator(".wizard-blocker").inner_text()
+
+        await lp.click("#lu-next")
+        await lp.wait_for_selector("[data-subclass]", timeout=5000)
+
+        rows = await lp.locator(".subclass-row").count()
+        infos = await lp.locator(".info-btn").count()
+        assert rows == infos and rows >= 7, (rows, infos)
+        ok(f"every subclass carries an info button ({rows} of them)")
+
+        # Compare against what rules.js actually holds, rather than guessing at
+        # a word: "rage" is not a substring of "raging", which is how the first
+        # version of this assertion failed on correct output.
+        summary = (await lp.locator('[data-subclass="Path of the Berserker"] .summary').inner_text()).strip()
+        expected = await lp.evaluate("() => subclassSummary('Path of the Berserker')")
+        assert summary and summary == expected, (summary, expected)
+        blank = await lp.evaluate(BLANK_SUMMARIES_JS)
+        assert not blank, blank
+        ok("every row shows its one-line summary without opening anything")
+
+        # Reading about one expands it in place. There is one modal host, so a
+        # panel here would have closed the wizard to show the description and
+        # left nothing behind when it was dismissed.
+        await lp.click('[data-about="Path of the Zealot"]')
+        await lp.wait_for_selector(".subclass-about", timeout=5000)
+        await lp.wait_for_timeout(700)
+        assert await lp.locator(".wizard-steps").count() == 1, \
+            "the wizard must still be there"
+
+        about = await lp.locator(".subclass-about").inner_text()
+        # The Zealot is not in the SRD, so it says so rather than leaving a
+        # skeleton spinning forever.
+        assert "Not in the SRD" in about, about
+        ok("a subclass outside the SRD says so, inside the wizard")
+
+        chosen = await lp.locator(".subclass-row.is-on").count()
+        assert chosen == 0, "reading about a subclass must not select it"
+        ok("reading about a subclass does not choose it")
+
+        # One that IS in the SRD gets the real text.
+        await lp.click('[data-about="Path of the Berserker"]')
+        await lp.wait_for_timeout(900)
+        about = await lp.locator(".subclass-about").inner_text()
+        assert "means to an end" in about, about
+        assert await lp.locator(".subclass-about").count() == 1, "one open at a time"
+        ok("an SRD subclass shows its real description in place")
+
+        # And it still picks normally.
+        await lp.click('[data-subclass="Path of the Berserker"]')
+        await lp.wait_for_timeout(300)
+        assert await lp.locator(".subclass-row.is-on").count() == 1
+        assert not await lp.locator("#lu-next").is_disabled()
+        ok("the row beside the info button still chooses the subclass")
+        await lvl.close()
 
         # ---------- 41. Router ----------
         await page.evaluate("localStorage.setItem('taphou5e-ui','next')")
