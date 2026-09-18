@@ -163,6 +163,337 @@ function needsSubclassSelection(character) {
     return (character.level || 1) >= SUBCLASS_LEVEL && !character.subclass;
 }
 
+// ---- Starting equipment -----------------------------------------------
+//
+// The class and background kits v1 offers on creation, copied verbatim so the
+// parity check can compare them. 5e gives real choices here ("a martial weapon
+// and a shield OR two martial weapons"); v1 flattens each class to one
+// representative list, and matching that matters more than being thorough --
+// a character created in either version should arrive carrying the same thing.
+
+const CLASS_STARTING_EQUIPMENT = {
+    Barbarian: {
+        weapons: [
+            { name: "Greataxe", damage: "1d12", damage_type: "Slashing", properties: "Heavy, Two-Handed", attack_bonus: 0, equipped: false },
+            { name: "Handaxe", damage: "1d6", damage_type: "Slashing", properties: "Light, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Handaxe", damage: "1d6", damage_type: "Slashing", properties: "Light, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [],
+        gear: [
+            { name: "Explorer's Pack", description: "Backpack, bedroll, mess kit, tinderbox, 10 torches, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 59, item_type: "Gear" }
+        ]
+    },
+    Bard: {
+        weapons: [
+            { name: "Rapier", damage: "1d8", damage_type: "Piercing", properties: "Finesse", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Leather Armor", description: "AC 11 + Dex modifier", quantity: 1, weight: 10, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Diplomat's Pack", description: "Chest, 2 cases for maps/scrolls, fine clothes, bottle of ink, ink pen, lamp, 2 flasks of oil, 5 sheets of paper, vial of perfume, sealing wax, soap", quantity: 1, weight: 36, item_type: "Gear" },
+            { name: "Lute", description: "Musical instrument", quantity: 1, weight: 2, item_type: "Gear" }
+        ]
+    },
+    Cleric: {
+        weapons: [
+            { name: "Mace", damage: "1d6", damage_type: "Bludgeoning", properties: "", attack_bonus: 0, equipped: false },
+            { name: "Light Crossbow", damage: "1d8", damage_type: "Piercing", properties: "Ammunition, Loading, Two-Handed, Range (80/320)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Scale Mail", description: "AC 14 + Dex modifier (max 2), Disadvantage on Stealth", quantity: 1, weight: 45, item_type: "Armor" },
+            { name: "Shield", description: "+2 AC", quantity: 1, weight: 6, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Priest's Pack", description: "Backpack, blanket, 10 candles, tinderbox, alms box, 2 blocks of incense, censer, vestments, 2 days rations, waterskin", quantity: 1, weight: 24, item_type: "Gear" },
+            { name: "Holy Symbol", description: "Spellcasting focus", quantity: 1, weight: 1, item_type: "Gear" },
+            { name: "Crossbow Bolts", description: "Ammunition", quantity: 20, weight: 1.5, item_type: "Gear" }
+        ]
+    },
+    Druid: {
+        weapons: [
+            { name: "Scimitar", damage: "1d6", damage_type: "Slashing", properties: "Finesse, Light", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Leather Armor", description: "AC 11 + Dex modifier", quantity: 1, weight: 10, item_type: "Armor" },
+            { name: "Shield", description: "+2 AC (wooden)", quantity: 1, weight: 6, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Explorer's Pack", description: "Backpack, bedroll, mess kit, tinderbox, 10 torches, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 59, item_type: "Gear" },
+            { name: "Druidic Focus", description: "Spellcasting focus (wooden staff)", quantity: 1, weight: 4, item_type: "Gear" }
+        ]
+    },
+    Fighter: {
+        weapons: [
+            { name: "Longsword", damage: "1d8", damage_type: "Slashing", properties: "Versatile (1d10)", attack_bonus: 0, equipped: false },
+            { name: "Light Crossbow", damage: "1d8", damage_type: "Piercing", properties: "Ammunition, Loading, Two-Handed, Range (80/320)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Chain Mail", description: "AC 16, Str 13 required, Disadvantage on Stealth", quantity: 1, weight: 55, item_type: "Armor" },
+            { name: "Shield", description: "+2 AC", quantity: 1, weight: 6, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Dungeoneer's Pack", description: "Backpack, crowbar, hammer, 10 pitons, 10 torches, tinderbox, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 61.5, item_type: "Gear" },
+            { name: "Crossbow Bolts", description: "Ammunition", quantity: 20, weight: 1.5, item_type: "Gear" }
+        ]
+    },
+    Monk: {
+        weapons: [
+            { name: "Shortsword", damage: "1d6", damage_type: "Piercing", properties: "Finesse, Light", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dart", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Thrown (20/60)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [],
+        gear: [
+            { name: "Dungeoneer's Pack", description: "Backpack, crowbar, hammer, 10 pitons, 10 torches, tinderbox, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 61.5, item_type: "Gear" }
+        ]
+    },
+    Paladin: {
+        weapons: [
+            { name: "Longsword", damage: "1d8", damage_type: "Slashing", properties: "Versatile (1d10)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false },
+            { name: "Javelin", damage: "1d6", damage_type: "Piercing", properties: "Thrown (30/120)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Chain Mail", description: "AC 16, Str 13 required, Disadvantage on Stealth", quantity: 1, weight: 55, item_type: "Armor" },
+            { name: "Shield", description: "+2 AC", quantity: 1, weight: 6, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Priest's Pack", description: "Backpack, blanket, 10 candles, tinderbox, alms box, 2 blocks of incense, censer, vestments, 2 days rations, waterskin", quantity: 1, weight: 24, item_type: "Gear" },
+            { name: "Holy Symbol", description: "Spellcasting focus", quantity: 1, weight: 1, item_type: "Gear" }
+        ]
+    },
+    Ranger: {
+        weapons: [
+            { name: "Shortsword", damage: "1d6", damage_type: "Piercing", properties: "Finesse, Light", attack_bonus: 0, equipped: false },
+            { name: "Shortsword", damage: "1d6", damage_type: "Piercing", properties: "Finesse, Light", attack_bonus: 0, equipped: false },
+            { name: "Longbow", damage: "1d8", damage_type: "Piercing", properties: "Ammunition, Heavy, Two-Handed, Range (150/600)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Scale Mail", description: "AC 14 + Dex modifier (max 2), Disadvantage on Stealth", quantity: 1, weight: 45, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Dungeoneer's Pack", description: "Backpack, crowbar, hammer, 10 pitons, 10 torches, tinderbox, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 61.5, item_type: "Gear" },
+            { name: "Arrows", description: "Ammunition", quantity: 20, weight: 1, item_type: "Gear" }
+        ]
+    },
+    Rogue: {
+        weapons: [
+            { name: "Rapier", damage: "1d8", damage_type: "Piercing", properties: "Finesse", attack_bonus: 0, equipped: false },
+            { name: "Shortbow", damage: "1d6", damage_type: "Piercing", properties: "Ammunition, Two-Handed, Range (80/320)", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Leather Armor", description: "AC 11 + Dex modifier", quantity: 1, weight: 10, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Burglar's Pack", description: "Backpack, bag of 1000 ball bearings, 10 ft string, bell, 5 candles, crowbar, hammer, 10 pitons, hooded lantern, 2 flasks of oil, 5 days rations, tinderbox, waterskin, 50 ft hemp rope", quantity: 1, weight: 44.5, item_type: "Gear" },
+            { name: "Thieves' Tools", description: "Proficiency required to use", quantity: 1, weight: 1, item_type: "Gear" },
+            { name: "Arrows", description: "Ammunition", quantity: 20, weight: 1, item_type: "Gear" }
+        ]
+    },
+    Sorcerer: {
+        weapons: [
+            { name: "Light Crossbow", damage: "1d8", damage_type: "Piercing", properties: "Ammunition, Loading, Two-Handed, Range (80/320)", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [],
+        gear: [
+            { name: "Dungeoneer's Pack", description: "Backpack, crowbar, hammer, 10 pitons, 10 torches, tinderbox, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 61.5, item_type: "Gear" },
+            { name: "Arcane Focus", description: "Spellcasting focus (crystal)", quantity: 1, weight: 1, item_type: "Gear" },
+            { name: "Crossbow Bolts", description: "Ammunition", quantity: 20, weight: 1.5, item_type: "Gear" }
+        ]
+    },
+    Warlock: {
+        weapons: [
+            { name: "Light Crossbow", damage: "1d8", damage_type: "Piercing", properties: "Ammunition, Loading, Two-Handed, Range (80/320)", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false },
+            { name: "Dagger", damage: "1d4", damage_type: "Piercing", properties: "Finesse, Light, Thrown (20/60)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Leather Armor", description: "AC 11 + Dex modifier", quantity: 1, weight: 10, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Scholar's Pack", description: "Backpack, book of lore, bottle of ink, ink pen, 10 sheets of parchment, little bag of sand, small knife", quantity: 1, weight: 10, item_type: "Gear" },
+            { name: "Arcane Focus", description: "Spellcasting focus (rod)", quantity: 1, weight: 2, item_type: "Gear" },
+            { name: "Crossbow Bolts", description: "Ammunition", quantity: 20, weight: 1.5, item_type: "Gear" }
+        ]
+    },
+    Wizard: {
+        weapons: [
+            { name: "Quarterstaff", damage: "1d6", damage_type: "Bludgeoning", properties: "Versatile (1d8)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [],
+        gear: [
+            { name: "Scholar's Pack", description: "Backpack, book of lore, bottle of ink, ink pen, 10 sheets of parchment, little bag of sand, small knife", quantity: 1, weight: 10, item_type: "Gear" },
+            { name: "Spellbook", description: "Required for preparing spells", quantity: 1, weight: 3, item_type: "Gear" },
+            { name: "Component Pouch", description: "Spellcasting components", quantity: 1, weight: 2, item_type: "Gear" }
+        ]
+    },
+    Artificer: {
+        weapons: [
+            { name: "Light Crossbow", damage: "1d8", damage_type: "Piercing", properties: "Ammunition, Loading, Two-Handed, Range (80/320)", attack_bonus: 0, equipped: false }
+        ],
+        armor: [
+            { name: "Scale Mail", description: "AC 14 + Dex modifier (max 2), Disadvantage on Stealth", quantity: 1, weight: 45, item_type: "Armor" }
+        ],
+        gear: [
+            { name: "Dungeoneer's Pack", description: "Backpack, crowbar, hammer, 10 pitons, 10 torches, tinderbox, 10 days rations, waterskin, 50 ft hemp rope", quantity: 1, weight: 61.5, item_type: "Gear" },
+            { name: "Thieves' Tools", description: "Proficiency required to use", quantity: 1, weight: 1, item_type: "Gear" },
+            { name: "Crossbow Bolts", description: "Ammunition", quantity: 20, weight: 1.5, item_type: "Gear" }
+        ]
+    }
+};
+
+const BACKGROUND_STARTING_EQUIPMENT = {
+    Acolyte: {
+        gear: [
+            { name: "Holy Symbol", description: "A gift from when you entered the priesthood", quantity: 1, weight: 1, item_type: "Gear" },
+            { name: "Prayer Book", description: "A book of prayers", quantity: 1, weight: 2, item_type: "Gear" },
+            { name: "Incense", description: "5 sticks of incense", quantity: 5, weight: 0, item_type: "Gear" },
+            { name: "Vestments", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 15 }
+    },
+    Charlatan: {
+        gear: [
+            { name: "Fine Clothes", description: "A set of fine clothes", quantity: 1, weight: 6, item_type: "Gear" },
+            { name: "Disguise Kit", description: "Tools for creating disguises", quantity: 1, weight: 3, item_type: "Gear" },
+            { name: "Con Tools", description: "Stoppered bottles, weighted dice, marked cards, or signet ring", quantity: 1, weight: 1, item_type: "Gear" }
+        ],
+        currency: { gold: 15 }
+    },
+    Criminal: {
+        gear: [
+            { name: "Crowbar", description: "An iron crowbar", quantity: 1, weight: 5, item_type: "Gear" },
+            { name: "Dark Common Clothes", description: "A set of dark common clothes including a hood", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 15 }
+    },
+    Entertainer: {
+        gear: [
+            { name: "Musical Instrument", description: "One musical instrument of your choice", quantity: 1, weight: 3, item_type: "Gear" },
+            { name: "Favor of an Admirer", description: "A love letter, lock of hair, or trinket", quantity: 1, weight: 0, item_type: "Treasure" },
+            { name: "Costume", description: "A costume", quantity: 1, weight: 4, item_type: "Gear" }
+        ],
+        currency: { gold: 15 }
+    },
+    "Folk Hero": {
+        gear: [
+            { name: "Artisan's Tools", description: "One type of artisan's tools", quantity: 1, weight: 5, item_type: "Gear" },
+            { name: "Shovel", description: "A shovel", quantity: 1, weight: 5, item_type: "Gear" },
+            { name: "Iron Pot", description: "An iron pot", quantity: 1, weight: 10, item_type: "Gear" },
+            { name: "Common Clothes", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 10 }
+    },
+    "Guild Artisan": {
+        gear: [
+            { name: "Artisan's Tools", description: "One type of artisan's tools", quantity: 1, weight: 5, item_type: "Gear" },
+            { name: "Letter of Introduction", description: "A letter of introduction from your guild", quantity: 1, weight: 0, item_type: "Gear" },
+            { name: "Traveler's Clothes", description: "A set of traveler's clothes", quantity: 1, weight: 4, item_type: "Gear" }
+        ],
+        currency: { gold: 15 }
+    },
+    Hermit: {
+        gear: [
+            { name: "Scroll Case of Notes", description: "Notes from your studies or prayers", quantity: 1, weight: 1, item_type: "Gear" },
+            { name: "Winter Blanket", description: "A winter blanket", quantity: 1, weight: 3, item_type: "Gear" },
+            { name: "Common Clothes", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" },
+            { name: "Herbalism Kit", description: "An herbalism kit", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 5 }
+    },
+    Noble: {
+        gear: [
+            { name: "Fine Clothes", description: "A set of fine clothes", quantity: 1, weight: 6, item_type: "Gear" },
+            { name: "Signet Ring", description: "A signet ring", quantity: 1, weight: 0, item_type: "Treasure" },
+            { name: "Scroll of Pedigree", description: "A scroll of pedigree", quantity: 1, weight: 0, item_type: "Gear" }
+        ],
+        currency: { gold: 25 }
+    },
+    Outlander: {
+        gear: [
+            { name: "Staff", description: "A staff", quantity: 1, weight: 4, item_type: "Gear" },
+            { name: "Hunting Trap", description: "A hunting trap", quantity: 1, weight: 25, item_type: "Gear" },
+            { name: "Trophy", description: "A trophy from an animal you killed", quantity: 1, weight: 0, item_type: "Treasure" },
+            { name: "Traveler's Clothes", description: "A set of traveler's clothes", quantity: 1, weight: 4, item_type: "Gear" }
+        ],
+        currency: { gold: 10 }
+    },
+    Sage: {
+        gear: [
+            { name: "Bottle of Black Ink", description: "A bottle of black ink", quantity: 1, weight: 0, item_type: "Gear" },
+            { name: "Quill", description: "A quill", quantity: 1, weight: 0, item_type: "Gear" },
+            { name: "Small Knife", description: "A small knife", quantity: 1, weight: 0.5, item_type: "Gear" },
+            { name: "Letter from Dead Colleague", description: "A letter posing a question you cannot answer", quantity: 1, weight: 0, item_type: "Gear" },
+            { name: "Common Clothes", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 10 }
+    },
+    Sailor: {
+        gear: [
+            { name: "Belaying Pin (Club)", description: "A belaying pin (club)", quantity: 1, weight: 2, item_type: "Gear" },
+            { name: "Silk Rope", description: "50 feet of silk rope", quantity: 1, weight: 5, item_type: "Gear" },
+            { name: "Lucky Charm", description: "A rabbit foot or small stone with a hole", quantity: 1, weight: 0, item_type: "Treasure" },
+            { name: "Common Clothes", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 10 }
+    },
+    Soldier: {
+        gear: [
+            { name: "Insignia of Rank", description: "An insignia of rank", quantity: 1, weight: 0, item_type: "Treasure" },
+            { name: "Trophy from Fallen Enemy", description: "A dagger, broken blade, or piece of banner", quantity: 1, weight: 1, item_type: "Treasure" },
+            { name: "Bone Dice", description: "A set of bone dice or deck of cards", quantity: 1, weight: 0, item_type: "Gear" },
+            { name: "Common Clothes", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 10 }
+    },
+    Urchin: {
+        gear: [
+            { name: "Small Knife", description: "A small knife", quantity: 1, weight: 0.5, item_type: "Gear" },
+            { name: "Map of Home City", description: "A map of the city you grew up in", quantity: 1, weight: 0, item_type: "Gear" },
+            { name: "Pet Mouse", description: "A pet mouse", quantity: 1, weight: 0, item_type: "Other" },
+            { name: "Token of Parents", description: "A token to remember your parents by", quantity: 1, weight: 0, item_type: "Treasure" },
+            { name: "Common Clothes", description: "A set of common clothes", quantity: 1, weight: 3, item_type: "Gear" }
+        ],
+        currency: { gold: 10 }
+    }
+};
+
+// What the kit adds, for the prompt that offers it.
+function startingKitSummary(cls, background) {
+    const classKit = CLASS_STARTING_EQUIPMENT[cls];
+    const bgKit = BACKGROUND_STARTING_EQUIPMENT[background];
+    const weapons = (classKit && classKit.weapons) || [];
+    const armour = (classKit && classKit.armor) || [];
+    const gear = ((classKit && classKit.gear) || []).concat((bgKit && bgKit.gear) || []);
+    const gold = (bgKit && bgKit.currency && bgKit.currency.gold) || 0;
+
+    return {
+        weapons, armour, gear, gold,
+        empty: !weapons.length && !armour.length && !gear.length && !gold
+    };
+}
+
 // ---- Ability score generation -----------------------------------------
 
 const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
