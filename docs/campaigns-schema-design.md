@@ -1501,26 +1501,21 @@ the scroll offset just was not on that list. It is now, and `character-new.js`
 does the same for the page scroll, since `renderShell` replaces
 `document.body` and stepping an ability score had the same effect there.
 
-**Subclasses say what they are.** Each row now carries a one-line summary and
-an info button. Only **twelve of the hundred and two** subclasses are in the
-SRD; the rest are Player's Handbook and later books, so the API has nothing for
-them. The summaries in `rules.js` cover all 102 and are written from a working
-knowledge of 5e rather than copied — the panel says as much, and tells you to
-check the book before committing when there is no SRD text to back it up.
+**Subclasses say what they are.** Each row carries a one-line summary of what
+the subclass plays like. The summaries in `rules.js` cover all 102 and are
+written from a working knowledge of 5e rather than copied from a source book,
+so they are a nudge toward the right page rather than a spec.
 
-**The info opens in place, not in a panel.** The first version used
-`openPanel`, which starts with `closeModal()` — and there is one modal host, so
-reading about a subclass **destroyed the level-up wizard** and left nothing
-behind when the panel was dismissed. The description expands inside the row
-instead, which keeps the wizard intact and lets you compare two subclasses
-while choosing. A subclass with no SRD text says so rather than leaving a
-skeleton spinning.
+There is no info control and no SRD lookup. An earlier pass added both, with
+the full SRD description expanding under the row — but only twelve of the 102
+subclasses are in the SRD, so eleven rows in twelve led to a line apologising
+for having nothing to show. The one line is the useful part; the rest was
+furniture around it.
 
-The control sits **inside** the box with the name it belongs to, which means
-the row cannot be a `<button>` — a button cannot nest in another. It is a div
-carrying `role="radio"`, `aria-checked` and `tabindex`, with Enter and Space
-wired up, so it stays a real radio for a keyboard. The summary reserves the
-control's width so a long line never runs underneath it.
+(That pass did surface a real bug worth remembering: the control first opened
+its description with `openPanel`, which starts with `closeModal()`. There is
+one modal host, so reading about a subclass **destroyed the level-up wizard**
+and left nothing behind when the panel was dismissed.)
 
 ### 11.3b Review fixes
 

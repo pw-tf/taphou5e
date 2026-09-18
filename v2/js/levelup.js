@@ -68,7 +68,6 @@
             hp: range.levels.map(lvl => ({ level: lvl, amount: null, method: null })),
             asi: [],
             subclass: null,
-            about: null,              // subclass whose description is expanded
             spells: [],
             newSpells: []
         };
@@ -318,88 +317,26 @@
 
     // ---- Subclass ---------------------------------------------------------
 
-    // Descriptions expand in place rather than opening a panel. There is one
-    // modal host, so openPanel would have closed the wizard to show the info
-    // and left nothing behind when it was dismissed -- and reading about a
-    // subclass while choosing one is better side by side anyway.
-    const srdText = {};       // subclass name -> description, '' when absent
-
     function stepSubclass() {
         const options = SUBCLASSES[st.c.class] || [];
         return `
             <p class="hint">A ${escapeHtml(st.c.class)} chooses a subclass at level ${SUBCLASS_LEVEL}. Its features are added automatically where the SRD has them.</p>
             <div class="subclass-list" role="radiogroup" aria-label="Subclass">
-                ${options.map(name => {
-                    const open = st.about === name;
-                    const text = srdText[name];
-                    // The row is a div, not a button: the info control has to
-                    // live inside the box, and a button cannot nest in one.
-                    // role/tabindex/aria keep it a real radio regardless.
-                    return `
-                    <div class="subclass-row${st.subclass === name ? ' is-on' : ''}${open ? ' is-open' : ''}"
-                         data-subclass="${escapeHtml(name)}" role="radio"
-                         aria-checked="${st.subclass === name}" tabindex="0">
-                        <div class="subclass-head">
-                            <span class="name">${escapeHtml(name)}</span>
-                            <button class="info-btn${open ? ' is-on' : ''}" data-about="${escapeHtml(name)}"
-                                    type="button" aria-expanded="${open}"
-                                    aria-label="${open ? 'Hide' : 'Show'} details for ${escapeHtml(name)}">i</button>
-                        </div>
-                        <p class="summary">${escapeHtml(subclassSummary(name) || '')}</p>
-                        ${open ? `
-                            <div class="subclass-about">
-                                ${text === undefined
-                                    ? '<div class="skeleton"></div>'
-                                    : text
-                                        ? `<span class="eyebrow">From the SRD</span>
-                                           <p>${escapeHtml(text)}</p>`
-                                        : `<p class="hint">Not in the SRD &mdash; this one is from the
-                                           Player's Handbook or a later book, so the line above is all
-                                           the app has. Check the book before you commit to it.</p>`}
-                            </div>` : ''}
-                    </div>`;
-                }).join('')}
+                ${options.map(name => `
+                    <button class="subclass-row${st.subclass === name ? ' is-on' : ''}" type="button"
+                            data-subclass="${escapeHtml(name)}"
+                            role="radio" aria-checked="${st.subclass === name}">
+                        <span class="name">${escapeHtml(name)}</span>
+                        <span class="summary">${escapeHtml(subclassSummary(name) || '')}</span>
+                    </button>`).join('')}
             </div>`;
     }
 
     function wireSubclass() {
-        const choose = name => { st.subclass = name; render(); };
-
-        $$('[data-subclass]').forEach(row => {
-            row.addEventListener('click', () => choose(row.dataset.subclass));
-            row.addEventListener('keydown', e => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                choose(row.dataset.subclass);
-            });
-        });
-
-        $$('[data-about]').forEach(b => b.addEventListener('click', e => {
-            // The row around it picks the subclass; reading about one is not
-            // the same as taking it.
-            e.stopPropagation();
-            const name = b.dataset.about;
-            st.about = st.about === name ? null : name;
+        $$('[data-subclass]').forEach(row => row.addEventListener('click', () => {
+            st.subclass = row.dataset.subclass;
             render();
-            if (st.about) loadSubclassText(name);
         }));
-    }
-
-    // The SRD carries a real description for twelve of the hundred-odd
-    // subclasses. An empty string means "looked, found nothing", so a second
-    // press does not fetch again.
-    async function loadSubclassText(name) {
-        if (srdText[name] !== undefined) return;
-        try {
-            const list = await srdIndex(`classes/${st.c.class.toLowerCase()}/subclasses`);
-            const match = matchSubclass(list, name);
-            srdText[name] = match
-                ? [].concat((await srdDetail('subclasses', match.index)).desc || []).join('\n\n')
-                : '';
-        } catch (err) {
-            srdText[name] = '';
-        }
-        if (st && st.about === name) render();
     }
 
     // ---- Spells -----------------------------------------------------------
