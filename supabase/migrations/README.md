@@ -20,5 +20,19 @@ not a pending queue. Do not re-run them against that project.
 | 20260916114*   | cutover_drop_legacy_pin_columns |
 | 20260916114*   | verify_post_cutover_login |
 | 20260916114*   | cleanup_test_worlds_and_prune_attempts |
+| 20260916222904 | encounter_combatant_color_notes_group |
+| 20260916232428 | encounter_sharing |
+| 20260916232539 | fix_combatant_reference_cascade |
+| 20260916232609 | verify_sharing_and_cascade |
+| 20260917060636 | dm_prose_to_notes_and_rename_chapters |
+| 20260917061030 | rename_leftover_chapter_constraints |
+| 20260918032350 | analytics_overview_aggregates |
+| 20260918033024 | analytics_overview_checks_by_focus |
 
 The PIN cutover is complete. See `docs/campaigns-schema-design.md` §5.6-5.7.
+
+`20260918033024_analytics_overview_checks_by_focus.sql` is kept here in full,
+because it is the only function that reads the DM-only campaign layer on behalf
+of a caller who cannot. It supersedes `20260918032350` entirely (the earlier one
+grouped checks on `ability` alone, which reported 11 of 12 as unset). See
+`docs/campaigns-schema-design.md` §11.3a16.

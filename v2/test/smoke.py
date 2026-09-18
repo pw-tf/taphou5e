@@ -293,6 +293,16 @@ STUB = """
     window.__writes = [];
     try { sessionStorage.removeItem(WRITE_KEY); } catch (e) {}
   };
+  const AUTH_KEY = '__smoke_auth';
+  function readAuth() {
+    try { return JSON.parse(sessionStorage.getItem(AUTH_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function writeAuth(session) {
+    try {
+      if (session) sessionStorage.setItem(AUTH_KEY, JSON.stringify(session));
+      else sessionStorage.removeItem(AUTH_KEY);
+    } catch (e) {}
+  }
   function query(table) {
     const q = {};
     ['select','eq','order','limit','neq','in','is'].forEach(m => { q[m] = () => q; });
@@ -301,7 +311,13 @@ STUB = """
     // The level-up wizard uses maybeSingle for "is this already saved?" reads,
     // which must resolve to null rather than the first fixture row.
     q.maybeSingle = () => Promise.resolve({ data: null, error: null });
-    q.then = (res, rej) => Promise.resolve({ data: FIXTURES[table] || [], error: null }).then(res, rej);
+    // `select('id', { count: 'exact', head: true })` reads only `count`, so
+    // every resolve carries one alongside the rows.
+    q.then = (res, rej) => Promise.resolve({
+      data: FIXTURES[table] || [],
+      count: (FIXTURES[table] || []).length,
+      error: null
+    }).then(res, rej);
     return q;
   }
   function writer(table, verb) {
@@ -377,6 +393,21 @@ STUB = """
           return ch;
         },
         removeChannel: () => Promise.resolve('ok'),
+        // Supabase auth. Only the analytics dashboard uses it -- the app
+        // itself signs in against a world PIN, not an auth user.
+        auth: {
+          getSession: () => Promise.resolve({ data: { session: readAuth() }, error: null }),
+          signInWithPassword: ({ email, password }) => {
+            if (password !== 'letmein') {
+              return Promise.resolve({ data: { session: null },
+                                       error: { message: 'Invalid login credentials' } });
+            }
+            const session = { user: { id: 'auth-user', email: email } };
+            writeAuth(session);
+            return Promise.resolve({ data: { session: session }, error: null });
+          },
+          signOut: () => { writeAuth(null); return Promise.resolve({ error: null }); }
+        },
         from: (table) => Object.assign(query(table), {
           update: writer(table, 'update'),
           insert: writer(table, 'insert'),
@@ -405,6 +436,17 @@ STUB = """
                 { name:'Goblin 1', api:'goblin', hp:9, ac:15, color:'#c4452f', group:'Wave 1' },
                 { name:'Goblin 2', api:'goblin', hp:6, ac:15, color:'#c4452f', group:'Wave 1' }
               ] } }, error:null });
+          }
+          if (fn === 'analytics_overview') {
+            if (!readAuth()) {
+              return Promise.resolve({ data: null, error: {
+                message: 'analytics_overview requires an authenticated session' } });
+            }
+            if (!FIXTURES.analytics_overview) {
+              return Promise.resolve({ data: null, error: {
+                message: 'permission denied for function analytics_overview' } });
+            }
+            return Promise.resolve({ data: FIXTURES.analytics_overview, error: null });
           }
           if (fn === 'world_create') {
             return Promise.resolve({ data: { ok:true, role:'dm', game_world_id:'w1',
@@ -456,6 +498,81 @@ KORR = {
     "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
     "character_details": {},
 }
+
+# ========================================
+# Analytics dashboard fixtures
+#
+# Kept out of the base FIXTURES on purpose: adding a `game_worlds` list would
+# change what every other page's un-`single` read resolves to. The analytics
+# context injects these with stub_with instead.
+# ========================================
+
+ANALYTICS_WORLDS = [
+    {"id": "w1", "name": "Thornfell Reach", "is_active": True,
+     "leveling_mode": "milestone", "created_at": "2026-01-18T10:00:00Z"},
+    {"id": "w2", "name": "Ashvale", "is_active": True,
+     "leveling_mode": "xp", "created_at": "2026-03-02T10:00:00Z"},
+    {"id": "w3", "name": "The Quiet Fen", "is_active": False,
+     "leveling_mode": "milestone", "created_at": "2026-05-11T10:00:00Z"},
+]
+
+def _ac(cid, name, player, world, cls, race, level, background, alignment, made, sub=None):
+    return {"id": cid, "name": name, "player_name": player, "game_world_id": world,
+            "class": cls, "subclass": sub, "race": race, "level": level,
+            "background": background, "alignment": alignment, "created_at": made,
+            "updated_at": made, "pending_level_up": False, "inspiration": False,
+            "hit_point_maximum": 10 * level, "armor_class": 15,
+            "experience_points": 0}
+
+# Five characters in Thornfell, one in Ashvale, none in the Quiet Fen. Dave
+# plays in two worlds; everyone else in one.
+ANALYTICS_CHARACTERS = [
+    _ac("a1", "Brannor Hale", "Dave", "w1", "Fighter", "Human", 5, "Soldier", "Lawful Good", "2026-02-01T09:00:00Z", "Champion"),
+    _ac("a2", "Sythra", "Priya", "w1", "Wizard", "Elf", 5, "Sage", "Neutral", "2026-02-02T09:00:00Z"),
+    _ac("a3", "Korr", "Sam", "w1", "Barbarian", "Goliath", 4, "Outlander", "Chaotic Neutral", "2026-02-03T09:00:00Z"),
+    _ac("a4", "Wisp", "Alex", "w1", "Rogue", "Halfling", 5, "Criminal", "Chaotic Good", "2026-02-04T09:00:00Z"),
+    _ac("a5", "Marel", "Priya", "w1", "Cleric", "Human", 3, "Acolyte", "Lawful Good", "2026-02-05T09:00:00Z"),
+    _ac("a6", "Dorn", "Dave", "w2", "Fighter", "Dwarf", 2, "Soldier", "Lawful Neutral", "2026-03-10T09:00:00Z"),
+]
+
+# The shape public.analytics_overview() returns: counts only.
+ANALYTICS_OVERVIEW = {
+    "generated_at": "2026-09-18T00:00:00Z",
+    "totals": {"campaigns": 3, "authored_campaigns": 1, "chapters": 8, "beats": 11,
+               "checks": 12, "areas": 4, "npcs": 3, "monsters": 4, "encounters": 4,
+               "combatants": 7, "sessions": 2, "notes": 5, "party_links": 6,
+               "shared_encounters": 3},
+    "campaigns_by_status": {"active": 2, "planned": 1},
+    "chapters_by_status": {"planned": 5, "active": 3},
+    "beats_by_status": {"pending": 9, "completed": 2},
+    "checks_by_type": {"skill_check": 11, "saving_throw": 1},
+    "checks_by_focus": {"Perception": 6, "Stealth": 5, "str": 1},
+    "checks": {"group": 2, "secret": 3, "repeatable": 1, "with_success": 10,
+               "with_failure": 7, "avg_dc": 13.1, "min_dc": 8, "max_dc": 20},
+    "npcs_by_disposition": {"neutral": 2, "friendly": 1},
+    "npcs_by_status": {"alive": 3},
+    "areas_by_type": {"settlement": 3, "dungeon": 1},
+    "monsters_by_source": {"srd": 3, "homebrew": 1},
+    "monsters_by_cr": {"under 1": 2, "1-4": 1, "unset": 1},
+    "encounters_by_status": {"planned": 3, "completed": 1},
+    "encounters_by_difficulty": {"medium": 2, "hard": 2},
+    "combatants_by_type": {"monster": 5, "character": 2},
+    "reveals": {"chapters_revealed": 3, "beats_revealed": 2, "areas_discovered": 1,
+                "npcs_known": 1, "sessions_published": 2},
+    "sharing": {"total": 3, "live": 2, "imports": 9},
+    "worlds": [
+        {"id": "w1", "campaigns": 2, "authored_campaigns": 1, "chapters": 6, "beats": 9,
+         "checks": 10, "areas": 3, "npcs": 2, "monsters": 3, "encounters": 3,
+         "sessions": 2, "notes": 4},
+        {"id": "w2", "campaigns": 1, "authored_campaigns": 0, "chapters": 2, "beats": 2,
+         "checks": 2, "areas": 1, "npcs": 1, "monsters": 1, "encounters": 1,
+         "sessions": 0, "notes": 1},
+        {"id": "w3", "campaigns": 0, "authored_campaigns": 0, "chapters": 0, "beats": 0,
+         "checks": 0, "areas": 0, "npcs": 0, "monsters": 0, "encounters": 0,
+         "sessions": 0, "notes": 0},
+    ],
+}
+
 
 errors, failed = [], []
 results = []
@@ -3363,6 +3480,136 @@ async def main():
         await ctx4.close()
         await ctx3.close()
 
+        # ---------- Analytics: the global owner dashboard ----------
+        # The campaign layer is dm_all, so every campaign number on this page
+        # comes from analytics_overview() -- counts only. The assertions below
+        # lock in both halves of that: the numbers arrive, and no campaign name
+        # ever does.
+        ctx8 = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await ctx8.add_init_script(stub_with(
+            game_worlds=ANALYTICS_WORLDS,
+            characters=ANALYTICS_CHARACTERS,
+            analytics_overview=ANALYTICS_OVERVIEW))
+        page8 = await ctx8.new_page()
+        watch(page8, "analytics")
+        await page8.goto(f"{BASE}/analytics.html", wait_until="domcontentloaded")
+
+        await page8.wait_for_selector("#gate-form", timeout=10000)
+        assert await page8.locator("#shell").is_hidden()
+        ok("analytics opens on the sign-in gate with the dashboard hidden")
+
+        await page8.fill("#gate-email", "owner@example.com")
+        await page8.fill("#gate-password", "nope")
+        await page8.click("#gate-submit")
+        await page8.wait_for_selector("#gate-error:not([hidden])", timeout=5000)
+        assert await page8.locator("#shell").is_hidden()
+        ok("a refused sign-in shows the error and keeps the dashboard hidden")
+
+        await page8.fill("#gate-password", "letmein")
+        await page8.click("#gate-submit")
+        await page8.wait_for_selector("#sec-library", timeout=10000)
+        sections = await page8.locator(".an-section").count()
+        assert sections == 6, sections
+        ok(f"signing in renders all {sections} dashboard sections")
+
+        # Worlds, characters and players, counted off the readable tables.
+        heroes = await page8.locator("#sec-overview .an-stat.is-hero .value").all_inner_texts()
+        assert heroes[0] == "3", heroes          # worlds
+        assert heroes[1] == "6", heroes          # characters
+        assert heroes[2] == "4", heroes          # Dave, Priya, Sam, Alex
+        # 8+11+12+4+3+4+4+2 for w1..w3 as the RPC reports them
+        assert heroes[3] == "48", heroes
+        ok(f"headline tiles report {heroes[0]} worlds, {heroes[1]} characters, {heroes[2]} players, {heroes[3]} campaign items")
+
+        # A nominal bar set encodes magnitude, so it takes ONE hue. Colouring
+        # class bars by class would say something the data does not.
+        hues = await page8.eval_on_selector_all(
+            "#sec-characters .an-bar-fill",
+            "els => Array.from(new Set(els.map(e => getComputedStyle(e).backgroundColor)))")
+        assert len(hues) == 1, hues
+        ok(f"every magnitude bar uses a single hue ({hues[0]})")
+
+        # A genuine split is coloured by series -- and then always legended,
+        # because on the light surface one slot sits below 3:1.
+        first = page8.locator("#sec-overview .an-panel").first
+        segs = await first.locator(".an-split > span").count()
+        legend = await first.locator(".an-legend > div").count()
+        assert segs == 2 and legend == 2, (segs, legend)
+        values = await first.locator(".an-legend b").all_inner_texts()
+        assert values == ["2", "1"], values
+        ok("a two-way split carries one legend entry per segment, each with its value")
+
+        # The worlds table joins what anon can read to what the RPC counted.
+        rows = page8.locator("#worlds-table tbody tr")
+        assert await rows.count() == 3, await rows.count()
+        top = [c.strip() for c in await rows.first.locator("td").all_inner_texts()]
+        assert top[0] == "Thornfell Reach", top
+        assert top[3] == "5", top                # party
+        assert top[6] == "6", top                # chapters, from the RPC
+        ok("the worlds table joins party counts to the campaign counts from the RPC")
+
+        # Sorting redraws the table alone; the page must not jump back to the top.
+        await page8.click('#worlds-table th[data-sort="name"]')
+        await page8.wait_for_timeout(120)
+        names = [n.strip() for n in await page8.locator("#worlds-table tbody td.name").all_inner_texts()]
+        assert names == ["Ashvale", "The Quiet Fen", "Thornfell Reach"], names
+        assert await page8.locator(".an-section").count() == 6
+        ok("clicking a column header re-sorts the worlds table and leaves the rest of the page alone")
+
+        # Levels are a distribution: read along the axis, never sorted by count.
+        levels = [t.strip() for t in await page8.locator(
+            "#sec-characters .an-panel:nth-child(3) .an-bar-label").all_inner_texts()]
+        assert levels == ["Level 2", "Level 3", "Level 4", "Level 5"], levels
+        ok("the level distribution keeps its axis order rather than sorting by count")
+
+        # Campaign figures, and what is still hidden from the party.
+        campaign_tiles = await page8.locator("#sec-campaigns .an-stat .value").all_inner_texts()
+        assert campaign_tiles[1] == "8", campaign_tiles    # chapters
+        assert campaign_tiles[2] == "11", campaign_tiles   # beats
+        shown = await page8.locator("#sec-campaigns .an-prog-row .num").first.inner_text()
+        assert "3" in shown and "8" in shown, shown
+        ok("campaign counts and the revealed-to-players rows come through from the RPC")
+
+        # Nothing a DM wrote may reach this page. If anyone ever swaps the RPC
+        # for a direct read, the campaign fixture's name lands in the markup.
+        markup = await page8.content()
+        for secret in ("The Drowned Road", "Mist hangs over the water", "harbourmaster"):
+            assert secret not in markup, secret
+        ok("no campaign name, read-aloud line or DM note appears anywhere on the page")
+
+        await page8.set_viewport_size({"width": 390, "height": 780})
+        await page8.wait_for_timeout(200)
+        overflow = await page8.evaluate(
+            "() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 1, overflow
+        assert await page8.locator(".an-jump").is_visible()
+        ok("at 390px the dashboard has no horizontal overflow and shows the section jumps")
+
+        await page8.set_viewport_size({"width": 1280, "height": 900})
+        await page8.click("#sb-signout")   # the desktop sidebar's copy
+        await page8.wait_for_selector("#gate-form", timeout=5000)
+        assert await page8.locator("#shell").is_hidden()
+        ok("signing out returns to the gate")
+        await ctx8.close()
+
+        # Without the function the campaign section says so, and every section
+        # that does not depend on it still renders.
+        ctx9 = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await ctx9.add_init_script(stub_with(
+            game_worlds=ANALYTICS_WORLDS, characters=ANALYTICS_CHARACTERS))
+        page9 = await ctx9.new_page()
+        watch(page9, "analytics-norpc")
+        await page9.goto(f"{BASE}/analytics.html", wait_until="domcontentloaded")
+        await page9.fill("#gate-email", "owner@example.com")
+        await page9.fill("#gate-password", "letmein")
+        await page9.click("#gate-submit")
+        await page9.wait_for_selector("#sec-library", timeout=10000)
+        assert await page9.locator("#sec-campaigns .an-locked").count() == 1
+        assert await page9.locator("#sec-characters .an-bar-row").count() > 0
+        assert await page9.locator("#worlds-table tbody tr").count() == 3
+        ok("a refused analytics_overview() locks only the campaign section; the rest still renders")
+        await ctx9.close()
+
         await browser.close()
 
     print(f"\n{len(results)} checks passed.")
@@ -3379,4 +3626,7 @@ async def main():
     return 0
 
 
-sys.exit(asyncio.run(main()))
+# Guarded so the fixtures and the stub can be imported (by a screenshot or
+# debugging script) without running the whole suite as a side effect.
+if __name__ == "__main__":
+    sys.exit(asyncio.run(main()))

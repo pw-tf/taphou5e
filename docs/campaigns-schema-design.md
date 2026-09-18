@@ -915,6 +915,7 @@ The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (281 asserti
 | Press-and-hold card menus | |
 | A writable character sheet | |
 | The invite to try v2, on both classic screens | |
+| Analytics dashboard on the v2 stack | |
 
 Every hub tile and navigation item links to a real page.
 
@@ -1516,6 +1517,64 @@ furniture around it.
 its description with `openPanel`, which starts with `closeModal()`. There is
 one modal host, so reading about a subclass **destroyed the level-up wizard**
 and left nothing behind when the panel was dismissed.)
+
+### 11.3a16 Analytics, and counting what you cannot read
+
+`analytics.html` was a classic-era page: the old stylesheet, a flat list of
+five charts, and every number drawn from `game_worlds` and `characters`. It now
+runs on the v2 stack (`tokens.css`, `ember.css`, `v2.css`, plus an
+`analytics.css` that holds nothing but chart structure), and reports across six
+sections — overview, worlds, campaigns, characters, players and library.
+
+It stays at the repo root and keeps its Supabase auth gate. It is not a v2 page
+in the app sense: it has no world, no DM token and no player session, so it
+does not load `core.js`.
+
+**The interesting problem was the campaign layer.** Every table behind the
+campaign screens is `dm_all` — a client holding only the anon key sees nothing,
+by design, and that is exactly the protection §11.3a12 went to some trouble to
+get right. A cross-world dashboard therefore cannot read a single chapter,
+beat, check or NPC. Relaxing the policies to let this one page look would undo
+the protection for everyone.
+
+So it does not look. `public.analytics_overview()` is a `security definer`
+function that reads the campaign layer as the definer and returns **counts
+only** — never a name, a summary, a read-aloud line, a DM note or a world
+secret. `execute` is granted to `authenticated` alone, never `anon` or
+`public`, and the body re-checks `auth.uid()` so a mis-grant cannot open it.
+The per-world figures come back keyed by `game_world_id`, which the page joins
+to the world names it can already read for itself.
+
+The suite pins both halves: the campaign counts arrive, **and** the fixture's
+campaign name, read-aloud line and DM note appear nowhere in the rendered
+markup. If anyone ever swaps the function for a direct table read, that second
+assertion fails.
+
+A refused call does not take the page down. The campaign section says so and
+every other section still renders — the worlds table just shows zeros in the
+columns the function would have filled.
+
+**One thing the data said immediately:** of 194 campaigns, 194 are the default
+one created with the world. `authored_campaigns` is reported separately for
+that reason; a raw campaign count would have read as adoption and meant
+nothing.
+
+**Colour.** The app's tracker palette fails as a chart palette, and it is worth
+recording why rather than re-deciding it later: green and gold separate by only
+ΔE 5.3 under protanopia, slate blue and grey fall below the chroma floor, and
+slate blue sits at 2.5:1 on the dark surface. It works in the tracker because a
+name is always beside the colour. It does not work where the colour is the
+label. The three chart slots are stepped versions that pass every check on both
+surfaces — `#d95926 #3987e5 #199e70` on dark, `#eb6834 #2a78d6 #1baf7a` on
+light — and the one remaining warning (light aqua at 2.71:1) is why every
+split segment carries a legend entry with its value printed.
+
+The rule that shapes most of the page, though, is that a bar chart of classes,
+races, levels or statuses is showing **magnitude, not identity**. Its length
+carries the value; its colour carries nothing. So those take one hue, and only
+a genuine two- or three-way split is coloured by series. A test asserts the
+single hue directly, because "colour every bar differently" is the default
+mistake and looks fine until someone reads meaning into it.
 
 ### 11.3b Review fixes
 
