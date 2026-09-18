@@ -197,3 +197,52 @@
   font-size: var(--fs-12); color: var(--text-secondary);
 }
 .an-locked b { color: var(--warning); }
+
+/* ==========================================================================
+   Feedback inbox
+   Reports submitted from the v2 Support menu. Everything in a card is free
+   text someone typed, so the message keeps its line breaks through CSS
+   (pre-wrap) rather than through markup the page would have to trust.
+   ========================================================================== */
+
+.fb-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-10) var(--space-md);
+}
+.fb-bar .hint { flex: 1; min-width: 220px; }
+
+.fb-list { display: flex; flex-direction: column; gap: var(--space-10); }
+
+.fb-card {
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-left: 2px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: var(--space-12) var(--space-md);
+  display: flex; flex-direction: column; gap: var(--space-sm);
+}
+.fb-card.is-unread { border-left-color: var(--accent-primary); background: var(--bg-elevated); }
+.fb-card.is-archived { opacity: .7; }
+
+.fb-head { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.fb-kind {
+  flex: none; font-family: var(--font-mono); font-size: var(--fs-9);
+  letter-spacing: .1em; text-transform: uppercase;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-full);
+  padding: 2px 8px; color: var(--text-secondary);
+}
+.fb-kind.is-bug  { color: var(--danger); border-color: var(--danger); }
+.fb-kind.is-idea { color: var(--accent-secondary); border-color: var(--accent-secondary); }
+.fb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); flex: none; }
+.fb-when { margin-left: auto; font-size: var(--fs-11); color: var(--text-tertiary); }
+
+.fb-message {
+  font-size: var(--fs-14); color: var(--text-primary); line-height: 1.55;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.fb-meta {
+  font-family: var(--font-mono); font-size: var(--fs-10); color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+.fb-contact { font-size: var(--fs-12); color: var(--text-secondary); overflow-wrap: anywhere; }
+.fb-contact b { color: var(--text-primary); }
+
+.fb-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.fb-actions .btn { font-size: var(--fs-12); padding: 5px 11px; }

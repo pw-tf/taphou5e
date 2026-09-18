@@ -535,6 +535,35 @@ ANALYTICS_CHARACTERS = [
     _ac("a6", "Dorn", "Dave", "w2", "Fighter", "Dwarf", 2, "Soldier", "Lawful Neutral", "2026-03-10T09:00:00Z"),
 ]
 
+# Reports for the inbox. One carries a script tag on purpose: everything in a
+# card is free text typed by an anonymous submitter.
+ANALYTICS_FEEDBACK = [
+    {"id": "f1", "kind": "bug", "message": "Holding a card on iOS selects the text.",
+     "contact": "sam@example.com", "game_world_id": "w1", "world_name": "Thornfell Reach",
+     "role": "dm", "page": "characters.html", "viewport": "390x780",
+     "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Version/17.0 Safari/604.1",
+     "app_version": "v2", "is_read": False, "is_archived": False,
+     "created_at": "2026-09-18T02:00:00Z", "read_at": None},
+    {"id": "f2", "kind": "idea", "message": "<script>alert('xss')</script> Let me sort the roster by level.",
+     "contact": None, "game_world_id": "w2", "world_name": "Ashvale",
+     "role": "player", "page": "index.html", "viewport": "1440x900",
+     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36",
+     "app_version": "v2", "is_read": False, "is_archived": False,
+     "created_at": "2026-09-17T22:00:00Z", "read_at": None},
+    {"id": "f3", "kind": "other", "message": "Love it. No notes.",
+     "contact": None, "game_world_id": None, "world_name": None,
+     "role": None, "page": "login.html", "viewport": "1280x800",
+     "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Firefox/131.0",
+     "app_version": "v2", "is_read": True, "is_archived": False,
+     "created_at": "2026-09-16T10:00:00Z", "read_at": "2026-09-16T11:00:00Z"},
+    {"id": "f4", "kind": "bug", "message": "Already dealt with.",
+     "contact": None, "game_world_id": "w1", "world_name": "Thornfell Reach",
+     "role": "dm", "page": "campaigns.html", "viewport": "1280x800",
+     "user_agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/129.0 Safari/537.36",
+     "app_version": "v2", "is_read": True, "is_archived": True,
+     "created_at": "2026-09-10T10:00:00Z", "read_at": "2026-09-10T12:00:00Z"},
+]
+
 # The shape public.analytics_overview() returns: counts only.
 ANALYTICS_OVERVIEW = {
     "generated_at": "2026-09-18T00:00:00Z",
@@ -3480,6 +3509,98 @@ async def main():
         await ctx4.close()
         await ctx3.close()
 
+        # ---------- v2: the Support menu ----------
+        ctx10 = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await ctx10.add_init_script(STUB)
+        page10 = await ctx10.new_page()
+        watch(page10, "support")
+        await page10.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page10.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page10, "join", "1379")
+        await page10.click("#join-form .btn-submit")
+        await page10.wait_for_url("**/v2/index.html", timeout=10000)
+        await page10.wait_for_selector(".party-roster", timeout=10000)
+
+        assert await page10.locator(".sidebar-foot #sb-support").count() == 1
+        ok("the desktop sidebar carries a Support item")
+
+        await page10.click("#sb-support")
+        await page10.wait_for_selector(".card-menu", timeout=5000)
+        coffee = page10.locator('.card-menu a[href*="buymeacoffee"]')
+        assert await coffee.count() == 1
+        assert await coffee.get_attribute("href") == "https://buymeacoffee.com/pwtf"
+        assert await coffee.get_attribute("target") == "_blank"
+        # Opened in a new tab without handing the tab a window.opener to steer.
+        assert "noopener" in (await coffee.get_attribute("rel") or "")
+        ok("Support offers the classic version's coffee link, as a real anchor")
+
+        # A real anchor rather than a button, because the menu closes before an
+        # action runs and a popup opened outside the click's gesture is blocked.
+        underline = await page10.eval_on_selector(
+            '.card-menu a[href*="buymeacoffee"]',
+            "el => getComputedStyle(el).textDecorationLine")
+        assert underline == "none", underline
+        ok("the coffee row is not styled as a bare link")
+
+        await page10.click("#support-feedback")
+        await page10.wait_for_selector("#modal-form", timeout=5000)
+        note = await page10.locator(".modal-body .hint").first.inner_text()
+        for expected in ("Thornfell Reach", "DM", "index.html"):
+            assert expected in note, (expected, note)
+        assert "browser" in note.lower()
+        ok("the form says what travels with a report, before anything is typed")
+
+        await page10.select_option("#mf-kind", "bug")
+        await page10.fill("#mf-message", "Holding a card on iOS selects the text.")
+        await page10.fill("#mf-contact", "sam@example.com")
+        await page10.evaluate("window.__resetWrites()")
+        await page10.click('#modal-form button[type="submit"]')
+        await page10.wait_for_timeout(400)
+
+        sent = [w for w in await page10.evaluate("window.__writes")
+                if w["table"] == "feedback" and w["verb"] == "insert"]
+        assert len(sent) == 1, sent
+        row = sent[0]["payload"]
+        assert row["kind"] == "bug"
+        assert row["message"] == "Holding a card on iOS selects the text."
+        assert row["contact"] == "sam@example.com"
+        ok("submitting writes the report with what was typed")
+
+        # The context the form promised, actually attached.
+        assert row["world_name"] == "Thornfell Reach"
+        assert row["game_world_id"] == "w1"
+        assert row["role"] == "dm"
+        assert row["page"] == "index.html"
+        assert row["app_version"] == "v2"
+        assert "x" in row["viewport"], row["viewport"]
+        assert row["user_agent"], row
+        ok("the promised context rides along: world, role, page, viewport and browser")
+
+        # Nothing from the sheet or the campaign goes with it.
+        blob = json.dumps(row).lower()
+        for leak in ("sythra", "brannor", "drowned road", "harbourmaster"):
+            assert leak not in blob, leak
+        ok("no character or campaign content is attached to a report")
+
+        # is_read and is_archived are pinned by the insert policy's WITH CHECK,
+        # and the client must not be sending them at all.
+        assert "is_read" not in row and "is_archived" not in row, row
+        ok("a report is never submitted pre-read or pre-archived")
+
+        # Below the breakpoint the sidebar is gone, so the drawer has to carry it.
+        await page10.set_viewport_size({"width": 390, "height": 780})
+        await page10.reload(wait_until="domcontentloaded")
+        await page10.wait_for_selector(".party-roster", timeout=10000)
+        await page10.click("#menu-btn")
+        await page10.wait_for_timeout(350)
+        assert await page10.locator("#sm-support").is_visible()
+        await page10.click("#sm-support")
+        await page10.wait_for_selector(".card-menu", timeout=5000)
+        # The drawer must close first, or the panel opens behind its overlay.
+        assert not await page10.locator("#side-menu-overlay.open").count()
+        ok("the mobile drawer carries Support too, and closes before the panel opens")
+        await ctx10.close()
+
         # ---------- Analytics: the global owner dashboard ----------
         # The campaign layer is dm_all, so every campaign number on this page
         # comes from analytics_overview() -- counts only. The assertions below
@@ -3489,7 +3610,8 @@ async def main():
         await ctx8.add_init_script(stub_with(
             game_worlds=ANALYTICS_WORLDS,
             characters=ANALYTICS_CHARACTERS,
-            analytics_overview=ANALYTICS_OVERVIEW))
+            analytics_overview=ANALYTICS_OVERVIEW,
+            feedback=ANALYTICS_FEEDBACK))
         page8 = await ctx8.new_page()
         watch(page8, "analytics")
         await page8.goto(f"{BASE}/analytics.html", wait_until="domcontentloaded")
@@ -3509,7 +3631,7 @@ async def main():
         await page8.click("#gate-submit")
         await page8.wait_for_selector("#sec-library", timeout=10000)
         sections = await page8.locator(".an-section").count()
-        assert sections == 6, sections
+        assert sections == 7, sections
         ok(f"signing in renders all {sections} dashboard sections")
 
         # Worlds, characters and players, counted off the readable tables.
@@ -3553,7 +3675,7 @@ async def main():
         await page8.wait_for_timeout(120)
         names = [n.strip() for n in await page8.locator("#worlds-table tbody td.name").all_inner_texts()]
         assert names == ["Ashvale", "The Quiet Fen", "Thornfell Reach"], names
-        assert await page8.locator(".an-section").count() == 6
+        assert await page8.locator(".an-section").count() == sections
         ok("clicking a column header re-sorts the worlds table and leaves the rest of the page alone")
 
         # Levels are a distribution: read along the axis, never sorted by count.
@@ -3569,6 +3691,69 @@ async def main():
         shown = await page8.locator("#sec-campaigns .an-prog-row .num").first.inner_text()
         assert "3" in shown and "8" in shown, shown
         ok("campaign counts and the revealed-to-players rows come through from the RPC")
+
+        # ---------- The feedback inbox ----------
+        badge = page8.locator("#nav-feedback-count")
+        assert await badge.inner_text() == "2", await badge.inner_text()
+        assert await badge.is_visible()
+        ok("the sidebar badge counts unread, unarchived reports (2 of 4)")
+
+        cards = page8.locator("#sec-feedback .fb-card")
+        assert await cards.count() == 3, await cards.count()   # the archived one is out
+        assert await page8.locator("#sec-feedback .fb-card.is-unread").count() == 2
+        ok("the open list shows every unarchived report, marking the unread ones")
+
+        # A report is free text from an anonymous submitter.
+        assert "<script>" not in (await page8.content())
+        assert "alert('xss')" in await cards.nth(1).locator(".fb-message").inner_text()
+        ok("a report's message renders as text, tags and all")
+
+        # The context the v2 form promised is what the inbox shows.
+        meta = await cards.first.locator(".fb-meta").inner_text()
+        for expected in ("Thornfell Reach", "DM", "characters.html", "390x780", "Safari on iOS"):
+            assert expected in meta, (expected, meta)
+        assert "sam@example.com" in await cards.first.locator(".fb-contact").inner_text()
+        ok("each card shows where the report came from, and how to reply")
+
+        # Marking read writes the row and takes it off the badge.
+        await page8.evaluate("window.__resetWrites()")
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="read"]')
+        await page8.wait_for_timeout(300)
+        marked = [w for w in await page8.evaluate("window.__writes")
+                  if w["table"] == "feedback" and w["verb"] == "update"]
+        assert len(marked) == 1 and marked[0]["payload"]["is_read"] is True, marked
+        assert marked[0]["payload"]["read_at"], marked
+        assert await badge.inner_text() == "1", await badge.inner_text()
+        assert await page8.locator("#sec-feedback .fb-card.is-unread").count() == 1
+        ok("marking a report read writes the row and drops the badge to 1")
+
+        # And back again, so a mis-tap costs nothing.
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="unread"]')
+        await page8.wait_for_timeout(300)
+        assert await badge.inner_text() == "2", await badge.inner_text()
+        ok("marking it unread again restores the count")
+
+        # Archive hides without deleting: the row is updated, never removed.
+        await page8.evaluate("window.__resetWrites()")
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="archive"]')
+        await page8.wait_for_timeout(300)
+        writes = await page8.evaluate("window.__writes")
+        assert not [w for w in writes if w["table"] == "feedback" and w["verb"] == "delete"], writes
+        archived = [w for w in writes if w["table"] == "feedback" and w["verb"] == "update"]
+        assert archived[0]["payload"]["is_archived"] is True, archived
+        assert await page8.locator("#sec-feedback .fb-card").count() == 2
+        ok("archiving updates the row rather than deleting it, and takes it off the list")
+
+        await page8.click('#sec-feedback [data-fb-view="archived"]')
+        await page8.wait_for_timeout(250)
+        assert await page8.locator("#sec-feedback .fb-card").count() == 2   # f4 and the one just archived
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="restore"]')
+        await page8.wait_for_timeout(300)
+        assert await page8.locator("#sec-feedback .fb-card").count() == 1
+        await page8.click('#sec-feedback [data-fb-view="open"]')
+        await page8.wait_for_timeout(250)
+        assert await page8.locator("#sec-feedback .fb-card").count() == 3
+        ok("the Archived tab lists what was hidden, and Restore brings it back")
 
         # Nothing a DM wrote may reach this page. If anyone ever swaps the RPC
         # for a direct read, the campaign fixture's name lands in the markup.

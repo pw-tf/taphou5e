@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 290 assertions.
+version router. 307 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -169,6 +169,21 @@ the passes or the select-on-focus behaviour is never exercised.
   leaves every other section rendering
 - That a magnitude bar set uses one hue: colouring class or level bars by
   value would claim the colour means something, and it does not
+- The Support menu on both the desktop sidebar and the mobile drawer: the
+  coffee link being a real anchor with `target=_blank` and `rel=noopener` (a
+  button calling `window.open` would be blocked, since the menu closes before
+  the action runs), the drawer closing before the panel opens, and the form
+  naming the world, role and page it is about to send before anything is typed
+- What a submitted report actually carries: the typed fields, the promised
+  context, **no** character or campaign content, and **no** `is_read` or
+  `is_archived` — those are pinned by the insert policy, and the client is not
+  trying to set them either
+- The feedback inbox: the badge counting unread and unarchived only, the open
+  list hiding archived reports, marking read and unread moving the badge both
+  ways, Archive issuing an *update* rather than a delete, and Restore bringing
+  a report back from the Archived tab
+- That a report's message renders as text: one fixture carries a `<script>`
+  tag, and the page must show it rather than run it
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
 network at all.

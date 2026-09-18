@@ -28,6 +28,7 @@ not a pending queue. Do not re-run them against that project.
 | 20260917061030 | rename_leftover_chapter_constraints |
 | 20260918032350 | analytics_overview_aggregates |
 | 20260918033024 | analytics_overview_checks_by_focus |
+| 20260918062251 | feedback_reports |
 
 The PIN cutover is complete. See `docs/campaigns-schema-design.md` §5.6-5.7.
 
@@ -36,3 +37,8 @@ because it is the only function that reads the DM-only campaign layer on behalf
 of a caller who cannot. It supersedes `20260918032350` entirely (the earlier one
 grouped checks on `ability` alone, which reported 11 of 12 as unset). See
 `docs/campaigns-schema-design.md` §11.3a16.
+
+`20260918062251_feedback_reports.sql` is kept here in full too. It is the only
+table the anon key may write to without a world PIN behind it, so the policy
+shape (insert-only, with `is_read`/`is_archived` pinned in the WITH CHECK) is
+the thing to read before changing anything about it.

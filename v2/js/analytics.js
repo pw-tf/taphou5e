@@ -27,6 +27,7 @@ const $ = (s, root = document) => root.querySelector(s);
 
 const SECTIONS = [
     { id: 'overview',   label: 'Overview' },
+    { id: 'feedback',   label: 'Feedback' },
     { id: 'worlds',     label: 'Worlds' },
     { id: 'campaigns',  label: 'Campaigns' },
     { id: 'characters', label: 'Characters' },
@@ -36,6 +37,7 @@ const SECTIONS = [
 
 let data = null;                                    // last successful load
 let worldSort = { key: 'characters', dir: -1 };     // table sort state
+let showArchived = false;                           // feedback inbox filter
 
 // ========================================
 // Helpers
@@ -191,7 +193,7 @@ async function fetchAll() {
     const headCount = table => db.from(table).select('id', { count: 'exact', head: true });
 
     const [worlds, characters, spells, weapons, inventory, features, effects,
-           slots, details, currency, overview] = await Promise.all([
+           slots, details, currency, overview, feedback] = await Promise.all([
         db.from('game_worlds').select('*').order('created_at', { ascending: false }),
         db.from('characters')
             .select('id, name, player_name, race, class, subclass, level, background, alignment, ' +
@@ -208,7 +210,13 @@ async function fetchAll() {
         headCount('character_details'),
         headCount('currency'),
         // The campaign layer is dm_all: only this counts-only function can see it.
-        db.rpc('analytics_overview')
+        db.rpc('analytics_overview'),
+        // Insert-only for the anon key; readable only with a session, which is
+        // why the inbox lives here and nowhere else.
+        db.from('feedback')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(500)
     ]);
 
     if (worlds.error) throw worlds.error;
@@ -226,6 +234,8 @@ async function fetchAll() {
         // down -- everything above it still renders.
         overview: overview.error ? null : overview.data,
         overviewError: overview.error ? overview.error.message : null,
+        feedback: feedback.error ? null : (feedback.data || []),
+        feedbackError: feedback.error ? feedback.error.message : null,
         loadedAt: new Date().toISOString()
     };
 }
@@ -478,6 +488,171 @@ function renderCampaigns(d) {
     return section('campaigns', 'Campaigns', num(t.campaigns), tiles + charts);
 }
 
+// ========================================
+// Feedback inbox
+//
+// Reports arrive from the v2 Support menu. Everything here is free text typed
+// by whoever submitted it, so every field is escaped on the way out and the
+// message keeps its line breaks through CSS rather than through markup.
+// ========================================
+
+const KIND_LABEL = { bug: 'Bug', idea: 'Idea', other: 'Other' };
+
+function unreadCount(d) {
+    return (d && d.feedback || []).filter(r => !r.is_read && !r.is_archived).length;
+}
+
+// Best-effort, and it says what it does not know rather than guessing. The
+// full string is on the title attribute either way.
+function shortAgent(ua) {
+    if (!ua) return 'Unknown browser';
+    const browser = /Edg\//.test(ua) ? 'Edge'
+        : /OPR\//.test(ua) ? 'Opera'
+        : /Chrome\//.test(ua) ? 'Chrome'
+        : /Firefox\//.test(ua) ? 'Firefox'
+        : /Safari\//.test(ua) ? 'Safari'
+        : 'Unknown browser';
+    const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS'
+        : /Android/.test(ua) ? 'Android'
+        : /Mac OS X/.test(ua) ? 'macOS'
+        : /Windows/.test(ua) ? 'Windows'
+        : /Linux/.test(ua) ? 'Linux'
+        : '';
+    return os ? `${browser} on ${os}` : browser;
+}
+
+function relativeTime(iso) {
+    if (!iso) return '';
+    const then = new Date(iso);
+    if (isNaN(then)) return '';
+    const mins = Math.round((Date.now() - then.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+    if (mins < 10080) return `${Math.round(mins / 1440)}d ago`;
+    return formatDate(iso);
+}
+
+function feedbackCard(row) {
+    const meta = [
+        row.world_name ? `${row.world_name}${row.role ? ' · ' + (row.role === 'dm' ? 'DM' : 'player') : ''}` : null,
+        row.page,
+        row.viewport,
+        shortAgent(row.user_agent)
+    ].filter(Boolean);
+
+    return `
+        <article class="fb-card${row.is_read ? '' : ' is-unread'}${row.is_archived ? ' is-archived' : ''}">
+            <header class="fb-head">
+                <span class="fb-kind is-${escapeHtml(row.kind)}">${escapeHtml(KIND_LABEL[row.kind] || row.kind)}</span>
+                ${row.is_read ? '' : '<span class="fb-dot" aria-label="Unread"></span>'}
+                ${row.is_archived ? '<span class="hidden-pill">Archived</span>' : ''}
+                <time class="fb-when" datetime="${escapeHtml(row.created_at || '')}"
+                      title="${escapeHtml(formatDate(row.created_at))}">${escapeHtml(relativeTime(row.created_at))}</time>
+            </header>
+
+            <p class="fb-message">${escapeHtml(row.message)}</p>
+
+            <p class="fb-meta" title="${escapeHtml(row.user_agent || '')}">${escapeHtml(meta.join('  ·  '))}</p>
+            ${row.contact ? `<p class="fb-contact">Reachable at <b>${escapeHtml(row.contact)}</b></p>` : ''}
+
+            <div class="fb-actions">
+                <button class="btn btn-quiet" data-fb="${row.is_read ? 'unread' : 'read'}" data-fb-id="${escapeHtml(row.id)}">
+                    ${row.is_read ? 'Mark unread' : 'Mark read'}
+                </button>
+                <button class="btn ${row.is_archived ? 'btn-quiet' : 'btn-danger'}"
+                        data-fb="${row.is_archived ? 'restore' : 'archive'}" data-fb-id="${escapeHtml(row.id)}">
+                    ${row.is_archived ? 'Restore' : 'Archive'}
+                </button>
+            </div>
+        </article>`;
+}
+
+function renderFeedback(d) {
+    if (!d.feedback) {
+        return section('feedback', 'Feedback', '', `
+            <div class="an-locked">
+                <b>Reports unavailable.</b>
+                <span>The feedback table could not be read${
+                    d.feedbackError ? ': ' + escapeHtml(d.feedbackError) : '.'}</span>
+            </div>`);
+    }
+
+    const all = d.feedback;
+    const live = all.filter(r => !r.is_archived);
+    const unread = live.filter(r => !r.is_read);
+    const shown = showArchived ? all.filter(r => r.is_archived) : live;
+
+    const tiles = statRow([
+        statTile('Unread', num(unread.length), unread.length ? 'waiting on you' : 'all caught up', unread.length > 0),
+        statTile('Open reports', num(live.length)),
+        statTile('Bugs', num(live.filter(r => r.kind === 'bug').length)),
+        statTile('Ideas', num(live.filter(r => r.kind === 'idea').length)),
+        statTile('Archived', num(all.length - live.length)),
+        statTile('With contact', num(live.filter(r => (r.contact || '').trim()).length), 'you can reply to these')
+    ], 'six');
+
+    const toggle = `
+        <div class="fb-bar">
+            <div class="segmented">
+                <button type="button" data-fb-view="open" class="${showArchived ? '' : 'is-active'}">Open</button>
+                <button type="button" data-fb-view="archived" class="${showArchived ? 'is-active' : ''}">Archived</button>
+            </div>
+            <span class="hint">Archiving hides a report without deleting it — it comes back from the Archived tab.</span>
+        </div>`;
+
+    const list = shown.length
+        ? `<div class="fb-list">${shown.map(feedbackCard).join('')}</div>`
+        : `<div class="empty-state">
+               <h3>${showArchived ? 'Nothing archived' : 'No reports'}</h3>
+               <p>${showArchived
+                     ? 'Reports you archive from the Open tab land here.'
+                     : 'Anything sent from the Support menu in v2 shows up here.'}</p>
+           </div>`;
+
+    return section('feedback', 'Feedback', num(live.length), tiles + toggle + list);
+}
+
+// A triage action writes the row, mirrors it locally and redraws the section
+// alone -- reloading the whole page would throw away the reading position on
+// a list you are working down.
+async function feedbackAction(id, action) {
+    const row = (data.feedback || []).find(r => r.id === id);
+    if (!row) return;
+
+    const patch =
+        action === 'read'    ? { is_read: true, read_at: new Date().toISOString() }
+      : action === 'unread'  ? { is_read: false, read_at: null }
+      : action === 'archive' ? { is_archived: true, is_read: true, read_at: row.read_at || new Date().toISOString() }
+      : action === 'restore' ? { is_archived: false }
+      : null;
+    if (!patch) return;
+
+    const { error } = await db.from('feedback').update(patch).eq('id', id);
+    if (error) {
+        console.error('Feedback update failed:', error);
+        window.alert('Could not update that report: ' + error.message);
+        return;
+    }
+
+    Object.assign(row, patch);
+    redrawFeedback();
+}
+
+function redrawFeedback() {
+    const host = $('#sec-feedback');
+    if (host) host.outerHTML = renderFeedback(data);
+    markUnreadBadge();
+}
+
+function markUnreadBadge() {
+    const badge = $('#nav-feedback-count');
+    if (!badge) return;
+    const n = unreadCount(data);
+    badge.textContent = n ? String(n) : '';
+    badge.hidden = !n;
+}
+
 function renderCharacters(d) {
     const chars = d.characters;
     const levels = chars.map(c => Number(c.level) || 0).filter(Boolean);
@@ -631,6 +806,7 @@ function render() {
     $('#content').innerHTML = [
         `<nav class="an-jump">${SECTIONS.map(s => `<a href="#sec-${s.id}">${escapeHtml(s.label)}</a>`).join('')}</nav>`,
         renderOverview(data, rows),
+        renderFeedback(data),
         renderWorlds(data, rows),
         renderCampaigns(data),
         renderCharacters(data),
@@ -641,6 +817,7 @@ function render() {
     const stamp = formatTime(data.loadedAt);
     $('#d-generated').textContent = stamp;
     $('#m-generated').textContent = stamp;
+    markUnreadBadge();
 }
 
 async function load() {
@@ -674,8 +851,13 @@ function showGate() {
 }
 
 function buildNav() {
-    $('#side-nav').innerHTML = SECTIONS
-        .map(s => `<a href="#sec-${s.id}">${escapeHtml(s.label)}</a>`).join('');
+    $('#side-nav').innerHTML = SECTIONS.map(s => {
+        // Only the inbox carries a count, and it is hidden at zero rather than
+        // showing a "0" that reads as something needing attention.
+        const badge = s.id === 'feedback'
+            ? '<span class="mono nav-count is-live" id="nav-feedback-count" hidden></span>' : '';
+        return `<a href="#sec-${s.id}">${escapeHtml(s.label)}${badge}</a>`;
+    }).join('');
 }
 
 // ---------- Hover layer ----------
@@ -748,6 +930,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             : { key, dir: key === 'name' || key === 'leveling' ? 1 : -1 };
         const table = $('#worlds-table');
         if (table) table.closest('.an-table-wrap').outerHTML = worldsTable(worldRows(data));
+    });
+
+    $('#content').addEventListener('click', event => {
+        if (!data) return;
+
+        const view = event.target.closest('[data-fb-view]');
+        if (view) {
+            showArchived = view.getAttribute('data-fb-view') === 'archived';
+            redrawFeedback();
+            return;
+        }
+
+        const action = event.target.closest('[data-fb]');
+        if (action) {
+            feedbackAction(action.getAttribute('data-fb-id'), action.getAttribute('data-fb'));
+        }
     });
 
     const { data: { session } } = await db.auth.getSession();

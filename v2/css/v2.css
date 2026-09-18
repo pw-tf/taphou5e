@@ -82,6 +82,7 @@ textarea:focus-visible,
   font-size: var(--fs-13); color: var(--text-primary); max-width: 90vw;
 }
 .toast-error { border-color: var(--harm-border); color: var(--harm-ink); }
+.toast-success { border-color: var(--heal-border); color: var(--heal-ink); }
 @media (min-width: 900px) { .toast-host { bottom: var(--space-lg); } }
 
 /* ---------- Summary rows (hub) ---------- */
@@ -870,6 +871,13 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
 .card-menu-item .label { font-weight: 600; }
 .card-menu-item .hint { font-size: var(--fs-11); color: var(--text-tertiary); }
 .card-menu-item.is-danger .label { color: var(--danger); }
+
+/* The support menu's coffee row is a real anchor -- a button calling
+   window.open would be blocked, since the menu closes before the action runs
+   and the popup then falls outside the click's gesture. Being an anchor, the
+   global `a` rules would repaint and underline it on hover, so they are
+   answered here rather than by making the row a button again. */
+a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-decoration: none; }
 
 /* A hint that the gesture exists, for the pointer that can hover. */
 @media (hover: hover) {
