@@ -170,6 +170,18 @@
 .an-table td.name { white-space: normal; min-width: 160px; color: var(--text-primary); font-weight: 500; }
 .an-table td.muted, .an-table td .muted { color: var(--text-tertiary); }
 
+/* ---------- Pager ---------- */
+.an-pager {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--space-sm) var(--space-md); padding-top: var(--space-10);
+}
+.an-pager .range { font-size: var(--fs-11); color: var(--text-tertiary); }
+.an-pager .controls { display: flex; align-items: center; gap: var(--space-sm); margin-left: auto; }
+.an-pager .page-of { font-size: var(--fs-11); color: var(--text-secondary); }
+.an-pager .btn { font-size: var(--fs-12); padding: 5px 12px; }
+.an-pager .btn:disabled { opacity: .4; cursor: default; }
+.an-pager .btn:disabled:hover { background: transparent; }
+
 /* ---------- Hover tooltip ---------- */
 .an-tip {
   position: fixed; z-index: 400; pointer-events: none;
