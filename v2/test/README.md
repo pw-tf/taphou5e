@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 141 assertions.
+version router. 307 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -156,6 +156,34 @@ the passes or the select-on-focus behaviour is never exercised.
   level gained, steps that do not apply skipping themselves, and the finish
   writing level, proficiency, hit dice, the hit point gain on both current and
   maximum, class *and* subclass features, and clearing the pending flag
+- The analytics dashboard: the sign-in gate holding the page back until a
+  session exists, the six sections rendering, the worlds table joining party
+  counts to the campaign counts the RPC returns, sorting redrawing the table
+  alone, the level distribution keeping its axis order, and 390px having no
+  horizontal overflow
+- That the dashboard shows campaign **numbers** and never campaign **content**:
+  the fixture's campaign name, read-aloud line and DM note appear nowhere in
+  the rendered markup, so swapping `analytics_overview()` for a direct table
+  read fails the suite
+- That a refused `analytics_overview()` locks only the campaign section and
+  leaves every other section rendering
+- That a magnitude bar set uses one hue: colouring class or level bars by
+  value would claim the colour means something, and it does not
+- The Support menu on both the desktop sidebar and the mobile drawer: the
+  coffee link being a real anchor with `target=_blank` and `rel=noopener` (a
+  button calling `window.open` would be blocked, since the menu closes before
+  the action runs), the drawer closing before the panel opens, and the form
+  naming the world, role and page it is about to send before anything is typed
+- What a submitted report actually carries: the typed fields, the promised
+  context, **no** character or campaign content, and **no** `is_read` or
+  `is_archived` — those are pinned by the insert policy, and the client is not
+  trying to set them either
+- The feedback inbox: the badge counting unread and unarchived only, the open
+  list hiding archived reports, marking read and unread moving the badge both
+  ways, Archive issuing an *update* rather than a delete, and Restore bringing
+  a report back from the Archived tab
+- That a report's message renders as text: one fixture carries a `<script>`
+  tag, and the page must show it rather than run it
 
 `dnd5eapi.co` is stubbed the same way as the database, so the suite needs no
 network at all.
@@ -174,3 +202,11 @@ wants a clean slate.
 The stub returns the same character regardless of the id in the query string, so
 the sheet assertions always describe that one fixture even when the test arrived
 by clicking a different card.
+
+The stub carries a Supabase `auth` object (`getSession`, `signInWithPassword`,
+`signOut`) for the analytics page alone -- the app itself signs in against a
+world PIN, not an auth user. `letmein` is the password that works. The
+analytics fixtures (`ANALYTICS_WORLDS`, `ANALYTICS_CHARACTERS`,
+`ANALYTICS_OVERVIEW`) are deliberately kept out of the base `FIXTURES`: adding
+a `game_worlds` list there would change what every other page's un-`single`
+read resolves to.

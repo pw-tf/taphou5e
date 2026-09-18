@@ -250,7 +250,10 @@ const ICONS = {
     map:        '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
     sword:      '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/>',
     star:       '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
-    bag:        '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'
+    bag:        '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+    heart:      '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
+    coffee:     '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+    bug:        '<path d="M8 2 9.5 4.5"/><path d="M16 2 14.5 4.5"/><path d="M9 20a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5z"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5.5 7-1.7-1.3"/><path d="m18.5 7 1.7-1.3"/><path d="m5.5 19-1.7 1.3"/><path d="m18.5 19 1.7 1.3"/>'
 };
 
 function icon(name, size) {
@@ -292,6 +295,99 @@ function navItems(activeId, counts) {
     }).join('');
 }
 
+// ========================================
+// Support
+//
+// One entry, two things behind it: the tip jar the classic version carried,
+// and a way to report a bug or send an idea.
+//
+// The coffee link is a real anchor rather than a button calling window.open,
+// because the menu closes before an action runs and a popup opened outside
+// the click's gesture is blocked by default in several browsers.
+// ========================================
+
+const COFFEE_URL = 'https://buymeacoffee.com/pwtf';
+
+const FEEDBACK_KINDS = [
+    { value: 'bug',   label: 'Something is broken' },
+    { value: 'idea',  label: 'An idea or request' },
+    { value: 'other', label: 'Something else' }
+];
+
+function openSupport() {
+    openPanel({
+        title: 'Support',
+        body: `
+            <div class="card-menu">
+                <a class="card-menu-item" href="${COFFEE_URL}" target="_blank" rel="noopener noreferrer">
+                    <span class="label">Buy me a coffee ☕</span>
+                    <span class="hint">TAPHOU5E is free and has no ads. A coffee keeps it that way.</span>
+                </a>
+                <button class="card-menu-item" type="button" id="support-feedback">
+                    <span class="label">Report a bug or send an idea</span>
+                    <span class="hint">Goes straight to the person who builds this.</span>
+                </button>
+            </div>`,
+        onMount: host => {
+            $('#support-feedback', host).addEventListener('click', () => {
+                closeModal();
+                setTimeout(openFeedback, 0);
+            });
+        }
+    });
+}
+
+// What travels with a report, beyond what was typed. Said plainly on the form
+// rather than collected quietly -- it is the difference between a bug being
+// reproducible and not, but nobody should have to guess that it is going.
+function feedbackContext() {
+    return {
+        game_world_id: (session && session.gameWorldId) || null,
+        world_name:    (session && session.gameWorldName) || null,
+        role:          session ? (session.role === 'dm' ? 'dm' : 'player') : null,
+        page:          location.pathname.split('/').pop() || 'index.html',
+        user_agent:    (navigator.userAgent || '').slice(0, 500),
+        viewport:      `${window.innerWidth}x${window.innerHeight}`,
+        app_version:   'v2'
+    };
+}
+
+function openFeedback() {
+    const context = feedbackContext();
+    const where = context.world_name
+        ? `${context.world_name} · ${context.role === 'dm' ? 'DM' : 'player'} · ${context.page}`
+        : context.page;
+
+    openModal({
+        title: 'Report a bug or send an idea',
+        prefix: `<p class="hint" style="margin-bottom:var(--space-12)">
+                    Sent with this report so a bug can be reproduced:
+                    <b>${escapeHtml(where)}</b>, your screen size and your browser.
+                    Nothing from your characters or campaign is included.
+                 </p>`,
+        fields: [
+            { name: 'kind', label: 'What is this?', type: 'select', value: 'bug',
+              options: FEEDBACK_KINDS },
+            { name: 'message', label: 'What happened?', type: 'textarea', rows: 6, required: true,
+              placeholder: 'What you did, what happened, and what you expected instead.' },
+            { name: 'contact', label: 'How to reach you', type: 'text',
+              placeholder: 'Optional',
+              hint: 'Only if you are happy to be asked a follow-up. A name, an email or a Discord handle — whatever suits.' }
+        ],
+        submitLabel: 'Send',
+        onSubmit: async values => {
+            const { error } = await db.from('feedback').insert({
+                kind: values.kind,
+                message: values.message,
+                contact: values.contact || null,
+                ...context
+            });
+            if (error) throw new Error(error.message);
+            toast('Thanks — that went through.', 'success');
+        }
+    });
+}
+
 function renderSidebar(activeId, counts) {
     const worldName = (session && session.gameWorldName) || 'Unknown world';
     return `
@@ -313,6 +409,7 @@ function renderSidebar(activeId, counts) {
                 </div>
                 <!-- These lived only in the mobile drawer, which is hidden
                      above the breakpoint -- so a desktop had no way out. -->
+                <a class="side-menu-item" id="sb-support">${icon('heart', 16)}Support</a>
                 <a class="side-menu-item" id="sb-classic">${icon('swap', 16)}Switch to classic</a>
                 <a class="side-menu-item side-menu-item-danger" id="sb-logout">${icon('logout', 16)}Logout</a>
             </div>
@@ -353,6 +450,7 @@ function renderSideMenu(activeId) {
                 <nav style="padding:var(--space-12) 0;flex:1;overflow:auto">
                     ${items}
                     <div class="side-menu-divider"></div>
+                    <a class="side-menu-item" id="sm-support">${icon('heart', 18)}Support</a>
                     <a class="side-menu-item" id="sm-classic">${icon('swap', 18)}Switch to classic</a>
                     <a class="side-menu-item side-menu-item-danger" id="sm-logout">${icon('logout', 18)}Logout</a>
                 </nav>
@@ -376,6 +474,7 @@ function wireSideMenu() {
 
     // The sidebar is always present above the breakpoint, whether or not the
     // drawer exists, so its handlers are wired before the early return.
+    $('#sb-support')?.addEventListener('click', openSupport);
     $('#sb-classic')?.addEventListener('click', switchToClassic);
     $('#sb-logout')?.addEventListener('click', signOut);
 
@@ -391,6 +490,8 @@ function wireSideMenu() {
         if (e.key === 'Escape' && overlay.classList.contains('open')) close();
     });
 
+    // The drawer closes first, or the panel opens behind the overlay.
+    $('#sm-support')?.addEventListener('click', () => { close(); openSupport(); });
     $('#sm-classic')?.addEventListener('click', switchToClassic);
     $('#sm-logout')?.addEventListener('click', signOut);
 }

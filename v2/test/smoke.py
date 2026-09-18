@@ -293,6 +293,16 @@ STUB = """
     window.__writes = [];
     try { sessionStorage.removeItem(WRITE_KEY); } catch (e) {}
   };
+  const AUTH_KEY = '__smoke_auth';
+  function readAuth() {
+    try { return JSON.parse(sessionStorage.getItem(AUTH_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function writeAuth(session) {
+    try {
+      if (session) sessionStorage.setItem(AUTH_KEY, JSON.stringify(session));
+      else sessionStorage.removeItem(AUTH_KEY);
+    } catch (e) {}
+  }
   function query(table) {
     const q = {};
     ['select','eq','order','limit','neq','in','is'].forEach(m => { q[m] = () => q; });
@@ -301,7 +311,13 @@ STUB = """
     // The level-up wizard uses maybeSingle for "is this already saved?" reads,
     // which must resolve to null rather than the first fixture row.
     q.maybeSingle = () => Promise.resolve({ data: null, error: null });
-    q.then = (res, rej) => Promise.resolve({ data: FIXTURES[table] || [], error: null }).then(res, rej);
+    // `select('id', { count: 'exact', head: true })` reads only `count`, so
+    // every resolve carries one alongside the rows.
+    q.then = (res, rej) => Promise.resolve({
+      data: FIXTURES[table] || [],
+      count: (FIXTURES[table] || []).length,
+      error: null
+    }).then(res, rej);
     return q;
   }
   function writer(table, verb) {
@@ -377,6 +393,21 @@ STUB = """
           return ch;
         },
         removeChannel: () => Promise.resolve('ok'),
+        // Supabase auth. Only the analytics dashboard uses it -- the app
+        // itself signs in against a world PIN, not an auth user.
+        auth: {
+          getSession: () => Promise.resolve({ data: { session: readAuth() }, error: null }),
+          signInWithPassword: ({ email, password }) => {
+            if (password !== 'letmein') {
+              return Promise.resolve({ data: { session: null },
+                                       error: { message: 'Invalid login credentials' } });
+            }
+            const session = { user: { id: 'auth-user', email: email } };
+            writeAuth(session);
+            return Promise.resolve({ data: { session: session }, error: null });
+          },
+          signOut: () => { writeAuth(null); return Promise.resolve({ error: null }); }
+        },
         from: (table) => Object.assign(query(table), {
           update: writer(table, 'update'),
           insert: writer(table, 'insert'),
@@ -405,6 +436,17 @@ STUB = """
                 { name:'Goblin 1', api:'goblin', hp:9, ac:15, color:'#c4452f', group:'Wave 1' },
                 { name:'Goblin 2', api:'goblin', hp:6, ac:15, color:'#c4452f', group:'Wave 1' }
               ] } }, error:null });
+          }
+          if (fn === 'analytics_overview') {
+            if (!readAuth()) {
+              return Promise.resolve({ data: null, error: {
+                message: 'analytics_overview requires an authenticated session' } });
+            }
+            if (!FIXTURES.analytics_overview) {
+              return Promise.resolve({ data: null, error: {
+                message: 'permission denied for function analytics_overview' } });
+            }
+            return Promise.resolve({ data: FIXTURES.analytics_overview, error: null });
           }
           if (fn === 'world_create') {
             return Promise.resolve({ data: { ok:true, role:'dm', game_world_id:'w1',
@@ -456,6 +498,110 @@ KORR = {
     "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
     "character_details": {},
 }
+
+# ========================================
+# Analytics dashboard fixtures
+#
+# Kept out of the base FIXTURES on purpose: adding a `game_worlds` list would
+# change what every other page's un-`single` read resolves to. The analytics
+# context injects these with stub_with instead.
+# ========================================
+
+ANALYTICS_WORLDS = [
+    {"id": "w1", "name": "Thornfell Reach", "is_active": True,
+     "leveling_mode": "milestone", "created_at": "2026-01-18T10:00:00Z"},
+    {"id": "w2", "name": "Ashvale", "is_active": True,
+     "leveling_mode": "xp", "created_at": "2026-03-02T10:00:00Z"},
+    {"id": "w3", "name": "The Quiet Fen", "is_active": False,
+     "leveling_mode": "milestone", "created_at": "2026-05-11T10:00:00Z"},
+]
+
+def _ac(cid, name, player, world, cls, race, level, background, alignment, made, sub=None):
+    return {"id": cid, "name": name, "player_name": player, "game_world_id": world,
+            "class": cls, "subclass": sub, "race": race, "level": level,
+            "background": background, "alignment": alignment, "created_at": made,
+            "updated_at": made, "pending_level_up": False, "inspiration": False,
+            "hit_point_maximum": 10 * level, "armor_class": 15,
+            "experience_points": 0}
+
+# Five characters in Thornfell, one in Ashvale, none in the Quiet Fen. Dave
+# plays in two worlds; everyone else in one.
+ANALYTICS_CHARACTERS = [
+    _ac("a1", "Brannor Hale", "Dave", "w1", "Fighter", "Human", 5, "Soldier", "Lawful Good", "2026-02-01T09:00:00Z", "Champion"),
+    _ac("a2", "Sythra", "Priya", "w1", "Wizard", "Elf", 5, "Sage", "Neutral", "2026-02-02T09:00:00Z"),
+    _ac("a3", "Korr", "Sam", "w1", "Barbarian", "Goliath", 4, "Outlander", "Chaotic Neutral", "2026-02-03T09:00:00Z"),
+    _ac("a4", "Wisp", "Alex", "w1", "Rogue", "Halfling", 5, "Criminal", "Chaotic Good", "2026-02-04T09:00:00Z"),
+    _ac("a5", "Marel", "Priya", "w1", "Cleric", "Human", 3, "Acolyte", "Lawful Good", "2026-02-05T09:00:00Z"),
+    _ac("a6", "Dorn", "Dave", "w2", "Fighter", "Dwarf", 2, "Soldier", "Lawful Neutral", "2026-03-10T09:00:00Z"),
+]
+
+# Reports for the inbox. One carries a script tag on purpose: everything in a
+# card is free text typed by an anonymous submitter.
+ANALYTICS_FEEDBACK = [
+    {"id": "f1", "kind": "bug", "message": "Holding a card on iOS selects the text.",
+     "contact": "sam@example.com", "game_world_id": "w1", "world_name": "Thornfell Reach",
+     "role": "dm", "page": "characters.html", "viewport": "390x780",
+     "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Version/17.0 Safari/604.1",
+     "app_version": "v2", "is_read": False, "is_archived": False,
+     "created_at": "2026-09-18T02:00:00Z", "read_at": None},
+    {"id": "f2", "kind": "idea", "message": "<script>alert('xss')</script> Let me sort the roster by level.",
+     "contact": None, "game_world_id": "w2", "world_name": "Ashvale",
+     "role": "player", "page": "index.html", "viewport": "1440x900",
+     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36",
+     "app_version": "v2", "is_read": False, "is_archived": False,
+     "created_at": "2026-09-17T22:00:00Z", "read_at": None},
+    {"id": "f3", "kind": "other", "message": "Love it. No notes.",
+     "contact": None, "game_world_id": None, "world_name": None,
+     "role": None, "page": "login.html", "viewport": "1280x800",
+     "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Firefox/131.0",
+     "app_version": "v2", "is_read": True, "is_archived": False,
+     "created_at": "2026-09-16T10:00:00Z", "read_at": "2026-09-16T11:00:00Z"},
+    {"id": "f4", "kind": "bug", "message": "Already dealt with.",
+     "contact": None, "game_world_id": "w1", "world_name": "Thornfell Reach",
+     "role": "dm", "page": "campaigns.html", "viewport": "1280x800",
+     "user_agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/129.0 Safari/537.36",
+     "app_version": "v2", "is_read": True, "is_archived": True,
+     "created_at": "2026-09-10T10:00:00Z", "read_at": "2026-09-10T12:00:00Z"},
+]
+
+# The shape public.analytics_overview() returns: counts only.
+ANALYTICS_OVERVIEW = {
+    "generated_at": "2026-09-18T00:00:00Z",
+    "totals": {"campaigns": 3, "authored_campaigns": 1, "chapters": 8, "beats": 11,
+               "checks": 12, "areas": 4, "npcs": 3, "monsters": 4, "encounters": 4,
+               "combatants": 7, "sessions": 2, "notes": 5, "party_links": 6,
+               "shared_encounters": 3},
+    "campaigns_by_status": {"active": 2, "planned": 1},
+    "chapters_by_status": {"planned": 5, "active": 3},
+    "beats_by_status": {"pending": 9, "completed": 2},
+    "checks_by_type": {"skill_check": 11, "saving_throw": 1},
+    "checks_by_focus": {"Perception": 6, "Stealth": 5, "str": 1},
+    "checks": {"group": 2, "secret": 3, "repeatable": 1, "with_success": 10,
+               "with_failure": 7, "avg_dc": 13.1, "min_dc": 8, "max_dc": 20},
+    "npcs_by_disposition": {"neutral": 2, "friendly": 1},
+    "npcs_by_status": {"alive": 3},
+    "areas_by_type": {"settlement": 3, "dungeon": 1},
+    "monsters_by_source": {"srd": 3, "homebrew": 1},
+    "monsters_by_cr": {"under 1": 2, "1-4": 1, "unset": 1},
+    "encounters_by_status": {"planned": 3, "completed": 1},
+    "encounters_by_difficulty": {"medium": 2, "hard": 2},
+    "combatants_by_type": {"monster": 5, "character": 2},
+    "reveals": {"chapters_revealed": 3, "beats_revealed": 2, "areas_discovered": 1,
+                "npcs_known": 1, "sessions_published": 2},
+    "sharing": {"total": 3, "live": 2, "imports": 9},
+    "worlds": [
+        {"id": "w1", "campaigns": 2, "authored_campaigns": 1, "chapters": 6, "beats": 9,
+         "checks": 10, "areas": 3, "npcs": 2, "monsters": 3, "encounters": 3,
+         "sessions": 2, "notes": 4},
+        {"id": "w2", "campaigns": 1, "authored_campaigns": 0, "chapters": 2, "beats": 2,
+         "checks": 2, "areas": 1, "npcs": 1, "monsters": 1, "encounters": 1,
+         "sessions": 0, "notes": 1},
+        {"id": "w3", "campaigns": 0, "authored_campaigns": 0, "chapters": 0, "beats": 0,
+         "checks": 0, "areas": 0, "npcs": 0, "monsters": 0, "encounters": 0,
+         "sessions": 0, "notes": 0},
+    ],
+}
+
 
 errors, failed = [], []
 results = []
@@ -3363,6 +3509,292 @@ async def main():
         await ctx4.close()
         await ctx3.close()
 
+        # ---------- v2: the Support menu ----------
+        ctx10 = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await ctx10.add_init_script(STUB)
+        page10 = await ctx10.new_page()
+        watch(page10, "support")
+        await page10.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await page10.fill("#world-name", "Thornfell Reach")
+        await fill_pin(page10, "join", "1379")
+        await page10.click("#join-form .btn-submit")
+        await page10.wait_for_url("**/v2/index.html", timeout=10000)
+        await page10.wait_for_selector(".party-roster", timeout=10000)
+
+        assert await page10.locator(".sidebar-foot #sb-support").count() == 1
+        ok("the desktop sidebar carries a Support item")
+
+        await page10.click("#sb-support")
+        await page10.wait_for_selector(".card-menu", timeout=5000)
+        coffee = page10.locator('.card-menu a[href*="buymeacoffee"]')
+        assert await coffee.count() == 1
+        assert await coffee.get_attribute("href") == "https://buymeacoffee.com/pwtf"
+        assert await coffee.get_attribute("target") == "_blank"
+        # Opened in a new tab without handing the tab a window.opener to steer.
+        assert "noopener" in (await coffee.get_attribute("rel") or "")
+        ok("Support offers the classic version's coffee link, as a real anchor")
+
+        # A real anchor rather than a button, because the menu closes before an
+        # action runs and a popup opened outside the click's gesture is blocked.
+        underline = await page10.eval_on_selector(
+            '.card-menu a[href*="buymeacoffee"]',
+            "el => getComputedStyle(el).textDecorationLine")
+        assert underline == "none", underline
+        ok("the coffee row is not styled as a bare link")
+
+        await page10.click("#support-feedback")
+        await page10.wait_for_selector("#modal-form", timeout=5000)
+        note = await page10.locator(".modal-body .hint").first.inner_text()
+        for expected in ("Thornfell Reach", "DM", "index.html"):
+            assert expected in note, (expected, note)
+        assert "browser" in note.lower()
+        ok("the form says what travels with a report, before anything is typed")
+
+        await page10.select_option("#mf-kind", "bug")
+        await page10.fill("#mf-message", "Holding a card on iOS selects the text.")
+        await page10.fill("#mf-contact", "sam@example.com")
+        await page10.evaluate("window.__resetWrites()")
+        await page10.click('#modal-form button[type="submit"]')
+        await page10.wait_for_timeout(400)
+
+        sent = [w for w in await page10.evaluate("window.__writes")
+                if w["table"] == "feedback" and w["verb"] == "insert"]
+        assert len(sent) == 1, sent
+        row = sent[0]["payload"]
+        assert row["kind"] == "bug"
+        assert row["message"] == "Holding a card on iOS selects the text."
+        assert row["contact"] == "sam@example.com"
+        ok("submitting writes the report with what was typed")
+
+        # The context the form promised, actually attached.
+        assert row["world_name"] == "Thornfell Reach"
+        assert row["game_world_id"] == "w1"
+        assert row["role"] == "dm"
+        assert row["page"] == "index.html"
+        assert row["app_version"] == "v2"
+        assert "x" in row["viewport"], row["viewport"]
+        assert row["user_agent"], row
+        ok("the promised context rides along: world, role, page, viewport and browser")
+
+        # Nothing from the sheet or the campaign goes with it.
+        blob = json.dumps(row).lower()
+        for leak in ("sythra", "brannor", "drowned road", "harbourmaster"):
+            assert leak not in blob, leak
+        ok("no character or campaign content is attached to a report")
+
+        # is_read and is_archived are pinned by the insert policy's WITH CHECK,
+        # and the client must not be sending them at all.
+        assert "is_read" not in row and "is_archived" not in row, row
+        ok("a report is never submitted pre-read or pre-archived")
+
+        # Below the breakpoint the sidebar is gone, so the drawer has to carry it.
+        await page10.set_viewport_size({"width": 390, "height": 780})
+        await page10.reload(wait_until="domcontentloaded")
+        await page10.wait_for_selector(".party-roster", timeout=10000)
+        await page10.click("#menu-btn")
+        await page10.wait_for_timeout(350)
+        assert await page10.locator("#sm-support").is_visible()
+        await page10.click("#sm-support")
+        await page10.wait_for_selector(".card-menu", timeout=5000)
+        # The drawer must close first, or the panel opens behind its overlay.
+        assert not await page10.locator("#side-menu-overlay.open").count()
+        ok("the mobile drawer carries Support too, and closes before the panel opens")
+        await ctx10.close()
+
+        # ---------- Analytics: the global owner dashboard ----------
+        # The campaign layer is dm_all, so every campaign number on this page
+        # comes from analytics_overview() -- counts only. The assertions below
+        # lock in both halves of that: the numbers arrive, and no campaign name
+        # ever does.
+        ctx8 = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await ctx8.add_init_script(stub_with(
+            game_worlds=ANALYTICS_WORLDS,
+            characters=ANALYTICS_CHARACTERS,
+            analytics_overview=ANALYTICS_OVERVIEW,
+            feedback=ANALYTICS_FEEDBACK))
+        page8 = await ctx8.new_page()
+        watch(page8, "analytics")
+        await page8.goto(f"{BASE}/analytics.html", wait_until="domcontentloaded")
+
+        await page8.wait_for_selector("#gate-form", timeout=10000)
+        assert await page8.locator("#shell").is_hidden()
+        ok("analytics opens on the sign-in gate with the dashboard hidden")
+
+        await page8.fill("#gate-email", "owner@example.com")
+        await page8.fill("#gate-password", "nope")
+        await page8.click("#gate-submit")
+        await page8.wait_for_selector("#gate-error:not([hidden])", timeout=5000)
+        assert await page8.locator("#shell").is_hidden()
+        ok("a refused sign-in shows the error and keeps the dashboard hidden")
+
+        await page8.fill("#gate-password", "letmein")
+        await page8.click("#gate-submit")
+        await page8.wait_for_selector("#sec-library", timeout=10000)
+        sections = await page8.locator(".an-section").count()
+        assert sections == 7, sections
+        ok(f"signing in renders all {sections} dashboard sections")
+
+        # Worlds, characters and players, counted off the readable tables.
+        heroes = await page8.locator("#sec-overview .an-stat.is-hero .value").all_inner_texts()
+        assert heroes[0] == "3", heroes          # worlds
+        assert heroes[1] == "6", heroes          # characters
+        assert heroes[2] == "4", heroes          # Dave, Priya, Sam, Alex
+        # 8+11+12+4+3+4+4+2 for w1..w3 as the RPC reports them
+        assert heroes[3] == "48", heroes
+        ok(f"headline tiles report {heroes[0]} worlds, {heroes[1]} characters, {heroes[2]} players, {heroes[3]} campaign items")
+
+        # A nominal bar set encodes magnitude, so it takes ONE hue. Colouring
+        # class bars by class would say something the data does not.
+        hues = await page8.eval_on_selector_all(
+            "#sec-characters .an-bar-fill",
+            "els => Array.from(new Set(els.map(e => getComputedStyle(e).backgroundColor)))")
+        assert len(hues) == 1, hues
+        ok(f"every magnitude bar uses a single hue ({hues[0]})")
+
+        # A genuine split is coloured by series -- and then always legended,
+        # because on the light surface one slot sits below 3:1.
+        first = page8.locator("#sec-overview .an-panel").first
+        segs = await first.locator(".an-split > span").count()
+        legend = await first.locator(".an-legend > div").count()
+        assert segs == 2 and legend == 2, (segs, legend)
+        values = await first.locator(".an-legend b").all_inner_texts()
+        assert values == ["2", "1"], values
+        ok("a two-way split carries one legend entry per segment, each with its value")
+
+        # The worlds table joins what anon can read to what the RPC counted.
+        rows = page8.locator("#worlds-table tbody tr")
+        assert await rows.count() == 3, await rows.count()
+        top = [c.strip() for c in await rows.first.locator("td").all_inner_texts()]
+        assert top[0] == "Thornfell Reach", top
+        assert top[3] == "5", top                # party
+        assert top[6] == "6", top                # chapters, from the RPC
+        ok("the worlds table joins party counts to the campaign counts from the RPC")
+
+        # Sorting redraws the table alone; the page must not jump back to the top.
+        await page8.click('#worlds-table th[data-sort="name"]')
+        await page8.wait_for_timeout(120)
+        names = [n.strip() for n in await page8.locator("#worlds-table tbody td.name").all_inner_texts()]
+        assert names == ["Ashvale", "The Quiet Fen", "Thornfell Reach"], names
+        assert await page8.locator(".an-section").count() == sections
+        ok("clicking a column header re-sorts the worlds table and leaves the rest of the page alone")
+
+        # Levels are a distribution: read along the axis, never sorted by count.
+        levels = [t.strip() for t in await page8.locator(
+            "#sec-characters .an-panel:nth-child(3) .an-bar-label").all_inner_texts()]
+        assert levels == ["Level 2", "Level 3", "Level 4", "Level 5"], levels
+        ok("the level distribution keeps its axis order rather than sorting by count")
+
+        # Campaign figures, and what is still hidden from the party.
+        campaign_tiles = await page8.locator("#sec-campaigns .an-stat .value").all_inner_texts()
+        assert campaign_tiles[1] == "8", campaign_tiles    # chapters
+        assert campaign_tiles[2] == "11", campaign_tiles   # beats
+        shown = await page8.locator("#sec-campaigns .an-prog-row .num").first.inner_text()
+        assert "3" in shown and "8" in shown, shown
+        ok("campaign counts and the revealed-to-players rows come through from the RPC")
+
+        # ---------- The feedback inbox ----------
+        badge = page8.locator("#nav-feedback-count")
+        assert await badge.inner_text() == "2", await badge.inner_text()
+        assert await badge.is_visible()
+        ok("the sidebar badge counts unread, unarchived reports (2 of 4)")
+
+        cards = page8.locator("#sec-feedback .fb-card")
+        assert await cards.count() == 3, await cards.count()   # the archived one is out
+        assert await page8.locator("#sec-feedback .fb-card.is-unread").count() == 2
+        ok("the open list shows every unarchived report, marking the unread ones")
+
+        # A report is free text from an anonymous submitter.
+        assert "<script>" not in (await page8.content())
+        assert "alert('xss')" in await cards.nth(1).locator(".fb-message").inner_text()
+        ok("a report's message renders as text, tags and all")
+
+        # The context the v2 form promised is what the inbox shows.
+        meta = await cards.first.locator(".fb-meta").inner_text()
+        for expected in ("Thornfell Reach", "DM", "characters.html", "390x780", "Safari on iOS"):
+            assert expected in meta, (expected, meta)
+        assert "sam@example.com" in await cards.first.locator(".fb-contact").inner_text()
+        ok("each card shows where the report came from, and how to reply")
+
+        # Marking read writes the row and takes it off the badge.
+        await page8.evaluate("window.__resetWrites()")
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="read"]')
+        await page8.wait_for_timeout(300)
+        marked = [w for w in await page8.evaluate("window.__writes")
+                  if w["table"] == "feedback" and w["verb"] == "update"]
+        assert len(marked) == 1 and marked[0]["payload"]["is_read"] is True, marked
+        assert marked[0]["payload"]["read_at"], marked
+        assert await badge.inner_text() == "1", await badge.inner_text()
+        assert await page8.locator("#sec-feedback .fb-card.is-unread").count() == 1
+        ok("marking a report read writes the row and drops the badge to 1")
+
+        # And back again, so a mis-tap costs nothing.
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="unread"]')
+        await page8.wait_for_timeout(300)
+        assert await badge.inner_text() == "2", await badge.inner_text()
+        ok("marking it unread again restores the count")
+
+        # Archive hides without deleting: the row is updated, never removed.
+        await page8.evaluate("window.__resetWrites()")
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="archive"]')
+        await page8.wait_for_timeout(300)
+        writes = await page8.evaluate("window.__writes")
+        assert not [w for w in writes if w["table"] == "feedback" and w["verb"] == "delete"], writes
+        archived = [w for w in writes if w["table"] == "feedback" and w["verb"] == "update"]
+        assert archived[0]["payload"]["is_archived"] is True, archived
+        assert await page8.locator("#sec-feedback .fb-card").count() == 2
+        ok("archiving updates the row rather than deleting it, and takes it off the list")
+
+        await page8.click('#sec-feedback [data-fb-view="archived"]')
+        await page8.wait_for_timeout(250)
+        assert await page8.locator("#sec-feedback .fb-card").count() == 2   # f4 and the one just archived
+        await page8.click('#sec-feedback .fb-card:first-child [data-fb="restore"]')
+        await page8.wait_for_timeout(300)
+        assert await page8.locator("#sec-feedback .fb-card").count() == 1
+        await page8.click('#sec-feedback [data-fb-view="open"]')
+        await page8.wait_for_timeout(250)
+        assert await page8.locator("#sec-feedback .fb-card").count() == 3
+        ok("the Archived tab lists what was hidden, and Restore brings it back")
+
+        # Nothing a DM wrote may reach this page. If anyone ever swaps the RPC
+        # for a direct read, the campaign fixture's name lands in the markup.
+        markup = await page8.content()
+        for secret in ("The Drowned Road", "Mist hangs over the water", "harbourmaster"):
+            assert secret not in markup, secret
+        ok("no campaign name, read-aloud line or DM note appears anywhere on the page")
+
+        await page8.set_viewport_size({"width": 390, "height": 780})
+        await page8.wait_for_timeout(200)
+        overflow = await page8.evaluate(
+            "() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        assert overflow <= 1, overflow
+        assert await page8.locator(".an-jump").is_visible()
+        ok("at 390px the dashboard has no horizontal overflow and shows the section jumps")
+
+        await page8.set_viewport_size({"width": 1280, "height": 900})
+        await page8.click("#sb-signout")   # the desktop sidebar's copy
+        await page8.wait_for_selector("#gate-form", timeout=5000)
+        assert await page8.locator("#shell").is_hidden()
+        ok("signing out returns to the gate")
+        await ctx8.close()
+
+        # Without the function the campaign section says so, and every section
+        # that does not depend on it still renders.
+        ctx9 = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await ctx9.add_init_script(stub_with(
+            game_worlds=ANALYTICS_WORLDS, characters=ANALYTICS_CHARACTERS))
+        page9 = await ctx9.new_page()
+        watch(page9, "analytics-norpc")
+        await page9.goto(f"{BASE}/analytics.html", wait_until="domcontentloaded")
+        await page9.fill("#gate-email", "owner@example.com")
+        await page9.fill("#gate-password", "letmein")
+        await page9.click("#gate-submit")
+        await page9.wait_for_selector("#sec-library", timeout=10000)
+        assert await page9.locator("#sec-campaigns .an-locked").count() == 1
+        assert await page9.locator("#sec-characters .an-bar-row").count() > 0
+        assert await page9.locator("#worlds-table tbody tr").count() == 3
+        ok("a refused analytics_overview() locks only the campaign section; the rest still renders")
+        await ctx9.close()
+
         await browser.close()
 
     print(f"\n{len(results)} checks passed.")
@@ -3379,4 +3811,7 @@ async def main():
     return 0
 
 
-sys.exit(asyncio.run(main()))
+# Guarded so the fixtures and the stub can be imported (by a screenshot or
+# debugging script) without running the whole suite as a side effect.
+if __name__ == "__main__":
+    sys.exit(asyncio.run(main()))

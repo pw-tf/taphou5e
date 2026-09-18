@@ -1,0 +1,248 @@
+/* ==========================================================================
+   TAPHOU5E — analytics dashboard
+   Sits on tokens.css + ember.css + v2.css. Only chart structure lives here.
+
+   Chart colours are NOT the app's tracker palette. That palette works in the
+   tracker because a name sits beside every colour, but as a chart palette it
+   fails validation outright: green and gold separate by only ΔE 5.3 under
+   protanopia, slate blue and grey fall under the chroma floor, and slate blue
+   sits at 2.5:1 on the dark surface. The three slots below were stepped until
+   they passed every check on both surfaces:
+
+     dark  #d95926 #3987e5 #199e70  on #1a1512 — ALL PASS (worst CVD ΔE 9.4)
+     light #eb6834 #2a78d6 #1baf7a  on #fffaf1 — ALL PASS, aqua at 2.71:1,
+           which is why every segment carries a legend and a printed value.
+
+   Nominal bars (classes, races, levels, statuses) are magnitude, not identity,
+   so they take ONE hue and are never coloured by value.
+   ========================================================================== */
+
+:root {
+  --chart-1: #d95926;
+  --chart-2: #3987e5;
+  --chart-3: #199e70;
+  /* The track is not data, but it has to read as a track. On the light
+     surface bg-tertiary is within a hair of the panel behind it, so an
+     almost-empty bar became impossible to see. */
+  --chart-track: var(--bg-tertiary);
+}
+[data-theme="light"] {
+  --chart-1: #eb6834;
+  --chart-2: #2a78d6;
+  --chart-3: #1baf7a;
+  --chart-track: var(--bg-elevated);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --chart-1: #eb6834;
+    --chart-2: #2a78d6;
+    --chart-3: #1baf7a;
+    --chart-track: var(--bg-elevated);
+  }
+}
+
+/* ---------- Shell ---------- */
+.an-main { gap: var(--space-lg); padding-bottom: var(--space-2xl); }  /* no bottom tab bar on this page */
+.an-section { display: flex; flex-direction: column; gap: var(--space-12); scroll-margin-top: 80px; }
+.an-section > h2 {
+  font-family: var(--font-display); font-size: var(--fs-21); font-weight: 700;
+  display: flex; align-items: baseline; gap: var(--space-10);
+}
+.an-section > h2 .count { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--text-tertiary); font-weight: 400; }
+
+/* Section jump chips — the sidebar's job above 900px, a scroller below it. */
+.an-jump {
+  display: flex; gap: var(--space-6); overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.an-jump::-webkit-scrollbar { display: none; }
+.an-jump a {
+  flex: none; padding: 6px 12px; border-radius: var(--radius-full);
+  border: 1px solid var(--border-default); background: var(--bg-secondary);
+  color: var(--text-secondary); font-size: var(--fs-12); font-weight: 500; text-decoration: none;
+}
+.an-jump a:hover { background: var(--bg-hover); color: var(--text-primary); text-decoration: none; }
+@media (min-width: 900px) { .an-jump { display: none; } }
+
+/* ---------- Stat tiles ----------
+   A single headline number is a tile, not a chart. */
+.an-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-10); }
+@media (min-width: 620px) { .an-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .an-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.an-stats.six  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .an-stats.six { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+.an-stat {
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: var(--space-12) var(--space-14);
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.an-stat .value { font-family: var(--font-mono); font-size: var(--fs-24); font-weight: 600; line-height: 1.1; color: var(--text-primary); }
+.an-stat .label { font-size: var(--fs-11); color: var(--text-secondary); }
+.an-stat .sub   { font-size: var(--fs-10); color: var(--text-tertiary); margin-top: 2px; }
+.an-stat.is-hero { background: var(--bg-elevated); border-color: var(--border-strong); }
+.an-stat.is-hero .value { font-size: var(--fs-32); color: var(--accent-primary); }
+
+/* ---------- Panels ---------- */
+.an-grid {
+  display: grid; grid-template-columns: 1fr; gap: var(--space-12);
+  align-items: start;   /* a short panel beside a tall one keeps its own height */
+}
+@media (min-width: 900px) { .an-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.an-grid > .wide { grid-column: 1 / -1; }
+
+.an-panel {
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: var(--space-14) var(--space-md);
+  display: flex; flex-direction: column; gap: var(--space-12); min-width: 0;
+}
+.an-panel > header { display: flex; align-items: baseline; gap: var(--space-sm); flex-wrap: wrap; }
+.an-panel > header h3 { font-size: var(--fs-14); font-weight: 600; color: var(--text-primary); }
+.an-panel > header .note { font-size: var(--fs-11); color: var(--text-tertiary); margin-left: auto; }
+
+/* ---------- Magnitude bars — one hue, never coloured by value ---------- */
+.an-bars { display: flex; flex-direction: column; gap: 5px; }
+.an-bar-row {
+  display: grid; grid-template-columns: minmax(0, 96px) 1fr auto;
+  align-items: center; gap: var(--space-10);
+  padding: 2px 4px; border-radius: var(--radius-sm);
+}
+.an-bar-row:hover { background: var(--bg-hover); }
+@media (min-width: 900px) { .an-bar-row { grid-template-columns: minmax(0, 132px) 1fr auto; } }
+.an-bar-label {
+  font-size: var(--fs-12); color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.an-bar-track { height: 10px; background: var(--chart-track); border-radius: 3px; overflow: hidden; }
+.an-bar-fill {
+  height: 100%; background: var(--chart-1);
+  border-radius: 0 3px 3px 0;              /* rounded at the data end only */
+  min-width: 2px;                           /* a count of 1 still reads */
+  transition: width var(--transition-normal);
+}
+.an-bar-value {
+  font-family: var(--font-mono); font-size: var(--fs-12); color: var(--text-primary);
+  text-align: right; white-space: nowrap;
+}
+.an-bar-value .pct { color: var(--text-tertiary); font-size: var(--fs-10); margin-left: 4px; }
+
+/* ---------- Split bar — two or three series, always legended ---------- */
+.an-split { display: flex; gap: 2px; height: 14px; }   /* 2px surface gap between fills */
+.an-split > span { display: block; border-radius: 2px; min-width: 3px; }
+.an-split > span:first-child { border-radius: 3px 2px 2px 3px; }
+.an-split > span:last-child  { border-radius: 2px 3px 3px 2px; }
+.an-split > span:only-child  { border-radius: 3px; }
+
+.an-legend { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); }
+.an-legend > div { display: flex; align-items: center; gap: 6px; font-size: var(--fs-11); color: var(--text-secondary); }
+.an-legend i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.an-legend b { font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); }
+
+.c1 { background: var(--chart-1); }
+.c2 { background: var(--chart-2); }
+.c3 { background: var(--chart-3); }
+
+/* ---------- Progress rows (revealed of total) ---------- */
+.an-prog { display: flex; flex-direction: column; gap: var(--space-10); }
+.an-prog-row { display: flex; flex-direction: column; gap: 5px; }
+.an-prog-row .top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); }
+.an-prog-row .name { font-size: var(--fs-12); color: var(--text-secondary); }
+.an-prog-row .num { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--text-primary); }
+.an-prog-row .num span { color: var(--text-tertiary); }
+
+/* ---------- Tables ---------- */
+.an-table-wrap { overflow-x: auto; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-secondary); }
+.an-table { width: 100%; border-collapse: collapse; font-size: var(--fs-12); }
+.an-table th, .an-table td { padding: 9px var(--space-12); text-align: left; white-space: nowrap; }
+.an-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--bg-elevated); color: var(--text-tertiary);
+  font-family: var(--font-mono); font-size: var(--fs-10); font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border-default);
+}
+.an-table thead th.sortable { cursor: pointer; user-select: none; }
+.an-table thead th.sortable:hover { color: var(--text-primary); }
+.an-table thead th .arrow { color: var(--accent-primary); margin-left: 4px; }
+.an-table tbody tr + tr td { border-top: 1px solid var(--border-subtle); }
+.an-table tbody tr:hover td { background: var(--bg-hover); }
+.an-table td.num { font-family: var(--font-mono); text-align: right; }
+.an-table td.name { white-space: normal; min-width: 160px; color: var(--text-primary); font-weight: 500; }
+.an-table td.muted, .an-table td .muted { color: var(--text-tertiary); }
+
+/* ---------- Hover tooltip ---------- */
+.an-tip {
+  position: fixed; z-index: 400; pointer-events: none;
+  padding: 6px 9px; border-radius: var(--radius-sm);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  font-size: var(--fs-11); color: var(--text-primary); white-space: nowrap;
+  opacity: 0; transition: opacity var(--transition-fast);
+}
+.an-tip.is-on { opacity: 1; }
+
+/* ---------- States ---------- */
+.an-loading { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); padding: var(--space-2xl) var(--space-md); color: var(--text-tertiary); font-size: var(--fs-13); }
+.an-spinner {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent-primary);
+  animation: an-spin .8s linear infinite;
+}
+@keyframes an-spin { to { transform: rotate(360deg); } }
+.an-none { font-size: var(--fs-12); color: var(--text-muted); padding: var(--space-sm) 0; }
+.an-locked {
+  display: flex; flex-direction: column; gap: var(--space-6);
+  padding: var(--space-12) var(--space-14); border-radius: var(--radius-md);
+  background: var(--warning-bg); border: 1px solid var(--warning);
+  font-size: var(--fs-12); color: var(--text-secondary);
+}
+.an-locked b { color: var(--warning); }
+
+/* ==========================================================================
+   Feedback inbox
+   Reports submitted from the v2 Support menu. Everything in a card is free
+   text someone typed, so the message keeps its line breaks through CSS
+   (pre-wrap) rather than through markup the page would have to trust.
+   ========================================================================== */
+
+.fb-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-10) var(--space-md);
+}
+.fb-bar .hint { flex: 1; min-width: 220px; }
+
+.fb-list { display: flex; flex-direction: column; gap: var(--space-10); }
+
+.fb-card {
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-left: 2px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: var(--space-12) var(--space-md);
+  display: flex; flex-direction: column; gap: var(--space-sm);
+}
+.fb-card.is-unread { border-left-color: var(--accent-primary); background: var(--bg-elevated); }
+.fb-card.is-archived { opacity: .7; }
+
+.fb-head { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.fb-kind {
+  flex: none; font-family: var(--font-mono); font-size: var(--fs-9);
+  letter-spacing: .1em; text-transform: uppercase;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-full);
+  padding: 2px 8px; color: var(--text-secondary);
+}
+.fb-kind.is-bug  { color: var(--danger); border-color: var(--danger); }
+.fb-kind.is-idea { color: var(--accent-secondary); border-color: var(--accent-secondary); }
+.fb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); flex: none; }
+.fb-when { margin-left: auto; font-size: var(--fs-11); color: var(--text-tertiary); }
+
+.fb-message {
+  font-size: var(--fs-14); color: var(--text-primary); line-height: 1.55;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.fb-meta {
+  font-family: var(--font-mono); font-size: var(--fs-10); color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+.fb-contact { font-size: var(--fs-12); color: var(--text-secondary); overflow-wrap: anywhere; }
+.fb-contact b { color: var(--text-primary); }
+
+.fb-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.fb-actions .btn { font-size: var(--fs-12); padding: 5px 11px; }
