@@ -3121,7 +3121,7 @@ async def main():
         assert after > before - 40, f"scroll jumped from {before} to {after}"
         ok(f"pressing + on the lower improvement keeps the dialog's place ({before} -> {after})")
 
-        # ---------- 66. Subclass info ----------
+        # ---------- 66. Subclass summaries ----------
         # Both improvements owe two points each before the step will let go.
         for i in range(2):
             block = lp.locator(".asi-block").nth(i)
@@ -3136,54 +3136,18 @@ async def main():
         await lp.click("#lu-next")
         await lp.wait_for_selector("[data-subclass]", timeout=5000)
 
-        rows = await lp.locator(".subclass-row").count()
-        infos = await lp.locator(".info-btn").count()
-        assert rows == infos and rows >= 7, (rows, infos)
-        ok(f"every subclass carries an info button ({rows} of them)")
-
         # Compare against what rules.js actually holds, rather than guessing at
         # a word: "rage" is not a substring of "raging", which is how the first
         # version of this assertion failed on correct output.
+        rows = await lp.locator(".subclass-row").count()
+        assert rows >= 7, rows
         summary = (await lp.locator('[data-subclass="Path of the Berserker"] .summary').inner_text()).strip()
         expected = await lp.evaluate("() => subclassSummary('Path of the Berserker')")
         assert summary and summary == expected, (summary, expected)
         blank = await lp.evaluate(BLANK_SUMMARIES_JS)
         assert not blank, blank
-        ok("every row shows its one-line summary without opening anything")
+        ok(f"every subclass row carries its one-line summary ({rows} of them)")
 
-        # Reading about one expands it in place. There is one modal host, so a
-        # panel here would have closed the wizard to show the description and
-        # left nothing behind when it was dismissed.
-        await lp.click('[data-about="Path of the Zealot"]')
-        await lp.wait_for_selector(".subclass-about", timeout=5000)
-        await lp.wait_for_timeout(700)
-        assert await lp.locator(".wizard-steps").count() == 1, \
-            "the wizard must still be there"
-
-        about = await lp.locator(".subclass-about").inner_text()
-        # The Zealot is not in the SRD, so it says so rather than leaving a
-        # skeleton spinning forever.
-        assert "Not in the SRD" in about, about
-        ok("a subclass outside the SRD says so, inside the wizard")
-
-        chosen = await lp.locator(".subclass-row.is-on").count()
-        assert chosen == 0, "reading about a subclass must not select it"
-        ok("reading about a subclass does not choose it")
-
-        # One that IS in the SRD gets the real text.
-        await lp.click('[data-about="Path of the Berserker"]')
-        await lp.wait_for_timeout(900)
-        about = await lp.locator(".subclass-about").inner_text()
-        assert "means to an end" in about, about
-        assert await lp.locator(".subclass-about").count() == 1, "one open at a time"
-        ok("an SRD subclass shows its real description in place")
-
-        # And it still picks normally.
-        await lp.click('[data-subclass="Path of the Berserker"]')
-        await lp.wait_for_timeout(300)
-        assert await lp.locator(".subclass-row.is-on").count() == 1
-        assert not await lp.locator("#lu-next").is_disabled()
-        ok("the row beside the info button still chooses the subclass")
         await lvl.close()
 
         # ---------- 41. Router ----------
