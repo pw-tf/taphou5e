@@ -157,6 +157,151 @@ const FEATS = [
     { name: 'Weapon Master', description: '+1 STR or DEX, gain proficiency with 4 weapons' }
 ];
 
+// ---- Subclass summaries -----------------------------------------------
+//
+// One line each, describing what the subclass plays like rather than
+// reproducing its rules. Only twelve of these are in the SRD; the rest come
+// from the Player's Handbook and later books, so the full text is not
+// available to the app and the summary is all there is.
+//
+// These are written from a working knowledge of 5e, not copied from a source
+// book, so treat them as a nudge toward the right page rather than a spec:
+// check the book before committing to one.
+const SUBCLASS_SUMMARY = {
+    // Barbarian
+    'Path of the Berserker': 'Straightforward fury: an extra attack while raging, at the cost of exhaustion.',
+    'Path of the Totem Warrior': 'Animal spirits shape your rage — bear for durability, wolf for the party, eagle for mobility.',
+    'Path of the Ancestral Guardian': 'A defender: your rage marks enemies and shields the ally they were trying to hit.',
+    'Path of the Storm Herald': 'Your rage radiates an aura of desert, sea or tundra that harms or helps everyone nearby.',
+    'Path of the Zealot': 'Divine fury — bonus damage, and you fight on past the point most characters drop.',
+    'Path of the Beast': 'Your rage grows natural weapons: claws, a bite, or a tail that swats attackers.',
+    'Path of Wild Magic': 'Rage triggers a random magical surge each time, plus party-wide support effects.',
+
+    // Bard
+    'College of Lore': 'The skill-monkey caster: more proficiencies, Cutting Words to spoil enemy rolls, spells from any class.',
+    'College of Valor': 'A front-line bard in medium armour with a second attack and inspiration that boosts damage and AC.',
+    'College of Glamour': 'Courtly enchantment: charm crowds, grant temporary hit points and commands as a bonus action.',
+    'College of Swords': 'A blade-dancer using Bardic Inspiration for flourishes that add damage, movement or defence.',
+    'College of Whispers': 'A bard who trades on fear and secrets, with psychic damage and impersonating the dead.',
+    'College of Creation': 'Song made solid: conjure objects and an animated dancing item that fights alongside you.',
+    'College of Eloquence': 'The strongest talker in the game — inspiration that never misses and reliable persuasion.',
+
+    // Cleric
+    'Knowledge Domain': 'Skills, languages and divination; reads objects and minds rather than smiting things.',
+    'Life Domain': 'The archetypal healer: every healing spell does more, and heavy armour keeps you standing.',
+    'Light Domain': 'Radiant blaster with Warding Flare to blind attackers and fire spells on the domain list.',
+    'Nature Domain': 'A druidic cleric with a druid cantrip, heavy armour and control over plants and beasts.',
+    'Tempest Domain': 'Thunder and lightning, maximised damage on a channel, and a punishing reaction to being hit.',
+    'Trickery Domain': 'Illusion and stealth: a duplicate of yourself, and blessings that make allies sneaky.',
+    'War Domain': 'A fighting priest with bonus attacks, heavy armour and a bonus to hit from your channel.',
+    'Forge Domain': 'Crafts and enhances gear; permanent armour and weapon bonuses for the party, and fire damage.',
+    'Grave Domain': 'Balances life and death — keeps dying allies up, and marks enemies for extra damage.',
+    'Order Domain': 'Law and command: allies get free attacks when you buff them, plus heavy armour and charms.',
+    'Peace Domain': 'Bonds the party together so they share defences and can lend each other rolls.',
+    'Twilight Domain': 'Darkvision and temporary hit points for the whole party in an aura, and immunity to fear.',
+
+    // Druid
+    'Circle of the Land': 'The caster druid: extra spells keyed to a terrain, and recovering slots on a short rest.',
+    'Circle of the Moon': 'Wild Shape as a combat form — tougher beasts, and later elementals.',
+    'Circle of Dreams': 'Fey-touched healing, a safe camp for the party, and teleporting out of trouble.',
+    'Circle of the Shepherd': 'Summoner support: spirit totems and conjured creatures that are far harder to kill.',
+    'Circle of Spores': 'Necrotic damage aura, raising fallen creatures as fungal servants, staying up on your own halo.',
+    'Circle of Stars': 'A starry form for archery, healing or wisdom, and recalling constellations for divination.',
+    'Circle of Wildfire': 'A fire spirit companion that both burns enemies and teleports allies out of danger.',
+
+    // Fighter
+    'Champion': 'The simplest to play: a wider critical range, better physical skills, and no resources to track.',
+    'Battle Master': 'Tactical manoeuvres from a pool of superiority dice — trip, disarm, feint, direct allies.',
+    'Eldritch Knight': 'A fighter who casts: abjuration and evocation spells bound to a weapon, cast alongside attacks.',
+    'Arcane Archer': 'Magic arrows with a handful of effects per rest — banishing, seeking, bursting.',
+    'Cavalier': 'Locks an enemy onto you and punishes them for looking elsewhere; strong mounted.',
+    'Samurai': 'Fighting Spirit for advantage and temporary hit points, plus social skills and extra attacks.',
+    'Echo Knight': 'Fights beside a spectral duplicate you can swap places with — enormous reach and mobility.',
+    'Psi Warrior': 'Telekinetic force: shove enemies, shield allies, and add psionic damage to your hits.',
+    'Rune Knight': 'Giant runes on your gear grant passive bonuses, and you can grow larger in a fight.',
+
+    // Monk
+    'Way of the Open Hand': 'The pure martial artist: your flurry knocks down, pushes, or denies reactions.',
+    'Way of Shadow': 'A ninja — darkness, teleporting shadow to shadow, and free stealth.',
+    'Way of the Four Elements': 'Spends ki on elemental effects; flexible but hungry for ki compared to other monks.',
+    'Way of the Drunken Master': 'Evasive and unpredictable: disengage while you flurry, redirect missed attacks.',
+    'Way of the Kensei': 'Extends monk mastery to weapons and bows, with a defensive bonus for using them.',
+    'Way of the Sun Soul': 'Ranged radiant blasts, so the monk has something to do when they cannot close.',
+    'Way of Mercy': 'A field medic that heals or harms by touch, and can hide its identity behind a mask.',
+    'Way of the Astral Self': 'Summons spectral arms and a face — longer reach, wisdom-based attacks, better senses.',
+
+    // Paladin
+    'Oath of Devotion': 'The classic paladin: sacred weapon for accuracy, and protection from fiends and undead.',
+    'Oath of the Ancients': 'Nature-bound and resilient; the aura halves spell damage for the whole party.',
+    'Oath of Vengeance': 'The hunter: mark one foe, gain advantage against it, and chase it down.',
+    'Oath of Conquest': 'Fear as a weapon — frightened enemies are held in place and take damage for being near you.',
+    'Oath of Redemption': 'A pacifist build: absorbs damage meant for allies and tries to end fights without killing.',
+    'Oath of Glory': 'Athletic and inspiring; boosts allies’ movement and gives them a floor on failed rolls.',
+    'Oath of the Watchers': 'Anti-magic and anti-extraplanar: initiative bonuses and strong saving throw support.',
+
+    // Ranger
+    'Hunter': 'No pet, more damage: options for fighting hordes, big single foes, or defending allies.',
+    'Beast Master': 'A ranger with an animal companion that acts on your command.',
+    'Gloom Stalker': 'An ambusher — huge first-round damage, invisibility in darkness, and hard to track.',
+    'Horizon Walker': 'Planar travel: teleporting steps, force damage, and detecting things that do not belong.',
+    'Monster Slayer': 'Reads one enemy’s weaknesses, punishes its saves, and shuts down its spellcasting.',
+    'Fey Wanderer': 'Charisma-boosted and charming, with psychic damage and protection from being charmed.',
+    'Swarmkeeper': 'A cloud of spirit creatures that adds damage and moves you or the target each turn.',
+
+    // Rogue
+    'Thief': 'Fast hands and second-storey work: extra bonus actions and climbing at full speed.',
+    'Assassin': 'Devastating against a surprised target, plus disguise and poison expertise.',
+    'Arcane Trickster': 'A rogue who casts illusion and enchantment, with a mage hand that steals and distracts.',
+    'Inquisitive': 'A detective: spots lies and hidden things, and can gain sneak attack without an ally nearby.',
+    'Mastermind': 'The face and tactician — help as a bonus action at range, and read people cold.',
+    'Scout': 'A skirmisher who moves away for free when approached, with survival and nature skills.',
+    'Swashbuckler': 'Duellist: sneak attack one-on-one with no ally needed, and disengage for free.',
+    'Phantom': 'Death-touched — steals skills from the dying, and carries a soul that adds necrotic damage.',
+    'Soulknife': 'Psychic blades from nothing, telepathy, and dice that rescue failed checks.',
+
+    // Sorcerer
+    'Draconic Bloodline': 'Tougher than most sorcerers: more hit points, natural armour, and a damage-type affinity.',
+    'Wild Magic': 'Chaotic surges on casting, and Bend Luck to nudge anyone’s roll.',
+    'Divine Soul': 'Borrows the cleric list, so a sorcerer who can heal as well as blast.',
+    'Shadow Magic': 'Darkness, a hound that hunts for you, and clinging to life at zero hit points.',
+    'Storm Sorcery': 'Flight after each spell, thunder and lightning, and pushing enemies away.',
+    'Aberrant Mind': 'Psionic: telepathy, free-ish casting of a small spell list, and subtle spellcasting.',
+    'Clockwork Soul': 'Order incarnate — cancels advantage and disadvantage, and shields allies from harm.',
+
+    // Warlock
+    'The Archfey': 'Charm and illusion; escape by teleporting and turn the fey’s tricks on your enemies.',
+    'The Fiend': 'Blasting and resilience: temporary hit points on every kill, and fire on the spell list.',
+    'The Great Old One': 'Telepathy, psychic damage and enslaving a creature that crits you.',
+    'The Celestial': 'The healing warlock — radiant damage and a pool of healing dice for the party.',
+    'The Hexblade': 'The melee warlock: attack with charisma, curse a target, and summon a spectral weapon.',
+    'The Fathomless': 'A tentacle from the deep that strikes and slows, plus water breathing and cold resistance.',
+    'The Genie': 'A powerful vessel to rest in, elemental damage on your attacks, and later flight.',
+
+    // Wizard
+    'School of Abjuration': 'A ward that absorbs damage and recharges as you cast; the durable wizard.',
+    'School of Conjuration': 'Summoning and object creation, with teleporting escapes.',
+    'School of Divination': 'Portent: replace two rolls a day with numbers you rolled at dawn — hugely powerful.',
+    'School of Enchantment': 'Charms and compulsions, including turning one attack back on its caster.',
+    'School of Evocation': 'The blaster: shape your fireballs so allies are not caught in them.',
+    'School of Illusion': 'Illusions that become partly real, and reshaping them on the fly.',
+    'School of Necromancy': 'Raises and commands undead, and heals yourself on every kill.',
+    'School of Transmutation': 'Changes matter and creatures, with a stone that grants shifting benefits.',
+    'War Magic': 'A battle-mage: better initiative, concentration and saves, and a deflecting shield.',
+    'Bladesinging': 'A duellist wizard — a song that boosts AC and movement while you cast and attack.',
+    'Order of Scribes': 'An awakened spellbook: swap damage types, cast without a component, and copy spells cheaply.',
+
+    // Artificer
+    'Alchemist': 'Healing and elemental support from experimental elixirs.',
+    'Armorer': 'Power armour in two shapes: a heavy defender that taunts, or an infiltrator built for stealth.',
+    'Artillerist': 'Summons a small cannon that blasts, protects or heals, and a magical wand.',
+    'Battle Smith': 'A fighting artificer with a steel defender companion and intelligence-based attacks.'
+};
+
+// Only the SRD carries real descriptions, and only for twelve of these.
+function subclassSummary(name) {
+    return SUBCLASS_SUMMARY[name] || null;
+}
+
 // A subclass is owed once a character reaches level 3 without one. v1 opens
 // its wizard on this condition alone, with no pending flag.
 function needsSubclassSelection(character) {

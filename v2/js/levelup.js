@@ -68,6 +68,7 @@
             hp: range.levels.map(lvl => ({ level: lvl, amount: null, method: null })),
             asi: [],
             subclass: null,
+            about: null,              // subclass whose description is expanded
             spells: [],
             newSpells: []
         };
@@ -317,16 +318,44 @@
 
     // ---- Subclass ---------------------------------------------------------
 
+    // Descriptions expand in place rather than opening a panel. There is one
+    // modal host, so openPanel would have closed the wizard to show the info
+    // and left nothing behind when it was dismissed -- and reading about a
+    // subclass while choosing one is better side by side anyway.
+    const srdText = {};       // subclass name -> description, '' when absent
+
     function stepSubclass() {
         const options = SUBCLASSES[st.c.class] || [];
         return `
             <p class="hint">A ${escapeHtml(st.c.class)} chooses a subclass at level ${SUBCLASS_LEVEL}. Its features are added automatically where the SRD has them.</p>
             <div class="pick-list" role="radiogroup" aria-label="Subclass">
-                ${options.map(name => `
-                    <button class="pick-row${st.subclass === name ? ' is-on' : ''}" data-subclass="${escapeHtml(name)}"
-                            role="radio" aria-checked="${st.subclass === name}">
-                        <span class="name">${escapeHtml(name)}</span>
-                    </button>`).join('')}
+                ${options.map(name => {
+                    const open = st.about === name;
+                    const text = srdText[name];
+                    return `
+                    <div class="pick-row-wrap">
+                        <div class="pick-row-main">
+                            <button class="pick-row${st.subclass === name ? ' is-on' : ''}" data-subclass="${escapeHtml(name)}"
+                                    role="radio" aria-checked="${st.subclass === name}">
+                                <span class="name">${escapeHtml(name)}</span>
+                                <span class="meta">${escapeHtml(subclassSummary(name) || '')}</span>
+                            </button>
+                            <button class="info-btn${open ? ' is-on' : ''}" data-about="${escapeHtml(name)}"
+                                    aria-expanded="${open}" aria-label="About ${escapeHtml(name)}">i</button>
+                        </div>
+                        ${open ? `
+                            <div class="subclass-about">
+                                ${text === undefined
+                                    ? '<div class="skeleton"></div>'
+                                    : text
+                                        ? `<span class="eyebrow">From the SRD</span>
+                                           <p class="prose">${escapeHtml(text)}</p>`
+                                        : `<p class="hint">Not in the SRD &mdash; this one is from the
+                                           Player's Handbook or a later book, so the line above is all
+                                           the app has. Check the book before you commit to it.</p>`}
+                            </div>` : ''}
+                    </div>`;
+                }).join('')}
             </div>`;
     }
 
@@ -335,6 +364,33 @@
             st.subclass = b.dataset.subclass;
             render();
         }));
+
+        $$('[data-about]').forEach(b => b.addEventListener('click', e => {
+            // The row beside it picks the subclass; reading about one is not
+            // the same as taking it.
+            e.stopPropagation();
+            const name = b.dataset.about;
+            st.about = st.about === name ? null : name;
+            render();
+            if (st.about) loadSubclassText(name);
+        }));
+    }
+
+    // The SRD carries a real description for twelve of the hundred-odd
+    // subclasses. An empty string means "looked, found nothing", so a second
+    // press does not fetch again.
+    async function loadSubclassText(name) {
+        if (srdText[name] !== undefined) return;
+        try {
+            const list = await srdIndex(`classes/${st.c.class.toLowerCase()}/subclasses`);
+            const match = matchSubclass(list, name);
+            srdText[name] = match
+                ? [].concat((await srdDetail('subclasses', match.index)).desc || []).join('\n\n')
+                : '';
+        } catch (err) {
+            srdText[name] = '';
+        }
+        if (st && st.about === name) render();
     }
 
     // ---- Spells -----------------------------------------------------------
@@ -726,6 +782,12 @@
             ? { value: searchBox.value, focused: document.activeElement === searchBox }
             : null;
 
+        // ...and it drops the scroll position with them. Pressing + on the
+        // level 6 improvement, which is below the fold when two levels owe
+        // one, threw the dialog back to the top on every click.
+        const scroller = $('#modal-host .modal');
+        const scrollTop = scroller ? scroller.scrollTop : 0;
+
         const steps = activeSteps();
         const at = steps.indexOf(st.step);
         const last = at === steps.length - 1;
@@ -755,6 +817,10 @@
             body,
             wide: true,
             onMount: () => {
+                // Before anything else, so the dialog never flashes at the top.
+                const rebuilt = $('#modal-host .modal');
+                if (rebuilt && scrollTop) rebuilt.scrollTop = scrollTop;
+
                 if (st.busy && !st.levels.length) return;
                 const id = STEPS[st.step].id;
                 if (id === 'hp') wireHP();

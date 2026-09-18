@@ -891,7 +891,7 @@ and silent on everything in §4.
 
 ### 11.3 Build status
 
-The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (274 assertions):
+The `/v2/` foundation is in place and covered by `v2/test/smoke.py` (281 assertions):
 
 | Built | Not yet |
 |---|---|
@@ -1489,6 +1489,32 @@ Two things this had to get right:
   otherwise be left with a level 10 character carrying level 1 hit points and
   nothing on screen saying so. The campaign step behind it now says what is
   still owed and offers to resume; the sheet's banner catches it as well.
+
+### 11.3a15 Keeping your place, and knowing what you are picking
+
+**A redraw threw away the scroll position.** `openPanel` rebuilds the whole
+dialog, so every redraw put it back at the top. With two levels owing an
+ability score improvement, the second block is below the fold — and pressing
+its + button jumped the dialog back to the top on every single press. The
+render already carried the spell search's caret and query across a rebuild;
+the scroll offset just was not on that list. It is now, and `character-new.js`
+does the same for the page scroll, since `renderShell` replaces
+`document.body` and stepping an ability score had the same effect there.
+
+**Subclasses say what they are.** Each row now carries a one-line summary and
+an info button. Only **twelve of the hundred and two** subclasses are in the
+SRD; the rest are Player's Handbook and later books, so the API has nothing for
+them. The summaries in `rules.js` cover all 102 and are written from a working
+knowledge of 5e rather than copied — the panel says as much, and tells you to
+check the book before committing when there is no SRD text to back it up.
+
+**The info opens in place, not in a panel.** The first version used
+`openPanel`, which starts with `closeModal()` — and there is one modal host, so
+reading about a subclass **destroyed the level-up wizard** and left nothing
+behind when the panel was dismissed. The description expands under its row
+instead, which keeps the wizard intact and lets you compare two subclasses side
+by side while choosing. A subclass with no SRD text says so rather than leaving
+a skeleton spinning.
 
 ### 11.3b Review fixes
 

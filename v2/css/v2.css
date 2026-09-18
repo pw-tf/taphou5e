@@ -982,3 +982,27 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
 @media (max-width: 560px) {
   .outcome { flex-direction: column; gap: 1px; }
 }
+
+/* ---------- Subclass rows with an info button ----------
+   The button sits beside the row rather than inside it: a button inside a
+   button is invalid, and the row is itself the radio that picks the subclass. */
+.pick-row-wrap { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+.pick-row-main { display: flex; align-items: stretch; gap: var(--space-6); min-width: 0; }
+.pick-row-wrap .pick-row { flex: 1; min-width: 0; }
+.subclass-about {
+  display: flex; flex-direction: column; gap: var(--space-6);
+  padding: 12px 14px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); border-left: 2px solid var(--accent-primary);
+}
+.pick-row-wrap .pick-row .meta {
+  text-transform: none; white-space: normal; line-height: 1.45;
+}
+.info-btn {
+  flex: none; width: 34px; align-self: center; height: 34px;
+  border-radius: 50%; cursor: pointer;
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-display); font-size: var(--fs-14); font-style: italic; font-weight: 700;
+}
+.info-btn:hover, .info-btn.is-on { border-color: var(--accent-primary); color: var(--accent-primary); }
+.info-btn.is-on { background: var(--bg-secondary); }
