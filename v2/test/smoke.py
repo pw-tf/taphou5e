@@ -2198,7 +2198,7 @@ async def main():
         ok(f"taking the average for all fills every level ({total.strip()})")
 
         await lu.click("#lu-next")
-        await lu.wait_for_selector(".pick-list", timeout=5000)
+        await lu.wait_for_selector(".subclass-list", timeout=5000)
         assert await lu.locator('[data-subclass]').count() >= 7
         assert await lu.locator("#lu-next").is_disabled()
         ok("the subclass step blocks until one is chosen")
@@ -3136,7 +3136,7 @@ async def main():
         await lp.click("#lu-next")
         await lp.wait_for_selector("[data-subclass]", timeout=5000)
 
-        rows = await lp.locator(".pick-row-wrap").count()
+        rows = await lp.locator(".subclass-row").count()
         infos = await lp.locator(".info-btn").count()
         assert rows == infos and rows >= 7, (rows, infos)
         ok(f"every subclass carries an info button ({rows} of them)")
@@ -3144,7 +3144,7 @@ async def main():
         # Compare against what rules.js actually holds, rather than guessing at
         # a word: "rage" is not a substring of "raging", which is how the first
         # version of this assertion failed on correct output.
-        summary = (await lp.locator('[data-subclass="Path of the Berserker"] .meta').inner_text()).strip()
+        summary = (await lp.locator('[data-subclass="Path of the Berserker"] .summary').inner_text()).strip()
         expected = await lp.evaluate("() => subclassSummary('Path of the Berserker')")
         assert summary and summary == expected, (summary, expected)
         blank = await lp.evaluate(BLANK_SUMMARIES_JS)
@@ -3166,7 +3166,7 @@ async def main():
         assert "Not in the SRD" in about, about
         ok("a subclass outside the SRD says so, inside the wizard")
 
-        chosen = await lp.locator(".pick-row.is-on").count()
+        chosen = await lp.locator(".subclass-row.is-on").count()
         assert chosen == 0, "reading about a subclass must not select it"
         ok("reading about a subclass does not choose it")
 
@@ -3181,7 +3181,7 @@ async def main():
         # And it still picks normally.
         await lp.click('[data-subclass="Path of the Berserker"]')
         await lp.wait_for_timeout(300)
-        assert await lp.locator(".pick-row.is-on").count() == 1
+        assert await lp.locator(".subclass-row.is-on").count() == 1
         assert not await lp.locator("#lu-next").is_disabled()
         ok("the row beside the info button still chooses the subclass")
         await lvl.close()

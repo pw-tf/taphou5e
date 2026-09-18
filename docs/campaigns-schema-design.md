@@ -1511,10 +1511,16 @@ check the book before committing when there is no SRD text to back it up.
 **The info opens in place, not in a panel.** The first version used
 `openPanel`, which starts with `closeModal()` — and there is one modal host, so
 reading about a subclass **destroyed the level-up wizard** and left nothing
-behind when the panel was dismissed. The description expands under its row
-instead, which keeps the wizard intact and lets you compare two subclasses side
-by side while choosing. A subclass with no SRD text says so rather than leaving
-a skeleton spinning.
+behind when the panel was dismissed. The description expands inside the row
+instead, which keeps the wizard intact and lets you compare two subclasses
+while choosing. A subclass with no SRD text says so rather than leaving a
+skeleton spinning.
+
+The control sits **inside** the box with the name it belongs to, which means
+the row cannot be a `<button>` — a button cannot nest in another. It is a div
+carrying `role="radio"`, `aria-checked` and `tabindex`, with Enter and Space
+wired up, so it stays a real radio for a keyboard. The summary reserves the
+control's width so a long line never runs underneath it.
 
 ### 11.3b Review fixes
 

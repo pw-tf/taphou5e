@@ -328,28 +328,31 @@
         const options = SUBCLASSES[st.c.class] || [];
         return `
             <p class="hint">A ${escapeHtml(st.c.class)} chooses a subclass at level ${SUBCLASS_LEVEL}. Its features are added automatically where the SRD has them.</p>
-            <div class="pick-list" role="radiogroup" aria-label="Subclass">
+            <div class="subclass-list" role="radiogroup" aria-label="Subclass">
                 ${options.map(name => {
                     const open = st.about === name;
                     const text = srdText[name];
+                    // The row is a div, not a button: the info control has to
+                    // live inside the box, and a button cannot nest in one.
+                    // role/tabindex/aria keep it a real radio regardless.
                     return `
-                    <div class="pick-row-wrap">
-                        <div class="pick-row-main">
-                            <button class="pick-row${st.subclass === name ? ' is-on' : ''}" data-subclass="${escapeHtml(name)}"
-                                    role="radio" aria-checked="${st.subclass === name}">
-                                <span class="name">${escapeHtml(name)}</span>
-                                <span class="meta">${escapeHtml(subclassSummary(name) || '')}</span>
-                            </button>
+                    <div class="subclass-row${st.subclass === name ? ' is-on' : ''}${open ? ' is-open' : ''}"
+                         data-subclass="${escapeHtml(name)}" role="radio"
+                         aria-checked="${st.subclass === name}" tabindex="0">
+                        <div class="subclass-head">
+                            <span class="name">${escapeHtml(name)}</span>
                             <button class="info-btn${open ? ' is-on' : ''}" data-about="${escapeHtml(name)}"
-                                    aria-expanded="${open}" aria-label="About ${escapeHtml(name)}">i</button>
+                                    type="button" aria-expanded="${open}"
+                                    aria-label="${open ? 'Hide' : 'Show'} details for ${escapeHtml(name)}">i</button>
                         </div>
+                        <p class="summary">${escapeHtml(subclassSummary(name) || '')}</p>
                         ${open ? `
                             <div class="subclass-about">
                                 ${text === undefined
                                     ? '<div class="skeleton"></div>'
                                     : text
                                         ? `<span class="eyebrow">From the SRD</span>
-                                           <p class="prose">${escapeHtml(text)}</p>`
+                                           <p>${escapeHtml(text)}</p>`
                                         : `<p class="hint">Not in the SRD &mdash; this one is from the
                                            Player's Handbook or a later book, so the line above is all
                                            the app has. Check the book before you commit to it.</p>`}
@@ -360,13 +363,19 @@
     }
 
     function wireSubclass() {
-        $$('[data-subclass]').forEach(b => b.addEventListener('click', () => {
-            st.subclass = b.dataset.subclass;
-            render();
-        }));
+        const choose = name => { st.subclass = name; render(); };
+
+        $$('[data-subclass]').forEach(row => {
+            row.addEventListener('click', () => choose(row.dataset.subclass));
+            row.addEventListener('keydown', e => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                choose(row.dataset.subclass);
+            });
+        });
 
         $$('[data-about]').forEach(b => b.addEventListener('click', e => {
-            // The row beside it picks the subclass; reading about one is not
+            // The row around it picks the subclass; reading about one is not
             // the same as taking it.
             e.stopPropagation();
             const name = b.dataset.about;
