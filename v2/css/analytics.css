@@ -57,7 +57,7 @@
 }
 .an-jump::-webkit-scrollbar { display: none; }
 .an-jump a {
-  flex: none; padding: 6px 12px; border-radius: var(--radius-full);
+  flex: none; padding: 6px 12px; border-radius: var(--radius-sm);
   border: 1px solid var(--border-default); background: var(--bg-secondary);
   color: var(--text-secondary); font-size: var(--fs-12); font-weight: 500; text-decoration: none;
 }
@@ -237,7 +237,7 @@
 .fb-kind {
   flex: none; font-family: var(--font-mono); font-size: var(--fs-9);
   letter-spacing: .1em; text-transform: uppercase;
-  border: 1px solid var(--border-strong); border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   padding: 2px 8px; color: var(--text-secondary);
 }
 .fb-kind.is-bug  { color: var(--danger); border-color: var(--danger); }

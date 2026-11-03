@@ -134,7 +134,7 @@
                 ${
                     isDM
                         ? `<a class="summary-card" href="dm-panel.html">
-                               ${icon('user', 18)}
+                               ${icon('crown', 18)}
                                <div class="body">
                                    <div class="title">DM panel</div>
                                    <div class="meta">Levelling mode, grant levels and EXP</div>

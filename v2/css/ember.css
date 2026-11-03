@@ -126,12 +126,12 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 /* ---------- Stat chips ---------- */
 .chipline { display: flex; gap: var(--space-6); }
 .chip {
-  flex: 1; text-align: center; padding: 6px 0; background: var(--bg-tertiary); border-radius: 7px;
+  flex: 1; text-align: center; padding: 6px 0; background: var(--bg-tertiary); border-radius: var(--radius-sm);
   font-family: var(--font-mono); font-size: var(--fs-13); color: var(--text-primary);
 }
 .chip span { color: var(--text-tertiary); font-size: var(--fs-9); margin-left: 3px; }
 .tag {
-  display: inline-block; padding: 2px 7px; border-radius: var(--radius-full);
+  display: inline-block; padding: 2px 7px; border-radius: var(--radius-sm);
   font-size: var(--fs-10); font-weight: 600; border: 1px solid transparent;
 }
 .tag-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning); }
@@ -187,7 +187,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .conditions-grid { display: flex; flex-wrap: wrap; gap: 5px; }
 .condition-tag {
   padding: 5px 11px; background: var(--bg-secondary); border: 1px solid var(--border-default);
-  border-radius: var(--radius-full); font-size: var(--fs-12); color: var(--text-secondary); cursor: pointer;
+  border-radius: var(--radius-sm); font-size: var(--fs-12); color: var(--text-secondary); cursor: pointer;
 }
 .condition-tag.active { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); font-weight: 500; }
 
@@ -281,7 +281,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .login-header { padding: 44px var(--space-lg) var(--space-26); text-align: center; border-bottom: 1px solid var(--border-default); }
 .login-header h1 { font-family: var(--font-display); font-size: var(--fs-30); font-weight: 700; letter-spacing: .04em; }
 .login-header p { font-size: var(--fs-13); color: var(--text-tertiary); margin-top: 6px; }
-.login-card { background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: 14px; padding: var(--space-20); display: flex; flex-direction: column; gap: var(--space-18); }
+.login-card { background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: var(--radius-xl); padding: var(--space-20); display: flex; flex-direction: column; gap: var(--space-18); }
 .form-group { display: flex; flex-direction: column; gap: 7px; }
 .form-group label { font-size: var(--fs-12); font-weight: 600; color: var(--text-secondary); }
 .form-group input, .form-group select, .form-group textarea {

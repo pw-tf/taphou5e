@@ -301,6 +301,7 @@ function characterCard(character) {
 const ICONS = {
     overview:   '<path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>',
     user:       '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+    crown:      '<path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/>',
     monster:    '<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>',
     book:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
     search:     '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
@@ -334,7 +335,7 @@ const NAV = [
     { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map' },
     { id: 'encounters', label: 'Encounters', href: 'monster-tracker.html', icon: 'monster' },
     { id: 'compendium', label: 'Compendium', href: 'compendium.html',      icon: 'search' },
-    { id: 'dm',         label: 'DM panel',   href: 'dm-panel.html',        icon: 'user',    dmOnly: true }
+    { id: 'dm',         label: 'DM panel',   href: 'dm-panel.html',        icon: 'crown',   dmOnly: true }
 ];
 
 function visibleNav() {
@@ -524,6 +525,26 @@ function renderSideMenu(activeId) {
                 </div>
             </div>
         </div>`;
+}
+
+// The icon-only rail the character sheet uses above the breakpoint. Built from
+// NAV like the sidebar and drawer: a hand-written copy here once went on
+// calling Encounters and Compendium unbuilt long after both shipped, and never
+// learned about Campaigns or the DM panel.
+function renderRail(activeId) {
+    const items = visibleNav().map(item => {
+        if (item.pending) {
+            return `<span class="icon-btn is-pending" title="${escapeHtml(item.label)} — not built yet">${icon(item.icon, 16)}</span>`;
+        }
+        return `<a class="icon-btn${item.id === activeId ? ' is-current' : ''}" href="${item.href}"
+                   title="${escapeHtml(item.label)}" aria-label="${escapeHtml(item.label)}">${icon(item.icon, 16)}</a>`;
+    }).join('');
+
+    return `
+        <aside class="rail">
+            <div class="rail-brand">T5</div>
+            ${items}
+        </aside>`;
 }
 
 function wireSideMenu() {
