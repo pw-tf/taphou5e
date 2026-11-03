@@ -1029,13 +1029,7 @@
         // them rather than stretching over the whole viewport.
         document.body.innerHTML = `
             <div class="app-shell">
-                <aside class="rail">
-                    <div class="rail-brand">T5</div>
-                    <a class="icon-btn" href="index.html" title="Overview">${icon('overview', 16)}</a>
-                    <a class="icon-btn is-current" href="characters.html" title="Characters">${icon('user', 16)}</a>
-                    <span class="icon-btn is-pending" title="Encounter tracker — not built yet">${icon('monster', 16)}</span>
-                    <span class="icon-btn is-pending" title="Compendium — not built yet">${icon('search', 16)}</span>
-                </aside>
+                ${renderRail('characters')}
 
                 <nav class="sheet-nav">
                     <div>

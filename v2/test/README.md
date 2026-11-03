@@ -40,6 +40,8 @@ at it directly — edit `CHROME` at the top of the file, or run
   appearing at 0 HP, condition toggles preserving existing conditions, long rest
   restoring HP and resetting slots, and the detail pane
 - That rest buttons appear exactly once per viewport (rail above 900px, body below)
+- The sheet's icon rail linking every page the sidebar does, for a DM and for a
+  player, with nothing on it marked unbuilt
 - Campaigns: the list and its counts, the seven-tab detail, nested areas, beat
   checks with their DC and secret marker
 - Party membership: the picker excluding characters already in the campaign,

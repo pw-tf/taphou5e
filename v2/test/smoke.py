@@ -1241,6 +1241,16 @@ async def main():
         ok("sheet on desktop: tab rail replaces the bottom tabs")
         await page.screenshot(path="/tmp/shot-08-sheet-desktop.png", full_page=True)
 
+        # The icon rail is built from the same NAV as the sidebar. A hand-written
+        # copy once called Encounters and Compendium unbuilt long after both
+        # shipped, and had no Campaigns or DM panel at all.
+        assert await page.locator(".rail .is-pending").count() == 0, "nothing on the rail is unbuilt"
+        rail_links = await page.eval_on_selector_all(".rail a.icon-btn", "els => els.map(e => e.getAttribute('href'))")
+        assert rail_links == ["index.html", "characters.html", "campaigns.html",
+                              "monster-tracker.html", "compendium.html", "dm-panel.html"], rail_links
+        assert await page.locator('.rail a.is-current[href="characters.html"]').count() == 1
+        ok("sheet's icon rail links every page the sidebar does, DM panel included for a DM")
+
         # ---------- 17. Campaigns list ----------
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto(f"{BASE}/v2/campaigns.html", wait_until="domcontentloaded")
@@ -1360,6 +1370,15 @@ async def main():
         assert await page.locator('.status-pill:has-text("Unknown")').count() == 0
         assert await page.locator('.status-pill:has-text("Known")').count() == 0
         ok("reveal toggles are DM-only")
+
+        await page.set_viewport_size({"width": 1280, "height": 900})
+        await page.goto(f"{BASE}/v2/character-sheet.html?id=c1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".rail", timeout=10000)
+        assert await page.locator(".rail .is-pending").count() == 0
+        rail_links = await page.eval_on_selector_all(".rail a.icon-btn", "els => els.map(e => e.getAttribute('href'))")
+        assert rail_links == ["index.html", "characters.html", "campaigns.html",
+                              "monster-tracker.html", "compendium.html"], rail_links
+        ok("a player's sheet rail reaches encounters and the compendium, and not the DM panel")
 
         # ---------- 23. Compendium ----------
         # Back to the DM session.
