@@ -19,7 +19,7 @@
 // ========================================
 
 const SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
+const SUPABASE_ANON_KEY = 'sb_publishable_IgK3AGmhrS6Zs_GHqUdnRw_AECp3J_e';
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

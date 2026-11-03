@@ -159,12 +159,8 @@
         try {
             const data = await load();
             render(data);
-
-            // A DM whose 12 hour token has lapsed still sees the world, but
-            // private campaign data quietly stops resolving. Say so instead.
-            if (dmTokenExpired()) {
-                toast('Your DM session has expired. Log in again to see private campaign data.', 'error');
-            }
+            // The party roster shows HP and conditions, so keep it current.
+            onCharacterChange(async () => render(await load()));
         } catch (err) {
             console.error('Failed to load overview:', err);
             $('#main-content').innerHTML =

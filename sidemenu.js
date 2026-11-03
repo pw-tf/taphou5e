@@ -126,10 +126,10 @@
             dmDivider.classList.add('hidden');
         }
 
-        // Delete character (only on character detail page)
+        // Delete character (DM only, character detail page only)
         const deleteChar = document.getElementById('sm-delete-char');
         const deleteDivider = document.getElementById('sm-delete-divider');
-        if (!isMonsterTracker && onCharacterPage) {
+        if (!isMonsterTracker && onCharacterPage && isDM) {
             deleteChar.classList.remove('hidden');
             deleteDivider.classList.remove('hidden');
         } else {

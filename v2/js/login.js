@@ -184,6 +184,7 @@
             case 'rate_limited':   return 'Too many attempts. Please wait 15 minutes and try again.';
             case 'name_taken':     return 'Game world name already exists';
             case 'bad_name':       return 'Game world name must be 3-50 characters';
+            case 'bad_description': return 'Description must be 500 characters or fewer';
             case 'pins_identical': return 'DM and Player PINs must be different';
             default:               return 'An error occurred. Please try again.';
         }

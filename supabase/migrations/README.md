@@ -29,8 +29,30 @@ not a pending queue. Do not re-run them against that project.
 | 20260918032350 | analytics_overview_aggregates |
 | 20260918033024 | analytics_overview_checks_by_focus |
 | 20260918062251 | feedback_reports |
+| 20260919005538 | reapply_analytics_overview_after_restore |
+| 20260919005601 | reapply_feedback_reports_after_restore |
+| 20260919005701 | world_session_lockdown |
+| 20260919023225 | fix_current_world_execute_grant |
+| 20260919023310 | verify_world_session_lockdown |
+| 20260919040313 | remove_bait_worlds_left_by_probing |
+| 20260920022447 | verify_login_still_works_after_lockdown |
+| 20261103102913 | security_hardening |
+| 20261103102917 | verify_security_hardening |
+| 20261103103934 | advisor_cleanup |
+| 20261103105850 | live_updates |
+| 20261103105854 | verify_live_updates |
 
 The PIN cutover is complete. See `docs/campaigns-schema-design.md` §5.6-5.7.
+
+The `2026-09-19` lockdown and the `2026-11-03` hardening are the response to the
+2026-09-18 incident, and every file from `20260919005701` on is kept here in
+full. They were applied to the project first and copied here afterwards. The
+two `reapply_*` entries re-ran the two files above after the restore and are
+not duplicated. See `docs/campaigns-schema-design.md` §11.3a19-11.3a20.
+
+The `verify_*` files raise on any failure. `verify_security_hardening` rolls
+back everything it creates, so it is safe to re-run against production after
+any change to a policy, grant or limit.
 
 `20260918033024_analytics_overview_checks_by_focus.sql` is kept here in full,
 because it is the only function that reads the DM-only campaign layer on behalf

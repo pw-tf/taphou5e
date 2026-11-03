@@ -289,6 +289,10 @@ STUB = """
     window.__writes.push(entry);
     try { sessionStorage.setItem(WRITE_KEY, JSON.stringify(window.__writes)); } catch (e) {}
   }
+  window.__patchFixture = (key, id, patch) => {
+    const t = FIXTURES[key];
+    Object.assign(Array.isArray(t) ? t.find(r => r.id === id) : t, patch);
+  };
   window.__resetWrites = () => {
     window.__writes = [];
     try { sessionStorage.removeItem(WRITE_KEY); } catch (e) {}
@@ -341,7 +345,10 @@ STUB = """
       w.select = () => w;
       w.single = () => Promise.resolve({ data: { id: 'new-id' }, error: null });
       w.maybeSingle = () => Promise.resolve({ data: null, error: null });
-      w.then = (res, rej) => Promise.resolve({ data: null, error: null }).then(res, rej);
+      // A delete hands back the row it removed, as PostgREST does when asked;
+      // the client reads an empty result as "refused".
+      w.then = (res, rej) => Promise.resolve({
+        data: verb === 'delete' ? [{ id: window.__lastEq }] : null, error: null }).then(res, rej);
       return w;
     };
   }
@@ -382,12 +389,17 @@ STUB = """
     createClient(url, key, opts) {
       window.__capturedHeaders = (opts && opts.global && opts.global.headers) || {};
       return {
-        // The classic app opens realtime channels on its home screen. v2 does
-        // not, but the invite prompt is tested on a classic page, so these
-        // have to exist for app.js to reach that screen at all.
-        channel: () => {
+        // Both versions open one broadcast channel for live updates. The
+        // handler is kept so a test can play the database's part: patch a
+        // fixture with __patchFixture, then send the signal with __liveEmit.
+        channel: (topic) => {
           const ch = {};
-          ['on', 'off'].forEach(m => { ch[m] = () => ch; });
+          window.__liveTopic = topic;
+          ch.on = (type, filter, cb) => {
+            if (type === 'broadcast') window.__liveEmit = payload => cb({ payload });
+            return ch;
+          };
+          ch.off = () => ch;
           ch.subscribe = (cb) => { if (cb) cb('SUBSCRIBED'); return ch; };
           ch.unsubscribe = () => Promise.resolve('ok');
           return ch;
@@ -419,7 +431,10 @@ STUB = """
             const dm = params.p_pin === '1379';
             return Promise.resolve({ data: { ok:true, role: dm ? 'dm' : 'player',
               game_world_id:'w1', game_world_name: params.p_world_name,
-              leveling_mode:'milestone', dm_token: dm ? 'tok_'+'a'.repeat(60) : null }, error:null });
+              leveling_mode:'milestone', dm_token: 'tok_'+(dm ? 'a' : 'p').repeat(60) }, error:null });
+          }
+          if (fn === 'world_realtime_topic') {
+            return Promise.resolve({ data: 'world:' + 'f'.repeat(32), error: null });
           }
           if (fn === 'encounter_share_create') {
             window.__sharedFrom = params.p_encounter_id;
@@ -836,6 +851,34 @@ async def main():
         assert await sythra.locator(".hp-bar .fill.temp").count() == 1
         ok("HP component: value, temp segment, CRITICAL state and low fill")
 
+        # ---------- 2a. Live updates ----------
+        # Someone else heals Sythra. The database sends only which character
+        # changed; the hub re-reads and redraws on its own.
+        await page.wait_for_function("typeof window.__liveEmit === 'function'", timeout=5000)
+        assert await page.evaluate("window.__liveTopic") == "world:" + "f" * 32
+        await page.evaluate("""
+            window.__patchFixture('characters', 'c2', { current_hit_points: 30 });
+            window.__liveEmit({ table: 'characters', character_id: 'c2', op: 'UPDATE' });
+        """)
+        await page.wait_for_function(
+            "document.querySelectorAll('.character-card')[1].querySelector('.hp-value b').textContent === '30'",
+            timeout=5000)
+        ok("a change signal for a character redraws the hub with their new HP")
+
+        # A refresh must never pull a field out from under someone typing.
+        await page.evaluate("""
+            const i = document.createElement('input'); i.id = '__typing'; document.body.appendChild(i); i.focus();
+            window.__patchFixture('characters', 'c2', { current_hit_points: 12 });
+            window.__liveEmit({ table: 'characters', character_id: 'c2', op: 'UPDATE' });
+        """)
+        await page.wait_for_timeout(1200)
+        assert (await cards.nth(1).locator(".hp-value b").inner_text()) == "30", "redrew while typing"
+        await page.evaluate("document.getElementById('__typing').blur()")
+        await page.wait_for_function(
+            "document.querySelectorAll('.character-card')[1].querySelector('.hp-value b').textContent === '12'",
+            timeout=5000)
+        ok("a live refresh waits for the person typing, then applies")
+
         # One rail per bar, never one element per hit point.
         fills = await page.locator(".hp-bar > *").count()
         assert fills <= 8, f"expected at most 2 fills per card, got {fills} total"
@@ -933,8 +976,29 @@ async def main():
         nav = [n.strip() for n in await page.locator(".sidebar-nav a").all_inner_texts()]
         assert not any("DM panel" in n for n in nav), nav
         hdrs = await page.evaluate("window.__capturedHeaders")
-        assert "x-dm-token" not in (hdrs or {}), hdrs
-        ok("player: no DM panel item and no x-dm-token header")
+        assert (hdrs or {}).get("x-dm-token", "") == "tok_" + "p" * 60, hdrs
+        ok("player: no DM panel item, and their own world token as x-dm-token")
+
+        # A device still holding a session from before every table was scoped
+        # to a token would otherwise sit on an empty world with no explanation.
+        ctx_old = await browser.new_context()
+        await ctx_old.add_init_script(STUB)
+        await ctx_old.add_init_script("""
+            try {
+              if (!sessionStorage.getItem('__seeded')) {
+                sessionStorage.setItem('__seeded', '1');
+                localStorage.setItem('dnd-session', JSON.stringify({
+                  gameWorldId: 'w1', gameWorldName: 'Thornfell Reach',
+                  role: 'player', timestamp: Date.now() }));
+              }
+            } catch (e) {}
+        """)
+        page_old = await ctx_old.new_page()
+        await page_old.goto(f"{BASE}/v2/index.html", wait_until="domcontentloaded")
+        await page_old.wait_for_url("**/v2/login.html", timeout=10000)
+        assert await page_old.evaluate("localStorage.getItem('dnd-session')") is None
+        ok("a session with no world token is sent to log in, and cleared")
+        await ctx_old.close()
         await page.screenshot(path="/tmp/shot-05-hub-player.png", full_page=True)
 
         # ---------- 7. Wrong PIN ----------
@@ -3395,7 +3459,8 @@ async def main():
             try {
               localStorage.setItem('dnd-session', JSON.stringify({
                 gameWorldId: 'w1', gameWorldName: 'Thornfell Reach',
-                role: 'dm', timestamp: Date.now() }));
+                role: 'dm', timestamp: Date.now(),
+                dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now() }));
             } catch (e) {}
         """)
         page3 = await ctx3.new_page()
@@ -3417,7 +3482,8 @@ async def main():
             try {
               localStorage.setItem('dnd-session', JSON.stringify({
                 gameWorldId: 'w1', gameWorldName: 'Thornfell Reach',
-                role: 'dm', timestamp: Date.now() }));
+                role: 'dm', timestamp: Date.now(),
+                dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now() }));
               localStorage.setItem('taphou5e-invite', 'never');
             } catch (e) {}
         """)

@@ -8,7 +8,7 @@
 // ========================================
 
 const SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
+const SUPABASE_ANON_KEY = 'sb_publishable_IgK3AGmhrS6Zs_GHqUdnRw_AECp3J_e';
 
 const SESSION_KEY  = 'dnd-session';        // shared with v1 -- do not rename
 const UI_KEY       = 'taphou5e-ui';        // 'classic' | 'next'
@@ -52,10 +52,11 @@ const isDM = !!session && session.role === 'dm';
 // ========================================
 // Supabase client
 //
-// The DM token rides as a request header. Postgres reads it via
-// request.headers in the row level security policies, which is what separates
-// a DM from a player when both share the same anon key. A player simply has no
-// token, so the policies fall through to the revealed-rows-only branch.
+// The session token rides as a request header. Postgres reads it via
+// request.headers in the row level security policies, which is what scopes
+// every table to one world, and what separates a DM from a player when both
+// share the same public key. Both roles are issued one by world_login; the
+// field and header keep their dm- names because v1 shares them.
 // ========================================
 
 const headers = {};
@@ -65,15 +66,28 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers }
 });
 
+// Server-side session tokens last 12 hours. There is no way to probe validity
+// by reading a table: a lapsed token gets an empty result rather than an error,
+// which is indistinguishable from a world that simply has no rows. So track it
+// client-side from the issue time. The server stays authoritative; this only
+// decides when to send someone back to log in instead of showing an empty world.
+const SESSION_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+
+function sessionTokenExpired() {
+    if (!session.dmToken) return true;
+    const issued = session.dmTokenIssued || session.timestamp || 0;
+    return Date.now() - issued > SESSION_TOKEN_TTL_MS;
+}
+
 // Pages other than login call this first.
 function requireSession() {
     if (!session) {
         window.location.replace('login.html');
         return false;
     }
-    // v1 expires sessions after 7 days; match that so the two agree.
-    const week = 7 * 24 * 60 * 60 * 1000;
-    if (Date.now() - (session.timestamp || 0) > week) {
+    // Sessions from before every table was scoped carry no token, and see
+    // nothing; a lapsed one is the same. Either way, logging in again fixes it.
+    if (sessionTokenExpired()) {
         clearSession();
         window.location.replace('login.html');
         return false;
@@ -81,18 +95,64 @@ function requireSession() {
     return true;
 }
 
-// Server-side DM tokens last 12 hours. There is no way to probe validity by
-// reading a table: a player without a token gets an empty result rather than an
-// error, which is indistinguishable from a DM whose world simply has no rows.
-// So track it client-side from the issue time. The server stays authoritative;
-// this only decides when to warn someone that their private data has gone quiet.
-const DM_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+// ========================================
+// Live updates
+//
+// The database broadcasts "this character changed" -- which one, nothing
+// else -- to a per-world topic that only a session can learn. A page answers by
+// re-reading through the normal API, so the policies decide what it sees, and
+// a forged signal can cause nothing worse than a re-read.
+//
+// onCharacterChange(handler) calls handler(ids), the characters that changed,
+// once changes settle: a burst (creating a character, a long rest) is one call. A call waits while someone is typing or has a dialog open --
+// pages redraw wholesale, and a refresh must never take a value from under a
+// cursor or close the level-up wizard -- and keeps the scroll position.
+// ========================================
 
-function dmTokenExpired() {
-    if (!isDM) return false;
-    if (!session.dmToken) return true;
-    const issued = session.dmTokenIssued || session.timestamp || 0;
-    return Date.now() - issued > DM_TOKEN_TTL_MS;
+let liveChannel = null;
+const liveHandlers = new Set();
+
+async function startLiveUpdates() {
+    if (liveChannel) return;
+    liveChannel = 'starting';
+    const { data: topic, error } = await db.rpc('world_realtime_topic');
+    if (error || !topic) { liveChannel = null; return; }
+    liveChannel = db.channel(topic)
+        .on('broadcast', { event: 'change' }, ({ payload }) => {
+            const id = payload && payload.character_id;
+            if (id) liveHandlers.forEach(handler => handler(id));
+        })
+        .subscribe();
+}
+
+function isBusy() {
+    if (document.querySelector('[aria-modal="true"]')) return true;
+    const el = document.activeElement;
+    return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+}
+
+function onCharacterChange(handler) {
+    const pending = new Set();
+    let timer = null;
+
+    async function flush() {
+        if (isBusy()) {
+            timer = setTimeout(flush, 1000);
+            return;
+        }
+        timer = null;
+        const ids = Array.from(pending);
+        pending.clear();
+        const y = window.scrollY;
+        await handler(ids);
+        window.scrollTo(0, y);
+    }
+
+    liveHandlers.add(id => {
+        pending.add(id);
+        if (!timer) timer = setTimeout(flush, 400);
+    });
+    startLiveUpdates();
 }
 
 // ========================================

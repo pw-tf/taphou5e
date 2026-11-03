@@ -459,14 +459,17 @@ CREATE TABLE public.dm_notes (
   CONSTRAINT dm_notes_one_parent CHECK (num_nonnulls(campaign_id, area_id, chapter_id, chapter_beat_id, npc_id, encounter_id, campaign_session_id) = 1)
 );
 
--- Request-scoped DM identity. No policies and no grants: unreachable via the API.
--- private.current_dm_world() reads the x-dm-token request header and is used by
--- every dm_all policy on the tables above.
+-- Request-scoped world sessions, for both roles despite the name. No policies
+-- and no grants: unreachable via the API. Both helpers read the x-dm-token
+-- request header: private.current_world() resolves either role and scopes
+-- every character table; private.current_dm_world() resolves role = 'dm' only
+-- and backs every dm_all policy. See docs 11.3a19-11.3a20.
 CREATE TABLE public.dm_sessions (
   token_hash bytea NOT NULL,
   game_world_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   expires_at timestamp with time zone NOT NULL DEFAULT (now() + '12:00:00'::interval),
+  role text NOT NULL DEFAULT 'dm' CHECK (role IN ('dm', 'player')),
   CONSTRAINT dm_sessions_pkey PRIMARY KEY (token_hash),
   CONSTRAINT dm_sessions_game_world_id_fkey FOREIGN KEY (game_world_id) REFERENCES public.game_worlds(id) ON DELETE CASCADE
 );
@@ -483,6 +486,8 @@ CREATE TABLE public.game_world_secrets (
   game_world_id uuid NOT NULL,
   dm_pin_hash text NOT NULL,
   player_pin_hash text NOT NULL,
+  -- Names this world's live-update broadcast topic; see docs 11.3a21.
+  realtime_key text NOT NULL DEFAULT encode(extensions.gen_random_bytes(16), 'hex'),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT game_world_secrets_pkey PRIMARY KEY (game_world_id),
@@ -499,3 +504,19 @@ CREATE TABLE public.pin_attempts (
   attempted_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT pin_attempts_pkey PRIMARY KEY (id)
 );
+
+CREATE TABLE public.world_create_attempts (
+  id bigserial NOT NULL,
+  ip text,
+  attempted_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT world_create_attempts_pkey PRIMARY KEY (id)
+);
+
+-- ============================================================================
+-- HARDENING  (2026-11-03, migration 20261103102913)
+-- Not in public, so not on the API:
+--   private.admins        who may read across worlds (analytics, feedback inbox)
+--   private.write_budget  bytes written per world per hour, and site-wide
+-- Every table a session can write carries a write_guard trigger: a row size
+-- cap, a row count cap per world or character, and the byte budget.
+-- ============================================================================
