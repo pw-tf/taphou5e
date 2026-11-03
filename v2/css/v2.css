@@ -1034,3 +1034,12 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 }
 .subclass-row .name { font-weight: 600; font-size: var(--fs-14); }
 .subclass-row .summary { font-size: var(--fs-12); color: var(--text-tertiary); line-height: 1.5; }
+
+/* ---- Inside Owlbear Rodeo (?embed=1) ---- */
+.embed-waiting {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-sm); padding: var(--space-lg); text-align: center;
+  background: var(--bg-primary); color: var(--text-secondary);
+}
+.embed-waiting p { margin: 0; }
+#embed-close { font-size: 22px; line-height: 1; }

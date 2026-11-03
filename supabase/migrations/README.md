@@ -44,6 +44,8 @@ not a pending queue. Do not re-run them against that project.
 | 20261103113540 | altcha |
 | 20261103113543 | verify_altcha (superseded, not kept) |
 | 20261103113644 | verify_altcha_null_safe |
+| 20261103120607 | owlbear (not yet applied) |
+| 20261103120611 | verify_owlbear (not yet run) |
 
 The PIN cutover is complete. See `docs/campaigns-schema-design.md` §5.6-5.7.
 
@@ -75,3 +77,11 @@ grouped checks on `ability` alone, which reported 11 of 12 as unset). See
 table the anon key may write to without a world PIN behind it, so the policy
 shape (insert-only, with `is_read`/`is_archived` pinned in the WITH CHECK) is
 the thing to read before changing anything about it.
+
+`20261103120607_owlbear` is the one exception to "this directory is the
+record": it was written alongside the Owlbear Rodeo extension and has not been
+applied yet. Apply it, then run `verify_owlbear` and `verify_live_updates`.
+Both verify files roll back what they create. Until it is applied, the
+extension asks the GM for the player PIN once, and enemy HP bars refresh on a
+timer rather than live. Once applied, remove "(not yet applied)" from the
+table and this paragraph. See `docs/campaigns-schema-design.md` §11.3a23.

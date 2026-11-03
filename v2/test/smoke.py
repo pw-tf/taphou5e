@@ -448,6 +448,17 @@ STUB = """
               game_world_id:'w1', game_world_name: params.p_world_name,
               leveling_mode:'milestone', dm_token: 'tok_'+(dm ? 'a' : 'p').repeat(60) }, error:null });
           }
+          // The Owlbear extension: a DM session mints a player session for
+          // the room. __shareUnsupported plays a database without the RPC.
+          if (fn === 'world_share_player_session') {
+            window.__shareCalls = (window.__shareCalls || 0) + 1;
+            if (window.__shareUnsupported) {
+              return Promise.resolve({ data: null, error: { code: 'PGRST202',
+                message: 'Could not find the function public.world_share_player_session' } });
+            }
+            return Promise.resolve({ data: { ok:true, role:'player', game_world_id:'w1',
+              game_world_name:'Thornfell Reach', dm_token:'tok_'+'s'.repeat(60) }, error:null });
+          }
           if (fn === 'world_realtime_topic') {
             return Promise.resolve({ data: 'world:' + 'f'.repeat(32), error: null });
           }
@@ -490,6 +501,156 @@ STUB = """
   };
 })();
 """
+
+
+# The Owlbear Rodeo SDK, served in place of the CDN module every extension
+# page imports. Owlbear itself cannot run here, so this plays its part: the
+# room, the scene's items and the local items, the player's role and
+# selection, and a record of every menu, popover and modal the extension asks
+# for. State lives in localStorage under __obr_ so every page of a context
+# shares one room, as every iframe in a real one does, and a change made on
+# one page reaches the listeners on another through the storage event.
+OBR_SDK_URL = "**/npm/@owlbear-rodeo/sdk@3.1.0/+esm"
+OBR_MOCK = r"""
+const get = (k, d) => { try { const v = localStorage.getItem('__obr_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const put = (k, v) => localStorage.setItem('__obr_' + k, JSON.stringify(v));
+const listeners = { room: [], items: [], player: [], local: [] };
+const on = kind => cb => { listeners[kind].push(cb); return () => {}; };
+const fire = (kind, value) => listeners[kind].forEach(cb => cb(value));
+window.__obr = { menus: {}, popovers: [], modals: [], closed: [], badge: null };
+
+const pick = (list, filter) => !filter ? list
+  : Array.isArray(filter) ? list.filter(i => filter.includes(i.id)) : list.filter(filter);
+const copy = v => JSON.parse(JSON.stringify(v));
+
+window.addEventListener('storage', e => {
+  if (e.key === '__obr_room') fire('room', get('room', {}));
+  if (e.key === '__obr_items') fire('items', get('items', []));
+  if (e.key === '__obr_selection') fire('player', { selection: get('selection', []) });
+});
+window.__obrSelect = ids => { put('selection', ids); fire('player', { selection: ids }); };
+window.__obrLocal = () => get('local', []);
+
+function bounds(item) {
+  const w = item.width || 150, h = item.height || 150, x = item.position.x, y = item.position.y;
+  return { min: { x: x - w / 2, y: y - h / 2 }, max: { x: x + w / 2, y: y + h / 2 },
+           width: w, height: h, center: { x, y } };
+}
+
+export function buildShape() {
+  const item = { type: 'SHAPE', metadata: {}, visible: true };
+  const b = new Proxy({}, { get: (_, name) => name === 'build'
+    ? () => copy(item) : value => { item[name] = value; return b; } });
+  return b;
+}
+
+const OBR = {
+  isReady: true,
+  onReady(cb) { setTimeout(cb, 0); },
+  player: {
+    id: 'player-self',
+    getRole: async () => get('role', 'PLAYER'),
+    getSelection: async () => get('selection', []),
+    onChange: on('player')
+  },
+  room: {
+    id: 'room-1',
+    getMetadata: async () => get('room', {}),
+    async setMetadata(update) {
+      const m = Object.assign(get('room', {}), update);
+      Object.keys(update).forEach(k => { if (update[k] === undefined) delete m[k]; });
+      put('room', m);
+      fire('room', m);
+    },
+    onMetadataChange: on('room')
+  },
+  scene: {
+    isReady: async () => true,
+    onReadyChange: () => () => {},
+    grid: { getDpi: async () => 150 },
+    items: {
+      getItems: async filter => copy(pick(get('items', []), filter)),
+      async updateItems(filter, update) {
+        const all = get('items', []);
+        const drafts = copy(pick(all, filter));
+        update(drafts);
+        const next = all.map(i => drafts.find(d => d.id === i.id) || i);
+        put('items', next);
+        fire('items', next);
+      },
+      getItemBounds: async ids => bounds(get('items', []).find(i => i.id === ids[0])),
+      onChange: on('items')
+    },
+    local: {
+      getItems: async filter => copy(pick(get('local', []), filter)),
+      async addItems(items) { put('local', get('local', []).concat(copy(items))); },
+      async deleteItems(ids) { put('local', get('local', []).filter(i => !ids.includes(i.id))); },
+      onChange: on('local')
+    }
+  },
+  contextMenu: { create: async m => { window.__obr.menus[m.id] = m; }, remove: async () => {} },
+  popover: { open: async p => { window.__obr.popovers.push(p); }, close: async id => { window.__obr.closed.push(id); } },
+  modal: { open: async m => { window.__obr.modals.push(m); }, close: async id => { window.__obr.closed.push(id); } },
+  action: { setBadgeText: async t => { window.__obr.badge = t === undefined ? null : t; } },
+  theme: { getTheme: async () => ({ mode: 'DARK' }), onChange: () => () => {} },
+  viewport: { getWidth: async () => 1280, getHeight: async () => 900 }
+};
+export default OBR;
+"""
+
+# Tokens on the test map. Sythra (9/44, +5 temp) and a gargoyle (52/52) are
+# linked; the rest are left for "link by name".
+OBR_LINK = "com.taphou5e.owlbear/link"
+OBR_ITEMS = [
+    {"id": "t-sythra", "name": "Sythra", "layer": "CHARACTER", "visible": True,
+     "position": {"x": 300, "y": 300}, "width": 150, "height": 150,
+     "metadata": {OBR_LINK: {"kind": "character", "id": "c2"}}},
+    {"id": "t-garg", "name": "Gargoyle", "layer": "CHARACTER", "visible": True,
+     "position": {"x": 600, "y": 300}, "width": 150, "height": 150,
+     "metadata": {OBR_LINK: {"kind": "combatant", "id": "cb2"}}},
+]
+
+
+async def obr_context(browser, stub=None):
+    """A context with the Supabase stub and the Owlbear SDK mock in place."""
+    ctx = await browser.new_context(viewport={"width": 1280, "height": 900})
+    await ctx.add_init_script(stub or STUB)
+    await ctx.route(OBR_SDK_URL, lambda route: route.fulfill(
+        status=200, body=OBR_MOCK, content_type="application/javascript",
+        headers={"Access-Control-Allow-Origin": "*"}))
+    return ctx
+
+
+async def obr_seed(page, role, items=None, room=None, session=None, selection=None):
+    """Owlbear state for a context, written from a page on the same origin."""
+    await page.goto(f"{BASE}/owlbear/manifest.json", wait_until="domcontentloaded")
+    await page.evaluate("""([role, items, room, session, selection]) => {
+        localStorage.clear();
+        localStorage.setItem('__obr_role', JSON.stringify(role));
+        localStorage.setItem('__obr_items', JSON.stringify(items));
+        localStorage.setItem('__obr_room', JSON.stringify(room));
+        localStorage.setItem('__obr_selection', JSON.stringify(selection));
+        if (session) localStorage.setItem('dnd-session', JSON.stringify(
+            Object.assign({ timestamp: Date.now(), dmTokenIssued: Date.now() }, session)));
+    }""", [role, items if items is not None else OBR_ITEMS, room or {}, session, selection or []])
+
+
+async def until(page, expression, timeout=8000):
+    """wait_for_function that survives the page reloading under it."""
+    deadline = asyncio.get_event_loop().time() + timeout / 1000
+    while True:
+        try:
+            if await page.evaluate(expression):
+                return
+        except Exception:
+            pass
+        if asyncio.get_event_loop().time() > deadline:
+            raise AssertionError(f"timed out waiting for: {expression}")
+        await asyncio.sleep(0.1)
+
+
+OBR_DM = {"gameWorldId": "w1", "gameWorldName": "Thornfell Reach", "role": "dm",
+          "dmToken": "tok_" + "a" * 60}
 
 
 def stub_with(**overrides):
@@ -3998,6 +4159,233 @@ async def main():
         assert await page11.locator(".an-section").count() == 7
         ok("paging leaves the rest of the dashboard alone")
         await ctx11.close()
+
+        # ---------- Owlbear Rodeo extension ----------
+        # Monster HP hidden, as the tracker defaults it.
+        hidden_hp = stub_with(encounters=[{"id": "e1", "name": "Ambush at the Ford", "status": "active",
+                                           "round": 3, "campaign_id": "cam1", "hide_monster_hp": True}])
+
+        # The GM's background shares a player session with the room on its own.
+        octx = await obr_context(browser, hidden_hp)
+        gm = await octx.new_page()
+        watch(gm, "obr-gm")
+        await obr_seed(gm, "GM", session=OBR_DM)
+        await gm.goto(f"{BASE}/owlbear/background.html", wait_until="domcontentloaded")
+        await until(gm, "(JSON.parse(localStorage.getItem('__obr_room')) || {})['com.taphou5e.owlbear/session']")
+        shared = await gm.evaluate("JSON.parse(localStorage.getItem('__obr_room'))['com.taphou5e.owlbear/session']")
+        assert shared["token"] == "tok_" + "s" * 60 and shared["worldId"] == "w1", shared
+        assert await gm.evaluate("window.__shareCalls") == 1
+        assert await gm.evaluate("window.__obr.badge") is None
+        ok("the GM's client mints a player session and puts it in the room, once")
+
+        menus = await gm.evaluate("Object.keys(window.__obr.menus)")
+        assert set(menus) == {"com.taphou5e.owlbear/token", "com.taphou5e.owlbear/link-menu",
+                              "com.taphou5e.owlbear/unlink"}, menus
+        embed = await gm.evaluate("window.__obr.menus['com.taphou5e.owlbear/token'].embed.url")
+        assert embed.endswith("/owlbear/token.html"), embed
+        ok("the token popup is a context-menu embed, alongside link and unlink")
+
+        # The GM sees every linked token's bar: Sythra 9/44 with 5 temp, the
+        # gargoyle full. A bar is three shapes at most, whatever the HP.
+        await until(gm, "window.__obrLocal().length === 5")
+        local = await gm.evaluate("window.__obrLocal()")
+        by_id = {i["id"].split("/")[-2] + "/" + i["id"].split("/")[-1]: i for i in local}
+        track, fill, temp = by_id["t-sythra/track"], by_id["t-sythra/fill"], by_id["t-sythra/temp"]
+        assert abs(track["width"] - 126) < 0.01 and abs(fill["width"] - 126 * 9 / 44) < 0.01, (track, fill)
+        assert fill["fillColor"] == "#c4452f" and temp["fillColor"] == "#3d5a72", (fill, temp)
+        assert all(i["attachedTo"] == "t-sythra" and i["locked"] and i["disableHit"]
+                   for i in (track, fill, temp))
+        assert track["position"]["y"] > 375, track["position"]          # below the token
+        assert by_id["t-garg/fill"]["fillColor"] == "#7fa65c"
+        ok("bars: Sythra's track, low fill at 9/44 and temp segment; the gargoyle's full and green")
+
+        # The player's client adopts the room's session and draws only what a
+        # player may see: Sythra, and no gargoyle while monster HP is hidden.
+        # Closed first: the player's setup below changes the stored session,
+        # which would reload this page as it closed.
+        await gm.close()
+        pl = await octx.new_page()
+        watch(pl, "obr-player")
+        await pl.goto(f"{BASE}/owlbear/manifest.json", wait_until="domcontentloaded")
+        await pl.evaluate("""() => {
+            localStorage.removeItem('dnd-session');
+            localStorage.setItem('__obr_role', JSON.stringify('PLAYER'));
+            localStorage.setItem('__obr_local', '[]');
+        }""")
+        await pl.goto(f"{BASE}/owlbear/background.html", wait_until="domcontentloaded")
+        await until(pl, "(JSON.parse(localStorage.getItem('dnd-session')) || {}).dmToken === 'tok_' + 's'.repeat(60)")
+        sess = await pl.evaluate("JSON.parse(localStorage.getItem('dnd-session'))")
+        assert sess["role"] == "player" and sess["gameWorldId"] == "w1", sess
+        await until(pl, "window.__obrLocal().length === 3")
+        ids = sorted(i["id"] for i in await pl.evaluate("window.__obrLocal()"))
+        assert all("t-sythra" in i for i in ids), ids
+        hdrs = await pl.evaluate("window.__capturedHeaders")
+        assert hdrs.get("x-dm-token") == "tok_" + "s" * 60, hdrs
+        ok("a player's client adopts the shared session, with no PIN, and draws no enemy bar while HP is hidden")
+
+        # The DM shows monster HP. The encounter signal alone brings the bar.
+        await until(pl, "typeof window.__liveEmit === 'function'")
+        await pl.evaluate("""
+            window.__patchFixture('encounters', 'e1', { hide_monster_hp: false });
+            window.__liveEmit({ table: 'encounters', encounter_id: 'e1', op: 'UPDATE' });
+        """)
+        await until(pl, "window.__obrLocal().length === 5")
+        ok("showing monster HP in taphou5e puts the gargoyle's bar on the player's map, live")
+
+        # Damage in taphou5e redraws the bar.
+        await pl.evaluate("""
+            window.__patchFixture('characters', 'c2', { current_hit_points: 22, temporary_hit_points: 0 });
+            window.__liveEmit({ table: 'characters', character_id: 'c2', op: 'UPDATE' });
+        """)
+        await until(pl, """(() => { const f = window.__obrLocal().find(i => i.id.endsWith('t-sythra/fill'));
+                                   return f && Math.abs(f.width - 63) < 0.01 && f.fillColor === '#d9a94a'; })()""")
+        assert not any(i["id"].endswith("t-sythra/temp") for i in await pl.evaluate("window.__obrLocal()"))
+        ok("HP changed on the sheet redraws the Owlbear bar: half, amber, temp gone")
+
+        # The GM stops sharing; the player's client lets go of the session.
+        await pl.evaluate("""() => {
+            const m = JSON.parse(localStorage.getItem('__obr_room'));
+            m['com.taphou5e.owlbear/session'] = { off: true, worldId: 'w1' };
+            localStorage.setItem('__obr_room', JSON.stringify(m));
+            window.dispatchEvent(new StorageEvent('storage', { key: '__obr_room' }));
+        }""")
+        await until(pl, "localStorage.getItem('dnd-session') === null")
+        ok("stopping the share signs the player's client out")
+        await octx.close()
+
+        # A database without world_share_player_session: the GM gives the
+        # player PIN once, and the room gets a player session that way.
+        octx = await obr_context(browser, hidden_hp)
+        pn = await octx.new_page()
+        watch(pn, "obr-panel")
+        await obr_seed(pn, "GM")
+        await pn.goto(f"{BASE}/owlbear/panel.html", wait_until="domcontentloaded")
+        await pn.wait_for_selector("#pn-login", timeout=8000)
+        await pn.fill("#pn-world", "Thornfell Reach")
+        await pn.fill("#pn-pin", "2468")
+        await pn.click("#pn-login .btn-submit")
+        await pn.wait_for_selector(".pn-error", timeout=8000)
+        assert "player PIN" in await pn.locator(".pn-error").inner_text()
+        assert await pn.evaluate("localStorage.getItem('dnd-session')") is None
+        ok("the panel refuses the player PIN for the GM, and stores nothing")
+
+        await pn.fill("#pn-pin", "1379")
+        await pn.click("#pn-login .btn-submit")
+        await until(pn, "!!document.querySelector('#pn-share')")
+        assert "Thornfell Reach" in await pn.locator(".pn-world").inner_text()
+        sent = await pn.evaluate("JSON.parse(sessionStorage.getItem('__lastLoginParams'))")
+        assert sent["p_altcha"] == "stub-altcha-payload", sent
+        ok("the GM signs in from the panel with the DM PIN and the bot check")
+
+        await pn.evaluate("window.__shareUnsupported = true")
+        await pn.click("#pn-share")
+        await pn.wait_for_selector("#pn-pinshare", timeout=8000)
+        await pn.fill("#pn-player-pin", "2468")
+        await pn.click("#pn-pinshare .btn-submit")
+        await pn.wait_for_selector("#pn-stop", timeout=8000)
+        shared = await pn.evaluate("JSON.parse(localStorage.getItem('__obr_room'))['com.taphou5e.owlbear/session']")
+        assert shared["token"] == "tok_" + "p" * 60, shared
+        ok("on an older database the GM gives the player PIN once, and players connect through it")
+
+        # Link by name. Gargoyle 1 is already on the map, so of the three
+        # gargoyles only 2 and 3 are free: "Gargoyle 3" takes its own row, the
+        # first loose "Gargoyle" takes Gargoyle 2, and the second finds none
+        # left rather than doubling up. Korr matches regardless of case.
+        loose = [{"id": f"t-{n}", "name": name, "layer": "CHARACTER", "visible": True,
+                  "position": {"x": 100, "y": 100}, "metadata": {}}
+                 for n, name in [("korr", "korr"), ("g3", "Gargoyle 3"), ("ga", "Gargoyle"),
+                                 ("gb", "Gargoyle"), ("mimic", "Mimic")]]
+        await pn.evaluate("items => { localStorage.setItem('__obr_items', JSON.stringify(items)); }",
+                          OBR_ITEMS + loose)
+        await pn.click("#pn-autolink")
+        await pn.wait_for_selector(".pn-note", timeout=8000)
+        assert "Linked 3 tokens. 2 had no match." in await pn.locator(".pn-note").inner_text()
+        items = {i["id"]: i["metadata"].get(OBR_LINK) for i in
+                 await pn.evaluate("JSON.parse(localStorage.getItem('__obr_items'))")}
+        assert items["t-korr"] == {"kind": "character", "id": "c3"}, items
+        assert items["t-g3"] == {"kind": "combatant", "id": "cb5"}, items
+        assert items["t-ga"] == {"kind": "combatant", "id": "cb4"}, items
+        assert items["t-gb"] is None and items["t-mimic"] is None, items
+        ok("link by name: characters by name, numbered enemies exactly, loose ones by kind, none reused")
+        await octx.close()
+
+        # The token popup.
+        octx = await obr_context(browser, hidden_hp)
+        tk = await octx.new_page()
+        watch(tk, "obr-token")
+        await obr_seed(tk, "PLAYER", session={**OBR_DM, "role": "player", "dmToken": "tok_" + "s" * 60},
+                       selection=["t-garg"])
+        await tk.goto(f"{BASE}/owlbear/token.html", wait_until="domcontentloaded")
+        await tk.wait_for_selector(".tk-head .hp-state", timeout=8000)
+        assert (await tk.locator(".tk-head .hp-state").inner_text()).strip() == "HEALTHY"
+        assert await tk.locator(".hp-bar").count() == 0 and await tk.locator(".hp-btn").count() == 0
+        ok("a player clicking an enemy with HP hidden sees only how it is faring, and no controls")
+
+        await tk.evaluate("window.__obrSelect(['t-sythra'])")
+        await tk.wait_for_selector("#tk-sheet", timeout=8000)
+        await tk.fill("#tk-amount", "3")
+        await tk.click(".hp-btn.damage")
+        await until(tk, "window.__writes.some(w => w.table === 'characters' && w.payload.current_hit_points === 6)")
+        await tk.click("#tk-sheet")
+        modal = await tk.evaluate("window.__obr.modals[0]")
+        assert "/v2/character-sheet.html?id=c2&embed=1" in modal["url"], modal
+        assert modal["width"] == 480 and modal["height"] == 852, modal
+        ok("a player clicking a party token damages it through taphou5e and opens the full sheet in a modal")
+
+        await tk.evaluate("localStorage.setItem('__obr_role', JSON.stringify('GM'))")
+        await tk.evaluate("""() => localStorage.setItem('dnd-session', JSON.stringify({
+            gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
+            dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(), timestamp: Date.now() }))""")
+        await tk.evaluate("localStorage.setItem('__obr_selection', JSON.stringify(['t-garg']))")
+        await tk.reload(wait_until="domcontentloaded")
+        await tk.wait_for_selector("#tk-toggle", timeout=8000)
+        await tk.fill("#tk-amount", "100")
+        await tk.click(".hp-btn.damage")
+        await until(tk, """window.__writes.some(w => w.table === 'encounter_combatants'
+                           && w.payload.current_hit_points === 0 && w.payload.is_defeated === true)""")
+        await tk.click("#tk-toggle")
+        await until(tk, "window.__writes.some(w => w.table === 'encounters' && w.payload.hide_monster_hp === false)")
+        ok("the GM damages an enemy past zero (clamped, defeated) and shows monster HP from the popup")
+        await octx.close()
+
+        # The sheet inside the Owlbear modal.
+        octx = await obr_context(browser)
+        sh = await octx.new_page()
+        watch(sh, "obr-sheet")
+        await obr_seed(sh, "PLAYER", session={**OBR_DM, "role": "player", "dmToken": "tok_" + "s" * 60})
+        await sh.goto(f"{BASE}/v2/character-sheet.html?id=c2&embed=1", wait_until="domcontentloaded")
+        await sh.wait_for_selector(".sheet-header h1", timeout=8000)
+        assert await sh.locator(".rail").count() == 0
+        assert await sh.locator("#menu-btn").count() == 0 and await sh.locator("#side-menu-overlay").count() == 0
+        assert await sh.locator('a[href="characters.html"]').count() == 0
+        await until(sh, "typeof window.closeEmbed === 'function'")
+        await sh.click("#embed-close")
+        assert await sh.evaluate("window.__obr.closed") == ["com.taphou5e.owlbear/sheet"]
+        ok("embedded, the sheet has no rail, menu or back link, and its close button closes the modal")
+
+        await sh.evaluate("localStorage.removeItem('dnd-session')")
+        await sh.goto(f"{BASE}/v2/character-sheet.html?id=c2&embed=1", wait_until="domcontentloaded")
+        await sh.wait_for_selector(".embed-waiting", timeout=8000)
+        assert sh.url.endswith("character-sheet.html?id=c2&embed=1"), sh.url
+        ok("embedded with no session, the sheet waits for the GM instead of sending anyone to log in")
+        await octx.close()
+
+        # The tracker answers encounter signals too.
+        octx = await obr_context(browser)
+        tr = await octx.new_page()
+        watch(tr, "tracker-live")
+        await obr_seed(tr, "GM", session=OBR_DM)
+        await tr.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await tr.wait_for_selector(".init-row", timeout=10000)
+        await until(tr, "typeof window.__liveEmit === 'function'")
+        await tr.evaluate("""
+            window.__patchFixture('encounter_combatants', 'cb2', { current_hit_points: 10 });
+            window.__liveEmit({ table: 'encounter_combatants', encounter_id: 'e1', op: 'UPDATE' });
+        """)
+        await until(tr, """[...document.querySelectorAll('.init-row')].some(r =>
+            r.textContent.includes('Gargoyle 1') && r.querySelector('.hp-value b')?.textContent === '10')""")
+        ok("damage to a monster from Owlbear or another device shows in an open tracker, live")
+        await octx.close()
 
         await browser.close()
 

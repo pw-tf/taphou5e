@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router. 317 assertions.
+version router, and the Owlbear Rodeo extension. 339 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -102,6 +102,24 @@ at it directly — edit `CHROME` at the top of the file, or run
   blocking the step in place rather than through a redraw
 - Pre-filled number fields replacing on focus rather than appending, and text
   fields deliberately not doing so
+- **The Owlbear Rodeo extension** (`owlbear/`), against a stand-in for the
+  Owlbear SDK: the CDN module is served from `OBR_MOCK` instead, and its room,
+  scene and local items live in `localStorage`, so every page in a context
+  shares one room. Covered:
+  - the GM's client minting a player session and putting it in the room;
+  - a player's client adopting it with no PIN, and letting go of it when
+    sharing stops;
+  - HP bars: their geometry and colours, a player getting no enemy bar while
+    monster HP is hidden, and both kinds of change (a character's, an
+    encounter's) redrawing them live;
+  - the popup's writes: clamped damage, a monster defeated at zero, the
+    monster-HP switch, and the sheet opening in a modal;
+  - link by name never reusing a combatant already on the map;
+  - the panel refusing the player PIN for a GM, and falling back to it on a
+    database without `world_share_player_session`;
+  - the sheet in embed mode: no rail, menu or back link, a close button that
+    closes the modal, and a missing session waiting rather than redirecting;
+  - the tracker reloading on an encounter signal
 
 A note on measuring this: clicking an already-focused element fires no
 `focusin`, so a test that clicks and types twice measures nothing. Blur between

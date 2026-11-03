@@ -1,0 +1,71 @@
+/* ========================================
+   TAPHOU5E for Owlbear Rodeo
+   On top of v2's tokens.css, ember.css and v2.css, so the controls are the
+   app's own: .hp, .hp-btn, .btn, .eyebrow, .hint.
+   ======================================== */
+
+html, body { margin: 0; }
+
+/* The context-menu popup sits on Owlbear's own menu surface. */
+body.obr-embed { background: transparent; overflow: hidden; }
+
+/* Popovers are their own surface. */
+body.obr-panel { min-height: 100vh; overflow-y: auto; }
+
+/* ---------- Token popup ---------- */
+.tk { display: flex; flex-direction: column; gap: var(--space-sm); padding: 10px 12px; }
+.tk-head { display: flex; align-items: center; gap: var(--space-sm); }
+.tk-name {
+  font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text-primary);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tk-head .hp-state { margin-left: auto; font-size: var(--fs-12); }
+.tk .hint { margin: 0; }
+.tk-ctl { gap: 6px; }
+.tk-ctl .hp-btn { width: 36px; height: 32px; font-size: 18px; flex: none; }
+.tk-ctl input { min-width: 0; width: 100%; height: 32px; }
+.tk-ctl .btn { height: 32px; padding: 0 12px; flex: none; }
+.tk-toggle { font-size: var(--fs-12); padding: 6px 10px; }
+.tk-note { color: var(--danger); }
+
+/* ---------- Panel and link popover ---------- */
+.pn, .lk { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); }
+.pn p, .lk p { margin: 0; }
+.pn-world, .lk-title {
+  margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 20px; line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.lk-title { font-size: 17px; }
+.pn-section {
+  display: flex; flex-direction: column; gap: var(--space-sm);
+  padding-top: var(--space-md); border-top: 1px solid var(--border-subtle);
+}
+.pn-form { display: flex; flex-direction: column; gap: 6px; }
+.pn-form label { font-size: var(--fs-12); color: var(--text-secondary); }
+.pn-form input, .lk-select {
+  height: 36px; padding: 0 10px; border-radius: var(--radius-md);
+  background: var(--bg-sunken); border: 1px solid var(--border-default); color: var(--text-primary);
+  font: inherit; min-width: 0;
+}
+.pn-form input:focus, .lk-select:focus { outline: none; border-color: var(--accent-primary); }
+.pn-form .btn-submit { margin-top: 6px; }
+.pn-error { color: var(--danger); font-size: var(--fs-12); }
+.pn-check { display: flex; align-items: center; gap: var(--space-sm); font-size: var(--fs-13); }
+.pn-note { color: var(--text-secondary); }
+
+.lk-list { display: flex; flex-direction: column; gap: 2px; }
+.lk-row {
+  display: flex; align-items: center; gap: var(--space-sm); width: 100%;
+  padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid transparent;
+  background: var(--bg-secondary); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer;
+}
+.lk-row:hover { border-color: var(--border-strong); }
+.lk-row.is-static { cursor: default; }
+.lk-row.is-static:hover { border-color: transparent; }
+.lk-row.is-linked .lk-meta { color: var(--accent-primary); }
+.lk-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: var(--fs-13); }
+.lk-meta {
+  margin-left: auto; flex: none; font-family: var(--font-mono); font-size: var(--fs-11);
+  color: var(--text-tertiary); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lk-row .icon-btn { flex: none; width: 26px; height: 26px; font-size: 18px; }

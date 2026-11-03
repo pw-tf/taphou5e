@@ -1300,6 +1300,19 @@
                 (data || []).forEach(ch => { characters[ch.id] = ch; });
                 draw();
             });
+
+            // The same for the encounter itself: a monster damaged on the
+            // Owlbear map, or a turn advanced on the DM's other device.
+            onEncounterChange(async ids => {
+                if (!ids.includes(enc.id)) return;
+                const [encRow, combatantRows] = await Promise.all([
+                    db.from('encounters').select('*').eq('id', enc.id).single(),
+                    db.from('encounter_combatants').select('*').eq('encounter_id', enc.id).order('sort_order')
+                ]);
+                if (encRow.data) enc = encRow.data;
+                combatants = combatantRows.data || [];
+                draw();
+            });
         } catch (err) {
             console.error('Tracker failed to load:', err);
             $('#main-content').innerHTML = `
