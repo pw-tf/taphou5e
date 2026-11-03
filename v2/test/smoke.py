@@ -591,8 +591,9 @@ const OBR = {
   contextMenu: { create: async m => { window.__obr.menus[m.id] = m; }, remove: async () => {} },
   popover: { open: async p => { window.__obr.popovers.push(p); }, close: async id => { window.__obr.closed.push(id); } },
   modal: { open: async m => { window.__obr.modals.push(m); }, close: async id => { window.__obr.closed.push(id); } },
-  action: { setBadgeText: async t => { window.__obr.badge = t === undefined ? null : t; } },
-  theme: { getTheme: async () => ({ mode: 'DARK' }), onChange: () => () => {} },
+  action: { setBadgeText: async t => { window.__obr.badge = t === undefined ? null : t; },
+            setIcon: async icon => { window.__obr.icon = icon; } },
+  theme: { getTheme: async () => ({ mode: get('theme', 'DARK') }), onChange: () => () => {} },
   viewport: { getWidth: async () => 1280, getHeight: async () => 900 }
 };
 export default OBR;
@@ -4185,6 +4186,11 @@ async def main():
         assert embed.endswith("/owlbear/token.html"), embed
         ok("the token popup is a context-menu embed, alongside link and unlink")
 
+        icons = await gm.evaluate("""[window.__obr.icon,
+            ...Object.values(window.__obr.menus).flatMap(m => m.icons.map(i => i.icon))]""")
+        assert all(i.endswith("/owlbear/icon.png") for i in icons), icons
+        ok("the toolbar button and every menu carry the white taphou5e logo in Owlbear's dark theme")
+
         # The GM sees every linked token's bar: Sythra 9/44 with 5 temp, the
         # gargoyle full. A bar is three shapes at most, whatever the HP.
         await until(gm, "window.__obrLocal().length === 5")
@@ -4241,6 +4247,14 @@ async def main():
                                    return f && Math.abs(f.width - 63) < 0.01 && f.fillColor === '#d9a94a'; })()""")
         assert not any(i["id"].endswith("t-sythra/temp") for i in await pl.evaluate("window.__obrLocal()"))
         ok("HP changed on the sheet redraws the Owlbear bar: half, amber, temp gone")
+
+        await pl.evaluate("localStorage.setItem('__obr_theme', JSON.stringify('LIGHT'))")
+        await pl.reload(wait_until="domcontentloaded")
+        await until(pl, "!!window.__obr && !!window.__obr.icon && Object.keys(window.__obr.menus).length === 3")
+        icons = await pl.evaluate("""[window.__obr.icon,
+            ...Object.values(window.__obr.menus).flatMap(m => m.icons.map(i => i.icon))]""")
+        assert all(i.endswith("/owlbear/icon-dark.png") for i in icons), icons
+        ok("in Owlbear's light theme the logo switches to its dark ink")
 
         # The GM stops sharing; the player's client lets go of the session.
         await pl.evaluate("""() => {

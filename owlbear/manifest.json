@@ -1,14 +1,14 @@
 {
   "name": "taphou5e",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "manifest_version": 1,
   "author": "taphou5e",
   "description": "taphou5e character sheets and HP bars on your tokens. Enemy HP follows the encounter tracker.",
-  "icon": "/taphou5e/owlbear/icon.svg",
+  "icon": "/taphou5e/owlbear/icon.png",
   "homepage_url": "https://pw-tf.github.io/taphou5e/",
   "action": {
     "title": "taphou5e",
-    "icon": "/taphou5e/owlbear/icon.svg",
+    "icon": "/taphou5e/owlbear/icon.png",
     "popover": "/taphou5e/owlbear/panel.html",
     "width": 320,
     "height": 560

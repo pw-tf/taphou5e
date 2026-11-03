@@ -11,7 +11,7 @@
 // ========================================
 
 import {
-    OBR, buildShape, LINK, ROOM_SESSION, BAR, LINK_POPOVER, ICON, SHARE_REFRESH_MS,
+    OBR, buildShape, LINK, ROOM_SESSION, BAR, LINK_POPOVER, iconFor, SHARE_REFRESH_MS,
     page, linkOf, liveSession, sessionFromRoom, roomSessionUsable, shareRoomSession,
     fetchLinked, hpView, ID
 } from './obr.js';
@@ -36,7 +36,13 @@ OBR.onReady(async () => {
         else adoptShared(metadata[ROOM_SESSION]);
     });
 
-    registerMenus();
+    // The toolbar button and the menus carry the logo in the theme's ink.
+    const brand = theme => {
+        OBR.action.setIcon(iconFor(theme));
+        registerMenus(iconFor(theme));
+    };
+    brand(await OBR.theme.getTheme());
+    OBR.theme.onChange(brand);
     startBars(role);
 });
 
@@ -104,22 +110,22 @@ async function keepShared(shared) {
 const linked = [{ key: ['metadata', LINK], value: undefined, operator: '!=' }];
 const unlinked = [{ key: ['metadata', LINK], value: undefined }];
 
-function registerMenus() {
+function registerMenus(icon) {
     // Shown in the menu that opens when a linked token is clicked. This is
     // the popup: Owlbear opens it on a click and keeps it closed during a drag.
     OBR.contextMenu.create({
         id: `${ID}/token`,
-        icons: [{ icon: ICON, label: 'taphou5e', filter: { max: 1, every: linked } }],
+        icons: [{ icon, label: 'taphou5e', filter: { max: 1, every: linked } }],
         embed: { url: page('token.html'), height: 132 }
     });
 
     OBR.contextMenu.create({
         id: `${ID}/link-menu`,
         icons: [
-            { icon: ICON, label: 'Link to taphou5e',
+            { icon, label: 'Link to taphou5e',
               filter: { roles: ['GM'], max: 1, every: unlinked } },
             // A player may say which character their own token is.
-            { icon: ICON, label: 'Link to taphou5e character',
+            { icon, label: 'Link to taphou5e character',
               filter: { roles: ['PLAYER'], max: 1, every: [...unlinked, { key: 'layer', value: 'CHARACTER' }] } }
         ],
         onClick: (context, elementId) => OBR.popover.open({
@@ -133,7 +139,7 @@ function registerMenus() {
 
     OBR.contextMenu.create({
         id: `${ID}/unlink`,
-        icons: [{ icon: ICON, label: 'Unlink from taphou5e', filter: { roles: ['GM'], every: linked } }],
+        icons: [{ icon, label: 'Unlink from taphou5e', filter: { roles: ['GM'], every: linked } }],
         onClick: context => OBR.scene.items.updateItems(context.items.map(i => i.id), drafts => {
             drafts.forEach(d => { delete d.metadata[LINK]; });
         })

@@ -47,7 +47,9 @@ window.addEventListener('storage', event => {
 });
 
 export const page = file => new URL(file, import.meta.url).href;
-export const ICON = page('icon.svg');
+// The taphou5e logo, white for Owlbear's dark theme and dark for its light
+// one. Owlbear shows an icon as it is, with nothing like v2's --logo-filter.
+export const iconFor = theme => page(theme && theme.mode === 'LIGHT' ? 'icon-dark.png' : 'icon.png');
 
 export function linkOf(item) {
     const link = item && item.metadata && item.metadata[LINK];
