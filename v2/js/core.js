@@ -314,6 +314,7 @@ const ICONS = {
     bag:        '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
     heart:      '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
     coffee:     '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+    chevrons:   '<polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>',
     bug:        '<path d="M8 2 9.5 4.5"/><path d="M16 2 14.5 4.5"/><path d="M9 20a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5z"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5.5 7-1.7-1.3"/><path d="m18.5 7 1.7-1.3"/><path d="m5.5 19-1.7 1.3"/><path d="m18.5 19 1.7 1.3"/>'
 };
 
@@ -350,9 +351,9 @@ function navItems(activeId, counts) {
             : `<span class="mono nav-count">${escapeHtml(count)}</span>`;
 
         if (item.pending) {
-            return `<a class="is-pending" aria-disabled="true" title="Not built yet">${icon(item.icon)}${escapeHtml(item.label)}${badge || '<span class="nav-soon">soon</span>'}</a>`;
+            return `<a class="is-pending" aria-disabled="true" title="Not built yet">${icon(item.icon)}<span class="nav-label">${escapeHtml(item.label)}</span>${badge || '<span class="nav-soon">soon</span>'}</a>`;
         }
-        return `<a href="${item.href}" class="${item.id === activeId ? 'is-active' : ''}">${icon(item.icon)}${escapeHtml(item.label)}${badge}</a>`;
+        return `<a href="${item.href}" class="${item.id === activeId ? 'is-active' : ''}" data-label="${escapeHtml(item.label)}">${icon(item.icon)}<span class="nav-label">${escapeHtml(item.label)}</span>${badge}</a>`;
     }).join('');
 }
 
@@ -449,12 +450,34 @@ function openFeedback() {
     });
 }
 
+// The desktop sidebar folds down to the same icon rail the character sheet
+// uses. The choice belongs to the device rather than the page: every page
+// rebuilds the shell, and each one reads it back here.
+const SIDEBAR_KEY = 'taphou5e-sidebar';
+
+function sidebarCollapsed() {
+    try { return localStorage.getItem(SIDEBAR_KEY) === 'collapsed'; } catch (e) { return false; }
+}
+
+// Collapsed, the labels are hidden, so each row names itself through its
+// title -- which is also what a screen reader falls back to.
+function applySidebarState(aside, collapsed) {
+    aside.classList.toggle('is-collapsed', collapsed);
+    $$('[data-label]', aside).forEach(el => {
+        if (collapsed) el.title = el.dataset.label;
+        else el.removeAttribute('title');
+    });
+    const toggle = $('#sb-collapse', aside);
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    toggle.title = collapsed ? 'Expand sidebar' : '';
+}
+
 function renderSidebar(activeId, counts) {
     const worldName = (session && session.gameWorldName) || 'Unknown world';
     return `
-        <aside class="sidebar">
+        <aside class="sidebar${sidebarCollapsed() ? ' is-collapsed' : ''}">
             <div class="sidebar-brand">
-                <div class="brand"><img src="../taphou5e.png" alt="" class="brand-logo">TAPHOU5E</div>
+                <div class="brand"><img src="../taphou5e.png" alt="" class="brand-logo"><span class="brand-word">TAPHOU5E</span></div>
                 <div class="world-row">
                     <span class="world-dot"></span>
                     <span class="world-name">${escapeHtml(worldName)}</span>
@@ -463,6 +486,7 @@ function renderSidebar(activeId, counts) {
             </div>
             <nav class="sidebar-nav">${navItems(activeId, counts)}</nav>
             <div class="sidebar-foot">
+                <button class="side-menu-item" id="sb-collapse" type="button" aria-expanded="true">${icon('chevrons', 16)}<span class="nav-label">Collapse</span></button>
                 <div class="segmented" style="font-size:var(--fs-10)">
                     <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
                     <button data-theme-option="light" onclick="setTheme('light')">Light</button>
@@ -470,9 +494,9 @@ function renderSidebar(activeId, counts) {
                 </div>
                 <!-- These lived only in the mobile drawer, which is hidden
                      above the breakpoint -- so a desktop had no way out. -->
-                <a class="side-menu-item" id="sb-support">${icon('heart', 16)}Support</a>
-                <a class="side-menu-item" id="sb-classic">${icon('swap', 16)}Switch to classic</a>
-                <a class="side-menu-item side-menu-item-danger" id="sb-logout">${icon('logout', 16)}Logout</a>
+                <a class="side-menu-item" id="sb-support" data-label="Support">${icon('heart', 16)}<span class="nav-label">Support</span></a>
+                <a class="side-menu-item" id="sb-classic" data-label="Switch to classic">${icon('swap', 16)}<span class="nav-label">Switch to classic</span></a>
+                <a class="side-menu-item side-menu-item-danger" id="sb-logout" data-label="Logout">${icon('logout', 16)}<span class="nav-label">Logout</span></a>
             </div>
         </aside>`;
 }
@@ -558,6 +582,19 @@ function wireSideMenu() {
     $('#sb-support')?.addEventListener('click', openSupport);
     $('#sb-classic')?.addEventListener('click', switchToClassic);
     $('#sb-logout')?.addEventListener('click', signOut);
+
+    const aside = $('.sidebar');
+    if (aside) {
+        applySidebarState(aside, sidebarCollapsed());
+        $('#sb-collapse').addEventListener('click', () => {
+            const collapsed = !aside.classList.contains('is-collapsed');
+            try {
+                if (collapsed) localStorage.setItem(SIDEBAR_KEY, 'collapsed');
+                else localStorage.removeItem(SIDEBAR_KEY);
+            } catch (e) { /* private mode: it still folds, it just won't be remembered */ }
+            applySidebarState(aside, collapsed);
+        });
+    }
 
     const overlay = $('#side-menu-overlay');
     if (!overlay) return;
