@@ -41,6 +41,9 @@ not a pending queue. Do not re-run them against that project.
 | 20261103103934 | advisor_cleanup |
 | 20261103105850 | live_updates |
 | 20261103105854 | verify_live_updates |
+| 20261103113540 | altcha |
+| 20261103113543 | verify_altcha (superseded, not kept) |
+| 20261103113644 | verify_altcha_null_safe |
 
 The PIN cutover is complete. See `docs/campaigns-schema-design.md` §5.6-5.7.
 
@@ -50,9 +53,17 @@ full. They were applied to the project first and copied here afterwards. The
 two `reapply_*` entries re-ran the two files above after the restore and are
 not duplicated. See `docs/campaigns-schema-design.md` §11.3a19-11.3a20.
 
-The `verify_*` files raise on any failure. `verify_security_hardening` rolls
-back everything it creates, so it is safe to re-run against production after
-any change to a policy, grant or limit.
+The `verify_*` files raise on any failure and roll back everything they
+create, so they are safe to re-run against production after any change to a
+policy, grant or limit.
+
+Since `altcha`, `world_login` and `world_create` refuse any call without a
+solved challenge. The login and creation checks in `verify_security_hardening`
+therefore stop at `captcha_required`; `verify_altcha_null_safe` restates them
+with minted payloads. Re-run that one, together with `verify_live_updates`.
+`20261103113543_verify_altcha` was replaced by `verify_altcha_null_safe` the
+same hour. It compared results with `<>`, and a check that wrongly succeeds
+returns a null error, so those assertions could not fail.
 
 `20260918033024_analytics_overview_checks_by_focus.sql` is kept here in full,
 because it is the only function that reads the DM-only campaign layer on behalf

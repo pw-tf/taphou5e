@@ -385,6 +385,19 @@ STUB = """
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
   };
 
+  // The real ALTCHA widget comes from a CDN this sandbox blocks. This stands
+  // in for it: loads, accepts configure(), and "solves" on verify().
+  if (window.customElements && !customElements.get('altcha-widget')) {
+    customElements.define('altcha-widget', class extends HTMLElement {
+      connectedCallback() { setTimeout(() => this.dispatchEvent(new CustomEvent('load')), 0); }
+      configure(options) { window.__altchaConfig = options; }
+      verify() {
+        setTimeout(() => this.dispatchEvent(new CustomEvent('verified',
+          { detail: { payload: 'stub-altcha-payload' } })), 10);
+      }
+    });
+  }
+
   window.supabase = {
     createClient(url, key, opts) {
       window.__capturedHeaders = (opts && opts.global && opts.global.headers) || {};
@@ -427,6 +440,8 @@ STUB = """
         }),
         rpc(fn, params) {
           if (fn === 'world_login') {
+            // Kept across the redirect that follows a successful login.
+            sessionStorage.setItem('__lastLoginParams', JSON.stringify(params));
             if (params.p_pin === '0000') return Promise.resolve({ data: { ok:false, error:'bad_pin' }, error:null });
             const dm = params.p_pin === '1379';
             return Promise.resolve({ data: { ok:true, role: dm ? 'dm' : 'player',
@@ -824,6 +839,11 @@ async def main():
         await page.wait_for_url("**/v2/index.html", timeout=10000)
         await page.wait_for_selector(".party-roster", timeout=10000)
         ok("DM login redirects to the hub")
+
+        # The bot check rides along with the PIN; the server refuses one without it.
+        sent = await page.evaluate("JSON.parse(sessionStorage.getItem('__lastLoginParams') || 'null')")
+        assert sent and sent.get("p_altcha") == "stub-altcha-payload", sent
+        ok("login sends the solved bot-check payload as p_altcha")
 
         # The DM token must reach the client as a request header -- this is the
         # whole mechanism that separates a DM from a player under RLS.

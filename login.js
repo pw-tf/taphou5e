@@ -6,6 +6,9 @@ const SUPABASE_ANON_KEY = 'sb_publishable_IgK3AGmhrS6Zs_GHqUdnRw_AECp3J_e';
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Start solving the bot check now, so it is ready by the time a PIN is typed.
+window.Taphou5eAltcha.init(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // ========================================
 // Utility Functions
 // ========================================
@@ -23,6 +26,10 @@ function loginErrorMessage(code) {
         case 'name_taken':      return 'Game world name already exists';
         case 'bad_name':        return 'Game world name must be 3-50 characters';
         case 'bad_description': return 'Description must be 500 characters or fewer';
+        case 'captcha_required':
+        case 'captcha_invalid':
+        case 'captcha_expired':
+        case 'captcha_replayed': return "Couldn't confirm you're not a bot. Please try again.";
         case 'pins_identical':  return 'DM and Player PINs must be different';
         default:                return 'An error occurred. Please try again.';
     }
@@ -269,7 +276,8 @@ async function handleJoinSubmit(e) {
         // The PIN is checked on the server, which also decides the role.
         const { data: result, error } = await db.rpc('world_login', {
             p_world_name: worldName,
-            p_pin: pin
+            p_pin: pin,
+            p_altcha: await window.Taphou5eAltcha.take()
         });
         
         if (error) {
@@ -372,7 +380,8 @@ async function handleCreateSubmit(e) {
             p_description: description || null,
             p_leveling_mode: levelingMode,
             p_dm_pin: dmPin,
-            p_player_pin: playerPin
+            p_player_pin: playerPin,
+            p_altcha: await window.Taphou5eAltcha.take()
         });
         
         if (error) {
