@@ -972,6 +972,27 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 }
 .sidebar-foot .side-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sidebar-foot .side-menu-item-danger { color: var(--danger); }
+.sidebar-foot button.side-menu-item { background: none; border: 0; font-family: inherit; }
+
+/* ---------- Collapsed sidebar ----------
+   Folds to the width of the character sheet's icon rail. Only the labels go;
+   every destination and every foot action stays one click away. The theme
+   switch has no icon form, so it waits for the sidebar to be opened again. */
+.sidebar { transition: width var(--transition-normal); }
+.sidebar.is-collapsed { width: var(--rail-width); }
+.sidebar.is-collapsed .brand-word,
+.sidebar.is-collapsed .world-row,
+.sidebar.is-collapsed .nav-label,
+.sidebar.is-collapsed .nav-count,
+.sidebar.is-collapsed .nav-soon,
+.sidebar.is-collapsed .sidebar-foot .segmented { display: none; }
+.sidebar.is-collapsed .sidebar-brand { padding-left: 0; padding-right: 0; }
+.sidebar.is-collapsed .sidebar-brand .brand { justify-content: center; }
+.sidebar.is-collapsed .sidebar-nav a { justify-content: center; padding-left: 0; padding-right: 0; }
+.sidebar.is-collapsed .sidebar-foot { padding-left: var(--space-sm); padding-right: var(--space-sm); }
+.sidebar.is-collapsed .sidebar-foot .side-menu-item { margin: 0; }
+#sb-collapse svg { transition: transform var(--transition-normal); }
+.sidebar.is-collapsed #sb-collapse svg { transform: scaleX(-1); }
 
 /* ---------- Check outcomes ----------
    What happens on a pass or a fail was collected by the form and stored, and

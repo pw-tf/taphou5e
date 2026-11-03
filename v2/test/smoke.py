@@ -949,6 +949,30 @@ async def main():
         assert await page.locator('.sidebar-nav a[href="monster-tracker.html"]').count() == 1
         ok("every hub tile and nav item links to a real page")
 
+        # ---------- 4a. Collapsing the sidebar ----------
+        # It folds to the sheet's icon rail, and the choice follows the device
+        # to every page, since each page rebuilds the shell from scratch.
+        await page.click("#sb-collapse")
+        await page.wait_for_timeout(350)
+        width = await page.evaluate("document.querySelector('.sidebar').getBoundingClientRect().width")
+        assert width == 64, width
+        assert not await page.locator('.sidebar-nav a[href="characters.html"] .nav-label').is_visible()
+        assert await page.get_attribute('.sidebar-nav a[href="characters.html"]', "title") == "Characters"
+        assert await page.get_attribute("#sb-collapse", "aria-expanded") == "false"
+        assert await page.locator("#sb-logout").is_visible(), "logout stays reachable while collapsed"
+        await page.click('.sidebar-nav a[href="characters.html"]')
+        await page.wait_for_selector(".sidebar.is-collapsed", timeout=10000)
+        ok("the sidebar collapses to the icon rail, and stays collapsed on the next page")
+
+        await page.click("#sb-collapse")
+        await page.wait_for_timeout(350)
+        assert await page.locator('.sidebar-nav a[href="characters.html"] .nav-label').is_visible()
+        assert await page.get_attribute('.sidebar-nav a[href="characters.html"]', "title") is None
+        await page.goto(f"{BASE}/v2/index.html", wait_until="domcontentloaded")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+        assert await page.locator(".sidebar.is-collapsed").count() == 0
+        ok("expanding it again is remembered the same way")
+
         # ---------- 5. Mobile ----------
         await page.set_viewport_size({"width": 390, "height": 844})
         await page.wait_for_timeout(300)
