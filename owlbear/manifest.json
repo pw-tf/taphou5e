@@ -1,0 +1,17 @@
+{
+  "name": "taphou5e",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "author": "taphou5e",
+  "description": "Character sheets and HP bars from taphou5e on your tokens. Click a party token for its sheet; enemy HP follows the encounter tracker.",
+  "icon": "/taphou5e/owlbear/icon.svg",
+  "homepage_url": "https://pw-tf.github.io/taphou5e/",
+  "action": {
+    "title": "taphou5e",
+    "icon": "/taphou5e/owlbear/icon.svg",
+    "popover": "/taphou5e/owlbear/panel.html",
+    "width": 320,
+    "height": 560
+  },
+  "background_url": "/taphou5e/owlbear/background.html"
+}

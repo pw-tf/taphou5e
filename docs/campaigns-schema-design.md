@@ -1859,6 +1859,76 @@ is no captcha-free path left.
   and the server's `captcha_required` reaches the person as "Couldn't
   confirm you're not a bot".
 
+### 11.3a23 Owlbear Rodeo
+
+An Owlbear Rodeo extension in `owlbear/`, installed from
+`https://pw-tf.github.io/taphou5e/owlbear/manifest.json`. Tokens on the map are
+linked to taphou5e records, and taphou5e stays the only place hit points live.
+
+**What it does.**
+- Linked tokens get an HP bar. Damage in Owlbear writes to taphou5e, and damage
+  in taphou5e redraws the bar.
+- Clicking a party token opens a small popup with damage, heal and a **Sheet**
+  button. The button opens the real v2 sheet in an Owlbear modal.
+- Enemies link to `encounter_combatants`. The GM always sees their bars.
+  Players see them only when the encounter's `hide_monster_hp` is off. This is
+  the switch the tracker already has, so the two cannot disagree. With it on, a
+  player who clicks an enemy sees only its state word.
+
+**Sessions: the GM's client shares one.** Owlbear runs extension pages in
+iframes on owlbear.rodeo. The browser gives those iframes their own storage,
+apart from the taphou5e site, but they share it with each other, including a
+v2 page opened in an Owlbear modal. So:
+- **The GM** signs in once in the extension's panel, with the world name, DM PIN
+  and ALTCHA, through the same `world_login` call v2 makes.
+- **The GM's client** calls `world_share_player_session()`. It needs a DM token,
+  and mints an ordinary player session: twelve hours, counted against the
+  world's 100.
+- **The token** goes into Owlbear room metadata. It is minted again an hour
+  before it lapses.
+- **Players' clients** copy it into their stored session. The embedded sheet
+  reads that session as if the player had logged in, and players never type a
+  PIN.
+- **Stop sharing** puts `{off: true}` in its place, and every player's client
+  lets go of the session.
+- **The trade, accepted:** anyone in the Owlbear room, and any other extension
+  installed in it, can read a player token for up to twelve hours. It is
+  player access, never DM access. The RPC refuses a player token, so a shared
+  token cannot mint more.
+
+**Encounter signals.** `20261103120607_owlbear` gives `encounters` and
+`encounter_combatants` the same bare signal as the character tables (§11.3a21):
+`{table, encounter_id, op}`, one per encounter per statement, on the world's
+topic.
+- v2 gains `onEncounterChange` beside `onCharacterChange`.
+- The tracker uses it, so a monster damaged on the map, or a turn advanced on
+  another device, shows in an open tracker.
+- A player can learn that some encounter id changed. Reading the encounter is
+  still up to the policies, which give players active encounters only.
+
+**Each client draws its own bars.** They are Owlbear *local* items, which exist
+only in the client that made them. Each person's bars therefore follow what
+that person may see, and nothing is saved into the scene or copied with it.
+Token metadata holds only `{kind, id}`.
+
+**Embed mode.** `?embed=1` on a v2 page:
+- leaves out the rail, the drawer and the back link, and adds a close button
+  that closes the Owlbear modal;
+- shows "Waiting for the GM" instead of sending anyone to `login.html`.
+`core.js` loads `owlbear/embed.js` only in this mode.
+
+**Before the migration.** The extension still works on a database without it:
+- When `world_share_player_session` is missing, the panel asks the GM for the
+  player PIN once instead.
+- Enemy bars catch up on a 30-second timer rather than live.
+
+**Tested** by the smoke suite against a stand-in for the Owlbear SDK. It covers
+sharing, adopting and dropping the session, bars and their visibility, the
+popup's writes, link by name, the embedded sheet, and the tracker's live
+reload. `verify_owlbear` covers the server side. It passes against a PGlite
+copy of the tables it touches, and catches four deliberately broken versions of
+the migration. It has still to be run against the project.
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:

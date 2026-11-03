@@ -49,6 +49,17 @@ function clearSession() {
 const session = getSession();
 const isDM = !!session && session.role === 'dm';
 
+// Opened inside Owlbear Rodeo by the extension in /owlbear/. The page is the
+// same; it leaves out the navigation and closes the Owlbear modal instead of
+// going back. The session comes from the extension, never from a login here.
+const EMBED = new URLSearchParams(window.location.search).has('embed');
+if (EMBED) {
+    const bridge = document.createElement('script');
+    bridge.type = 'module';
+    bridge.src = '../owlbear/embed.js';
+    document.head.appendChild(bridge);
+}
+
 // ========================================
 // Supabase client
 //
@@ -79,8 +90,22 @@ function sessionTokenExpired() {
     return Date.now() - issued > SESSION_TOKEN_TTL_MS;
 }
 
+// Inside Owlbear there is no login page to go to: the GM's client shares a
+// session with the room, and the extension saves it where this page reads it.
+function showEmbedWaiting() {
+    document.body.innerHTML = `
+        <div class="embed-waiting">
+            <p>Waiting for the GM to connect taphou5e.</p>
+            <p class="hint">The GM signs in from the taphou5e button in Owlbear's toolbar.</p>
+        </div>`;
+}
+
 // Pages other than login call this first.
 function requireSession() {
+    if (EMBED && (!session || sessionTokenExpired())) {
+        showEmbedWaiting();
+        return false;
+    }
     if (!session) {
         window.location.replace('login.html');
         return false;
@@ -107,10 +132,14 @@ function requireSession() {
 // once changes settle: a burst (creating a character, a long rest) is one call. A call waits while someone is typing or has a dialog open --
 // pages redraw wholesale, and a refresh must never take a value from under a
 // cursor or close the level-up wizard -- and keeps the scroll position.
+//
+// onEncounterChange(handler) is the same for encounters and their combatants,
+// with handler(ids) given encounter ids.
 // ========================================
 
 let liveChannel = null;
 const liveHandlers = new Set();
+const encounterHandlers = new Set();
 
 async function startLiveUpdates() {
     if (liveChannel) return;
@@ -119,8 +148,9 @@ async function startLiveUpdates() {
     if (error || !topic) { liveChannel = null; return; }
     liveChannel = db.channel(topic)
         .on('broadcast', { event: 'change' }, ({ payload }) => {
-            const id = payload && payload.character_id;
-            if (id) liveHandlers.forEach(handler => handler(id));
+            if (!payload) return;
+            if (payload.character_id) liveHandlers.forEach(handler => handler(payload.character_id));
+            if (payload.encounter_id) encounterHandlers.forEach(handler => handler(payload.encounter_id));
         })
         .subscribe();
 }
@@ -132,6 +162,14 @@ function isBusy() {
 }
 
 function onCharacterChange(handler) {
+    settleInto(liveHandlers, handler);
+}
+
+function onEncounterChange(handler) {
+    settleInto(encounterHandlers, handler);
+}
+
+function settleInto(handlers, handler) {
     const pending = new Set();
     let timer = null;
 
@@ -148,7 +186,7 @@ function onCharacterChange(handler) {
         window.scrollTo(0, y);
     }
 
-    liveHandlers.add(id => {
+    handlers.add(id => {
         pending.add(id);
         if (!timer) timer = setTimeout(flush, 400);
     });

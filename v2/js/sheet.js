@@ -1028,8 +1028,8 @@
         // are siblings of .app-main, so the sticky combat header sits beside
         // them rather than stretching over the whole viewport.
         document.body.innerHTML = `
-            <div class="app-shell">
-                ${renderRail('characters')}
+            <div class="app-shell${EMBED ? ' is-embed' : ''}">
+                ${EMBED ? '' : renderRail('characters')}
 
                 <nav class="sheet-nav">
                     <div>
@@ -1053,16 +1053,20 @@
                 <div class="app-main sheet-page">
                     <header class="sheet-header">
                         <div class="sheet-id">
+                            ${EMBED ? '' : `
                             <a class="icon-btn" href="characters.html" aria-label="Back to roster">
                                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                                 </svg>
-                            </a>
+                            </a>`}
                             <h1>${escapeHtml(c.name)}</h1>
                             <span class="level-badge mono">LV ${c.level || 1}</span>
-                            <button class="icon-btn" id="menu-btn" aria-label="Open menu"
-                                    style="margin-left:auto">${icon('menu', 19)}</button>
+                            ${EMBED
+                                ? `<button class="icon-btn" id="embed-close" aria-label="Close sheet" style="margin-left:auto"
+                                           onclick="window.closeEmbed && window.closeEmbed()">&times;</button>`
+                                : `<button class="icon-btn" id="menu-btn" aria-label="Open menu"
+                                           style="margin-left:auto">${icon('menu', 19)}</button>`}
                         </div>
                         <div class="sheet-combat">
                             <div class="hp-big">
@@ -1127,7 +1131,7 @@
                     </nav>
                 </div>
             </div>
-            ${renderSideMenu('characters')}`;
+            ${EMBED ? '' : renderSideMenu('characters')}`;
 
         wireSideMenu();
         wireCardMenus('.sheet-scroll', '[data-holdable]', sheetRowMenu);
