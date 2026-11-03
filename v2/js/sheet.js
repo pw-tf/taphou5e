@@ -1311,6 +1311,10 @@
         draw();
     }
 
+    // HP and everything else on the sheet follow edits made elsewhere: the DM's
+    // tracker, the player's other device, another player at the table.
+    onCharacterChange(ids => ids.includes(characterId) ? reload() : null);
+
     window.sheetLevelUp = () => {
         if (typeof window.openLevelUp === 'function') window.openLevelUp(c, reload);
     };

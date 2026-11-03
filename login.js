@@ -2,7 +2,7 @@
 // Supabase Configuration
 // ========================================
 const SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
+const SUPABASE_ANON_KEY = 'sb_publishable_IgK3AGmhrS6Zs_GHqUdnRw_AECp3J_e';
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -22,6 +22,7 @@ function loginErrorMessage(code) {
         case 'rate_limited':    return 'Too many attempts. Please wait 15 minutes and try again.';
         case 'name_taken':      return 'Game world name already exists';
         case 'bad_name':        return 'Game world name must be 3-50 characters';
+        case 'bad_description': return 'Description must be 500 characters or fewer';
         case 'pins_identical':  return 'DM and Player PINs must be different';
         default:                return 'An error occurred. Please try again.';
     }
@@ -290,8 +291,8 @@ async function handleJoinSubmit(e) {
             timestamp: Date.now()
         };
         
-        // A DM carries a short-lived token that unlocks the private campaign
-        // data for their own world. Players are issued none.
+        // Both roles carry a short-lived token. Every table is scoped to the
+        // world it names; a DM's also unlocks the private campaign data.
         if (result.dm_token) {
             session.dmToken = result.dm_token;
         }

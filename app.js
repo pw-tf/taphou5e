@@ -2,9 +2,22 @@
 // Supabase Configuration
 // ========================================
 const SUPABASE_URL = 'https://zlsguyiwwwbyoqxdewsd.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsc2d1eWl3d3dieW9xeGRld3NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MzU0NzMsImV4cCI6MjA4NDIxMTQ3M30.LNcqEHFvGobozl5oPNs_GYpduYBoNmM7n6IhbuInfb4';
+const SUPABASE_ANON_KEY = 'sb_publishable_IgK3AGmhrS6Zs_GHqUdnRw_AECp3J_e';
+
+// Every table is scoped to the world named by the session token, which login.js
+// stores as dmToken for both roles. Without it every read comes back empty, and
+// validateSession sends the person back to log in.
+const SESSION_TOKEN = (() => {
+    try {
+        const raw = localStorage.getItem('dnd-session') || sessionStorage.getItem('dnd-session');
+        return raw ? JSON.parse(raw).dmToken : null;
+    } catch (e) {
+        return null;
+    }
+})();
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: SESSION_TOKEN ? { 'x-dm-token': SESSION_TOKEN } : {} },
     realtime: {
         params: {
             eventsPerSecond: 10
@@ -1002,211 +1015,79 @@ async function openCharacter(id) {
     }
 }
 
-let realtimeRetryCount = 0;
-const MAX_REALTIME_RETRIES = 3;
-let currentRealtimeChannel = null;
+// ========================================
+// Live updates
+//
+// postgres_changes cannot deliver here: every character policy is scoped by
+// the session token header, and a realtime socket carries no headers. The
+// database instead broadcasts "this character changed" -- which one, nothing
+// else -- to a per-world topic only a session can learn, and the page re-reads
+// through the normal API. See docs/campaigns-schema-design.md 11.3a21.
+// ========================================
+let liveChannel = null;
+let liveCharacterId = null;   // the open sheet; null on the roster
+let liveRoster = false;
+let liveTimer = null;
+const livePending = new Set();
 
-function setupRealtime(id) {
-    // Remove any existing channel first
-    try {
-        if (currentRealtimeChannel) {
-            db.removeChannel(currentRealtimeChannel);
-            currentRealtimeChannel = null;
-        }
-    } catch (e) {
-        console.warn('Error removing existing channel:', e);
+async function startLiveUpdates() {
+    if (liveChannel) return;
+    liveChannel = 'starting';
+    const { data: topic, error } = await db.rpc('world_realtime_topic');
+    if (error || !topic) {
+        liveChannel = null;
+        console.warn('Live updates unavailable:', error || 'no session');
+        return;
     }
-    
-    // Create a unique channel name
-    const channelName = `char-updates-${id}`;
-    const channel = db.channel(channelName, {
-        config: {
-            broadcast: { self: false },
-            presence: { key: '' }
-        }
-    });
-    
-    currentRealtimeChannel = channel;
-    
-    // Listen to characters table
-    channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'characters', filter: `id=eq.${id}` },
-        (payload) => {
-            console.log('Characters change:', payload);
-            handleRealtimeUpdate('characters', payload);
-        }
-    );
-    
-    // Listen to all related tables
-    const relatedTables = ['ability_scores', 'skills', 'saving_throws', 'inventory_items', 'weapons', 'spells', 'spell_slots', 'features_traits', 'currency', 'character_details'];
-    
-    relatedTables.forEach(table => {
-        channel.on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: table, filter: `character_id=eq.${id}` },
-            (payload) => {
-                console.log(`${table} change:`, payload);
-                handleRealtimeUpdate(table, payload);
-            }
-        );
-    });
-    
-    // Subscribe to the channel with better error handling
-    channel.subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-            console.log('Realtime subscription active for character:', id);
-            realtimeRetryCount = 0; // Reset on success
-        } else if (status === 'CHANNEL_ERROR') {
-            console.warn('Realtime channel error (continuing without live updates):', err);
-            // Don't retry on channel errors
-        } else if (status === 'TIMED_OUT') {
-            console.warn('Realtime subscription timed out (continuing without live updates)');
-            // Don't retry timeouts to avoid connection spam
-        } else if (status === 'CLOSED') {
-            console.log('Realtime channel closed');
-        } else {
-            console.log('Realtime status:', status);
-        }
-    });
+    liveChannel = db.channel(topic)
+        .on('broadcast', { event: 'change' }, ({ payload }) => {
+            if (!payload || !payload.character_id) return;
+            livePending.add(payload.character_id);
+            if (!liveTimer) liveTimer = setTimeout(flushLiveUpdates, 400);
+        })
+        .subscribe(status => {
+            if (status !== 'SUBSCRIBED') console.warn('Live updates:', status);
+        });
 }
 
-// ========================================
-// Roster Realtime Updates
-// ========================================
-let rosterRealtimeChannel = null;
+function isEditing() {
+    if (document.querySelector('.modal:not(.hidden)')) return true;
+    const el = document.activeElement;
+    return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+}
+
+// A burst of changes (creating a character, a long rest) settles into one
+// re-read. Re-rendering rewrites every field, so it waits for whoever is
+// typing, and for any open modal such as the level-up wizard.
+async function flushLiveUpdates() {
+    if (isEditing()) {
+        liveTimer = setTimeout(flushLiveUpdates, 1000);
+        return;
+    }
+    liveTimer = null;
+    const ids = Array.from(livePending);
+    livePending.clear();
+    if (liveCharacterId) {
+        if (ids.includes(liveCharacterId)) await refreshChar();
+    } else if (liveRoster) {
+        await loadCharacters();
+    }
+}
+
+function setupRealtime(id) {
+    liveCharacterId = id;
+    startLiveUpdates();
+}
 
 function setupRosterRealtime() {
-    // Remove any existing roster channel first
-    try {
-        if (rosterRealtimeChannel) {
-            db.removeChannel(rosterRealtimeChannel);
-            rosterRealtimeChannel = null;
-        }
-    } catch (e) {
-        console.warn('Error removing roster channel:', e);
-    }
-    
     if (!currentSession) return;
-    
-    // Create channel for all characters in this game world
-    const channelName = `roster-updates-${currentSession.gameWorldId}`;
-    const channel = db.channel(channelName, {
-        config: {
-            broadcast: { self: false },
-            presence: { key: '' }
-        }
-    });
-    
-    rosterRealtimeChannel = channel;
-    
-    // Listen to characters table changes for this game world
-    channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'characters', filter: `game_world_id=eq.${currentSession.gameWorldId}` },
-        async (payload) => {
-            console.log('Roster character change:', payload);
-            // Reload characters when any character in this game world changes
-            await loadCharacters();
-        }
-    );
-    
-    // Subscribe to the channel
-    channel.subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-            console.log('Roster realtime subscription active');
-        } else if (status === 'CHANNEL_ERROR') {
-            console.warn('Roster realtime channel error:', err);
-        } else if (status === 'TIMED_OUT') {
-            console.warn('Roster realtime subscription timed out');
-        }
-    });
+    liveCharacterId = null;
+    liveRoster = true;
+    startLiveUpdates();
 }
 
 function cleanupRosterRealtime() {
-    try {
-        if (rosterRealtimeChannel) {
-            db.removeChannel(rosterRealtimeChannel);
-            rosterRealtimeChannel = null;
-        }
-    } catch (e) {
-        console.warn('Error removing roster channel:', e);
-    }
-}
-
-// Handle realtime updates by merging data locally when possible
-function handleRealtimeUpdate(table, payload) {
-    if (!currentCharacter) return;
-    
-    const { eventType, new: newData, old: oldData } = payload;
-    
-    // For the main character table, update directly
-    if (table === 'characters') {
-        if (eventType === 'UPDATE' && newData) {
-            Object.assign(currentCharacter, newData);
-            renderCharacterPage();
-        }
-        return;
-    }
-    
-    // For related tables, update the nested data
-    const tableMapping = {
-        'ability_scores': 'ability_scores',
-        'skills': 'skills',
-        'saving_throws': 'saving_throws',
-        'inventory_items': 'inventory_items',
-        'weapons': 'weapons',
-        'spells': 'spells',
-        'spell_slots': 'spell_slots',
-        'features_traits': 'features_traits',
-        'currency': 'currency',
-        'character_details': 'character_details'
-    };
-    
-    const dataKey = tableMapping[table];
-    if (!dataKey) return;
-    
-    // Handle single objects (ability_scores, currency, character_details)
-    if (['ability_scores', 'currency', 'character_details'].includes(table)) {
-        if (eventType === 'UPDATE' && newData) {
-            currentCharacter[dataKey] = newData;
-            renderCharacterPage();
-        }
-        return;
-    }
-    
-    // Handle arrays (skills, weapons, spells, etc.)
-    let dataArray = currentCharacter[dataKey];
-    if (!Array.isArray(dataArray)) {
-        dataArray = [];
-        currentCharacter[dataKey] = dataArray;
-    }
-    
-    switch (eventType) {
-        case 'INSERT':
-            if (newData && !dataArray.find(item => item.id === newData.id)) {
-                dataArray.push(newData);
-            }
-            break;
-        case 'UPDATE':
-            if (newData) {
-                const index = dataArray.findIndex(item => item.id === newData.id);
-                if (index !== -1) {
-                    dataArray[index] = newData;
-                }
-            }
-            break;
-        case 'DELETE':
-            if (oldData) {
-                const index = dataArray.findIndex(item => item.id === oldData.id);
-                if (index !== -1) {
-                    dataArray.splice(index, 1);
-                }
-            }
-            break;
-    }
-    
-    renderCharacterPage();
+    liveRoster = false;
 }
 
 // Full refresh from database (used as fallback)
@@ -3493,8 +3374,14 @@ window.closeDeleteModal = function() {
 };
 
 async function handleDelete() {
-    await db.from('characters').delete().eq('id', currentCharacter.id);
+    // Only a DM may delete. A refused delete returns zero rows rather than an
+    // error, so ask for the row back to tell the two apart.
+    const { data } = await db.from('characters').delete().eq('id', currentCharacter.id).select('id');
     closeDeleteModal();
+    if (!data || !data.length) {
+        alert('Only the DM can delete a character. If you are the DM, log in again.');
+        return;
+    }
     currentCharacter = null;
     await loadCharacters();
     showPage('home-page');
@@ -4852,14 +4739,7 @@ async function init() {
     $('#create-btn')?.addEventListener('click', () => showPage('create-page'));
     $('#refresh-btn')?.addEventListener('click', loadCharacters);
     $('#char-back-btn')?.addEventListener('click', () => { 
-        try {
-            if (currentRealtimeChannel) {
-                db.removeChannel(currentRealtimeChannel);
-                currentRealtimeChannel = null;
-            }
-        } catch (e) {
-            console.warn('Error removing channel on back:', e);
-        }
+        liveCharacterId = null;
         currentCharacter = null; 
         loadCharacters(); 
         showPage('home-page');

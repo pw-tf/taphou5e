@@ -575,6 +575,8 @@ and DM-only campaign content is unreadable without a valid token. Two pre-existi
 neither new nor worsened: `game_worlds` still accepts UPDATE and DELETE from anyone, and the 11
 character tables are still fully open. See §12.
 
+**Update:** both holes were exploited on 2026-09-18, then closed. See §11.3a19-11.3a20.
+
 ### 5.6a Default campaign for new worlds
 
 The §7 backfill covered the 191 worlds that existed when it ran, but nothing gave a campaign to
@@ -1650,6 +1652,162 @@ The pager renders only when there is more than one page. A lone page of three
 worlds does not need a control telling you so, and the section heading already
 carries the count.
 
+### 11.3a19 The 2026-09-18 incident, and the world-session lockdown
+
+The two holes §5.6 left open were found by someone else first. On
+2026-09-18 a caller holding only the published anon key ran
+`DELETE FROM game_worlds`: 194 worlds, and by `ON DELETE CASCADE` all 265
+characters and the whole campaign tree. The same afternoon `world_create` ran
+about 132,000 times, unthrottled. The project was restored from backup, and
+the legacy API keys were disabled at 22:32 that night. Six empty `bait-N`
+worlds created minutes before that were someone checking whether the hole
+was still open.
+
+The lockdown (`20260919005701`, recorded in the migration directory only on
+2026-11-03) extended the one mechanism that had held, the `x-dm-token` world
+session, to every remaining table:
+
+- `dm_sessions` gained a `role` column. `world_login` now issues a token to
+  players as well as DMs, still named `dm_token` so neither login page had to
+  change. `private.current_world()` resolves either role. `current_dm_world()`
+  resolves only `role = 'dm'`.
+- Every character table, and `game_worlds`, is scoped to
+  `current_world()`. No INSERT policy on `game_worlds`: `world_create` is
+  the only way in.
+- `world_create` is throttled, and a statement-level `guard_bulk_delete`
+  trigger refuses deleting more than 3 worlds or 25 characters in one
+  statement.
+
+What it missed is §11.3a20.
+
+### 11.3a20 Security hardening, 2026-11-03
+
+A review of the live project after the lockdown found five more ways in, all
+closed by `20261103102913_security_hardening` and proven from the attacker's
+side by `20261103102917_verify_security_hardening`, which rolls back
+everything it creates and can be re-run at any time.
+
+**1. Any signed-in user could read everything.** Anonymous sign-in was enabled,
+and the lockdown's `*_owner_read` policies accepted any `auth.uid()`. One
+`signInAnonymously()` call read every world and character, and read and
+deleted the whole feedback inbox. Three anonymous users from January show the
+door had been used before. Fix: a named list, `private.admins`, checked by
+`private.is_admin()` in every admin policy and in `analytics_overview`.
+Anonymous sign-in and public sign-up are both switched off in the auth
+settings. The allowlist is what holds if either is ever switched back on.
+
+**2. A DM could delete their world.** No client ever does, and a DM PIN is four
+digits. `game_worlds` now has no DELETE or INSERT for the API roles, and UPDATE
+only on `leveling_mode` and `description`. Removing a world is a service-role
+job.
+
+**3. Only a DM deletes a character.** Players keep read, create and edit. The
+rows on a sheet (items, spells, features) stay player-deletable, because
+editing a sheet needs it. A refused delete is zero rows rather than an error,
+so both clients ask for the row back and say so instead of pretending it worked.
+
+**4. Writes are bounded.** `world_create` gives anyone a DM token, so "make a
+world, then insert a million rows" was open. One trigger,
+`private.write_guard`, now sits on every table a session can write:
+
+| Limit | Value |
+|---|---|
+| Row size | 1-64 KB by table. The largest real row was 3.6 KB |
+| Rows per world | 100 characters, 50 campaigns, 1,000-10,000 per campaign table |
+| Rows per character | 500 items, 400 spells, 300 features or effects, 100 weapons, 40 skills |
+| Bytes per world per hour | 1 MB |
+| Bytes site-wide | 4 MB per hour, 16 MB per day |
+
+Bytes are charged only for growth, so an HP change costs nothing and play
+continues while a flood is being refused. The site-wide budget is the one an
+attacker cannot route around by making more worlds. The trigger runs as the
+caller, so it never limits migrations or the `security definer` functions.
+
+**5. The throttles trusted a header the caller writes.** `world_create` and
+`world_login` limited by `x-forwarded-for`, which a caller can set to anything,
+so a new value per request reset the limit. Every per-address limit is now
+backed by one the caller cannot vary:
+
+- `world_create`: 5 per address per hour, plus 10 per hour and 30 per day
+  site-wide. Real creation runs well under one a day, so a flood can delay a
+  new world but never fill the database.
+- `world_login`: 30 failures per world per hour, down from 60 per 15 minutes.
+  The old limit let a 4-digit PIN fall in about a day; now it averages a week
+  of continuous, visible lockout. Names over 50 characters and malformed PINs
+  are answered without being stored. At most 100 live sessions per world; past
+  that the oldest is logged out.
+- `feedback`: 30 an hour site-wide, on top of 5 per world per 10 minutes,
+  because `game_world_id` is whatever the submitter sends.
+- `encounter_share_create`: 50 live codes per world.
+
+**Also:**
+- The campaign `player_read` policies were not scoped to a world. With no
+  token at all, every world's campaigns, revealed chapters, known NPCs and
+  active encounters were readable. Each now requires
+  `game_world_id = current_world()` in front of its reveal predicate.
+- TRUNCATE, TRIGGER and REFERENCES are revoked from the API roles on every
+  table.
+- `world_create_attempts` is no longer granted to them at all.
+
+**Clients.** The classic app is the default, and it never sent a token. Since
+the lockdown it had shown everyone an empty world. `app.js` and
+`monster-tracker.html` now send `x-dm-token` from the stored session. v2's
+`requireSession` sends anyone whose token is missing or past its 12 hours back
+to log in, rather than showing an empty world. The project now rejects the
+legacy anon key, so every page needs the new publishable key (`sb_publishable_…`).
+
+**Decided against:** longer PINs. Four digits is the ceiling on every login
+defence above, and the per-world lockout makes brute force slow and visible
+rather than impossible. That trade is accepted.
+
+Live updates had stopped with the lockdown; §11.3a21 restores them.
+
+### 11.3a21 Live updates through broadcast
+
+Postgres-changes subscriptions check each change against the subscriber's row
+level policies, and every character policy is scoped by the `x-dm-token`
+request header. A realtime socket carries no request headers, so
+`current_world()` is null there. From the 2026-09-19 lockdown on, nobody was
+told about any change, and HP stopped updating live. It failed closed, never
+open.
+
+`20261103105850_live_updates` replaces it with a signal:
+
+- **What is sent.** Statement triggers on `characters` and its eleven tables
+  broadcast `{table, character_id, op}`, and nothing else. One message goes
+  out per character per statement, so creating a character is one signal,
+  not forty.
+- **Where it goes.** The topic is `world:<realtime_key>`, a random 128-bit key
+  per world in `game_world_secrets`. `world_realtime_topic()` returns it only
+  for a valid session, of either role.
+- **What the page does.** It answers a signal by re-reading through the normal
+  API, so the policies still decide what it sees.
+- **Why forgery is harmless.** A public channel accepts broadcasts from
+  clients too, so anyone holding the key could forge a signal. Since a signal
+  carries no data, a forgery can cause nothing worse than a re-read.
+- **Retired.** The character tables are out of the `supabase_realtime`
+  publication. Nothing could subscribe to them usefully, and each change
+  still cost a policy check per subscriber.
+
+**Where it is wired:**
+- **Classic:** the sheet and the roster.
+- **v2:** the sheet, the hub, the roster, and the encounter tracker, where a
+  player character's HP is read from their sheet.
+- **How:** both versions go through one helper. v2's is `onCharacterChange(ids
+  => ...)` in `core.js`.
+- **Bursts** settle for 400 ms into one call.
+- **A refresh waits** while a field has focus or a dialog is open. Pages
+  redraw wholesale, and a refresh must never take a value from under a cursor
+  or close the level-up wizard.
+
+**One operational note.** `realtime.send` writes to `realtime.messages`, which
+is partitioned by day. The realtime service creates those partitions, but
+only while it is running for the project. After a pause, the first client to
+connect brings it back. Until then, `realtime.send` turns the failed insert
+into a warning, so signals are silently lost. `verify_live_updates` checks for
+today's partition first, so it names this problem rather than reporting
+"no signal".
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:
@@ -1717,5 +1875,6 @@ a live encounter, and a spell only if it is already on a character sheet.
    but it means editing a file v1 loads, which needs sign-off.
 3. **DM token lifetime** — drafted at 12 hours. A long session runs past that; shorter is safer.
 4. **Rate limiting thresholds** for `world_login` — suggest 10 failures per world per 15 minutes.
-5. **Player tokens.** The player PIN currently grants read access to every world's data via the anon key.
-   Worth deciding whether players should also carry a token so player-tier reads scope to their own world.
+5. ~~**Player tokens.**~~ Done in the 2026-09-19 lockdown (§11.3a19): players carry a token, and every
+   table is scoped to its world.
+6. ~~**Longer PINs.**~~ Decided against: four digits stays (§11.3a20).

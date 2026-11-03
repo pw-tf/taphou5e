@@ -104,8 +104,11 @@
                    + 'memberships go with them, and they are removed from any encounter '
                    + 'they are in. This cannot be undone.',
             onConfirm: async () => {
-                const { error } = await db.from('characters').delete().eq('id', character.id);
+                // A refused delete is not an error to the API, just zero rows,
+                // so ask for the row back to tell the two apart.
+                const { data, error } = await db.from('characters').delete().eq('id', character.id).select('id');
                 if (error) throw new Error(error.message || 'Could not delete the character.');
+                if (!data || !data.length) throw new Error('Only the DM can delete a character. Log in again as DM.');
                 render(await load());
             }
         });
@@ -118,6 +121,7 @@
 
         try {
             render(await load());
+            onCharacterChange(async () => render(await load()));
         } catch (err) {
             console.error('Failed to load characters:', err);
             $('#main-content').innerHTML =

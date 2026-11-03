@@ -971,8 +971,9 @@
         const { data, error } = await db.rpc('encounter_share_create', { p_encounter_id: subject.id });
         if (error || !data || !data.ok) {
             console.error('Share failed:', error || data);
-            toast((data && data.error === 'not_dm')
-                ? 'Log in again as DM to share this encounter.'
+            const reason = data && data.error;
+            toast(reason === 'not_dm' ? 'Log in again as DM to share this encounter.'
+                : reason === 'too_many_shares' ? 'This world has 50 live share codes. Try again once some expire.'
                 : 'Could not share that encounter.', 'error');
             return;
         }
@@ -1287,6 +1288,18 @@
                     .map(b => ({ ...b, chapter_title: byId[b.chapter_id] }));
             }
             draw();
+
+            // A player character's hit points live on their sheet, so damage a
+            // player marks there shows up on the DM's initiative order as it happens.
+            onCharacterChange(async ids => {
+                const ours = ids.filter(id => characters[id]);
+                if (!ours.length) return;
+                const { data } = await db.from('characters')
+                    .select('id, name, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
+                    .in('id', ours);
+                (data || []).forEach(ch => { characters[ch.id] = ch; });
+                draw();
+            });
         } catch (err) {
             console.error('Tracker failed to load:', err);
             $('#main-content').innerHTML = `
