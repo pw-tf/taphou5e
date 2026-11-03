@@ -1808,6 +1808,57 @@ into a warning, so signals are silently lost. `verify_live_updates` checks for
 today's partition first, so it names this problem rather than reporting
 "no signal".
 
+### 11.3a22 A bot check in front of login and creation
+
+The limits in §11.3a20 bound how often a request may *succeed*. They do
+nothing about what it costs to send one. ALTCHA (widget `altcha@3.4.1`,
+loaded from jsDelivr with an SRI hash) adds a proof-of-work cost.
+
+**Checked on the server or not at all.** A captcha checked in the browser
+changes nothing, because the API can be called without the browser. So:
+
+1. `altcha_challenge()` issues a signed challenge.
+2. The browser solves it.
+3. `world_login` and `world_create` verify the solution before they look at
+   a name or a PIN.
+
+The old two-argument signatures are dropped rather than overloaded, so there
+is no captcha-free path left.
+
+**The protocol** is ALTCHA v3 with `SHA-256`, cost 1:
+- **Challenge:** `{parameters, signature}`, where the signature is
+  HMAC-SHA256 over the parameters as compact JSON with sorted keys. Postgres
+  cannot produce that with `jsonb::text`, which reorders keys and adds spaces,
+  so `private.altcha_canonical` builds it from the fixed parameter set.
+- **Solution:** a counter such that `SHA-256(salt ‖ nonce ‖ uint32be(counter))`
+  starts with `keyPrefix`. The server picks that counter between 10,000 and
+  100,000 using `gen_random_bytes` (`random()` could be predicted, and a
+  predicted counter means no work), and publishes only the first 16 bytes of
+  its key. The SQL derivation was checked byte for byte against the widget's
+  worker code.
+- **Lifetime:** challenges expire after 10 minutes. Each solution works once
+  (`private.altcha_spent`).
+- **Cost to the server:** issuing writes nothing, so asking for challenges
+  costs one hash and one HMAC.
+
+**What it changes for an attacker.**
+- Every login or creation attempt costs about half a second of CPU.
+- The captcha is checked first, so unsolved requests can neither guess a PIN
+  nor push a world's failure count toward its lockout. Locking someone out
+  now costs work too.
+- It is a cost, not a wall: a GPU solves these quickly. It turns "free and
+  unlimited" into "paid per attempt", on top of the limits that were already
+  there.
+
+**What it changes for people.** Nothing visible:
+- `altcha-gate.js`, shared by both login pages, runs one invisible widget
+  that starts solving when the page loads. A solution is ready before a PIN
+  is typed: about 0.5 s on a desktop, 0.6-2.6 s with the CPU throttled 6×.
+- After each attempt, it starts on the next solution.
+- If the widget cannot load, the request still goes out without a payload,
+  and the server's `captcha_required` reaches the person as "Couldn't
+  confirm you're not a bot".
+
 ### 11.3b Review fixes
 
 Five problems found by using it on a phone, and what each turned out to be:

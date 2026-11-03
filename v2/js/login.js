@@ -7,6 +7,9 @@
 // ========================================
 
 (function () {
+    // Start solving the bot check now, so it is ready by the time a PIN is typed.
+    window.Taphou5eAltcha.init(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const errorBox = $('#form-error');
     const joinForm = $('#join-form');
     const createForm = $('#create-form');
@@ -116,7 +119,8 @@
         try {
             const { data: result, error } = await db.rpc('world_login', {
                 p_world_name: worldName,
-                p_pin: pin
+                p_pin: pin,
+                p_altcha: await window.Taphou5eAltcha.take()
             });
             if (error) {
                 console.error('Login failed:', error);
@@ -157,7 +161,8 @@
                 p_description: description || null,
                 p_leveling_mode: levelingMode,
                 p_dm_pin: dmPin,
-                p_player_pin: playerPin
+                p_player_pin: playerPin,
+                p_altcha: await window.Taphou5eAltcha.take()
             });
             if (error) {
                 console.error('Error creating game world:', error);
@@ -185,6 +190,10 @@
             case 'name_taken':     return 'Game world name already exists';
             case 'bad_name':       return 'Game world name must be 3-50 characters';
             case 'bad_description': return 'Description must be 500 characters or fewer';
+            case 'captcha_required':
+            case 'captcha_invalid':
+            case 'captcha_expired':
+            case 'captcha_replayed': return "Couldn't confirm you're not a bot. Please try again.";
             case 'pins_identical': return 'DM and Player PINs must be different';
             default:               return 'An error occurred. Please try again.';
         }
