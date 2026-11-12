@@ -1072,9 +1072,17 @@ async def main():
         assert (await cards.nth(3).locator(".hp-state").inner_text()).strip() == "DOWN"
         ok("HP labels match the classic tracker's five tiers (HEALTHY/INJURED/BLOODIED/CRITICAL/DOWN)")
 
-        assert (await cards.nth(2).locator(".tag-accent").inner_text()).strip() == "LEVEL UP"
+        # A pending level-up is a corner marker, not a tag beside the name: the
+        # inline tag left a name about three characters in the phone grid.
+        flag = cards.nth(2).locator(".card-flag")
+        assert await flag.count() == 1 and await page.locator(".card-flag").count() == 1
+        assert await flag.get_attribute("aria-label") == "Level up due"
+        assert await page.locator(".character-card .tag-accent").count() == 0
         assert (await cards.nth(1).locator(".tag-warning").inner_text()).strip() == "POISONED"
-        ok("status tags: pending level-up and active condition")
+        assert await page.locator(".card-top > .tag").count() == 0, "a tag is squeezing a name again"
+        fbox, cbox3 = await flag.bounding_box(), await cards.nth(2).bounding_box()
+        assert fbox["x"] + fbox["width"] > cbox3["x"] + cbox3["width"] - 12 and fbox["y"] < cbox3["y"] + 12, (fbox, cbox3)
+        ok("status: level-up marker on the card corner, condition tag under the name")
 
         # Passive perception = 10 + wis mod + prof. Sythra: 10 + 2 + 3 = 15
         chips = await cards.nth(1).locator(".chip").all_inner_texts()

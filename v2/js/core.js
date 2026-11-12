@@ -299,12 +299,16 @@ function characterCard(character) {
     const passive = 10 + wis + (character.proficiency_bonus || 2);
 
     const conditions = Array.isArray(character.active_conditions) ? character.active_conditions : [];
-    let tag = '';
-    if (character.pending_level_up) {
-        tag = '<span class="tag tag-accent">LEVEL UP</span>';
-    } else if (conditions.length) {
-        tag = `<span class="tag tag-warning">${escapeHtml(conditions[0].toUpperCase())}</span>`;
-    }
+    // Neither status sits beside the name: in a two-up phone grid an inline
+    // tag left the name about three characters. A pending level-up is a
+    // marker on the card's corner; a condition gets its own line under the
+    // name. They no longer compete for one slot, so a card can show both.
+    const flag = character.pending_level_up
+        ? '<span class="card-flag" role="img" aria-label="Level up due" title="Level up due">!</span>'
+        : '';
+    const conditionTag = conditions.length
+        ? `<div class="card-tags"><span class="tag tag-warning">${escapeHtml(String(conditions[0]).toUpperCase())}</span></div>`
+        : '';
 
     const subclass = character.subclass ? ` ${character.subclass}` : '';
     const meta = `Lv ${character.level || 1} ${character.class || ''}${subclass} · ${character.player_name || ''}`;
@@ -314,13 +318,14 @@ function characterCard(character) {
            href="character-sheet.html?id=${encodeURIComponent(character.id)}"
            data-holdable data-id="${escapeHtml(character.id)}"
            style="flex-direction:column;gap:var(--space-10)">
+            ${flag}
             <div class="card-top">
                 <div class="avatar">${escapeHtml((character.name || '?').charAt(0).toUpperCase())}</div>
                 <div style="flex:1;min-width:0">
                     <div class="card-name">${escapeHtml(character.name)}</div>
                     <div class="card-meta">${escapeHtml(meta)}</div>
+                    ${conditionTag}
                 </div>
-                ${tag}
             </div>
             ${renderHP(character.current_hit_points, character.hit_point_maximum, character.temporary_hit_points)}
             <div class="chipline">
