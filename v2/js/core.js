@@ -880,6 +880,196 @@ function wireCardMenus(containerSelector, cardSelector, resolve) {
     });
 }
 
+// ========================================
+// Explainers -- hold (or hover) for what a thing means
+//
+// Anything marked `data-explain` shows a small bubble beside it saying what
+// it is. On a phone that is a press-and-hold; with a mouse it is a hover.
+// `resolve` receives the element and returns { title, text, points, note },
+// or null for nothing.
+//
+// This is the same gesture as the card menus above but a different answer:
+// a menu is for things you can DO to a row, a bubble for what a number MEANS.
+// An element should carry `data-holdable` or `data-explain`, never both --
+// two listeners would both fire on one hold.
+//
+// Bound once on `document` rather than on a container, because the sheet
+// replaces the whole of document.body on every redraw.
+// ========================================
+
+const EXPLAIN_HOVER_MS = 350;
+const EXPLAIN_MARGIN_PX = 8;
+
+function hideExplainer() {
+    const bubble = document.getElementById('explainer');
+    if (bubble) bubble.remove();
+}
+
+function showExplainer(anchor, entry, viaTouch) {
+    hideExplainer();
+
+    const bubble = document.createElement('div');
+    bubble.id = 'explainer';
+    // A hover bubble lets the pointer through so it can never get in the way
+    // of the thing it describes. A touch bubble does not: a tap on it has to
+    // land on the bubble, not on the control underneath.
+    bubble.className = `explainer${viaTouch ? ' is-touch' : ''}`;
+    bubble.setAttribute('role', 'tooltip');
+    bubble.innerHTML = `
+        <div class="explainer-title">${escapeHtml(entry.title || '')}</div>
+        ${entry.text ? `<p>${escapeHtml(entry.text)}</p>` : ''}
+        ${entry.points && entry.points.length
+            ? `<ul>${entry.points.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>` : ''}
+        ${entry.note ? `<p class="explainer-note">${escapeHtml(entry.note)}</p>` : ''}
+        <span class="explainer-arrow"></span>`;
+    document.body.appendChild(bubble);
+
+    const a = anchor.getBoundingClientRect();
+    const b = bubble.getBoundingClientRect();
+    const viewW = document.documentElement.clientWidth;
+    const viewH = window.innerHeight;
+    const gap = 9;
+
+    const centre = a.left + a.width / 2;
+    const left = Math.max(EXPLAIN_MARGIN_PX,
+        Math.min(centre - b.width / 2, viewW - b.width - EXPLAIN_MARGIN_PX));
+
+    // Above by preference: on a phone the thumb is covering whatever is below.
+    const roomAbove = a.top - gap - EXPLAIN_MARGIN_PX;
+    const roomBelow = viewH - a.bottom - gap - EXPLAIN_MARGIN_PX;
+    const above = b.height <= roomAbove || roomAbove >= roomBelow;
+    const top = above
+        ? Math.max(EXPLAIN_MARGIN_PX, a.top - gap - b.height)
+        : Math.min(viewH - b.height - EXPLAIN_MARGIN_PX, a.bottom + gap);
+
+    bubble.style.left = `${Math.round(left)}px`;
+    bubble.style.top = `${Math.round(top)}px`;
+    bubble.classList.toggle('is-below', !above);
+    bubble.style.setProperty('--arrow-x',
+        `${Math.round(Math.max(14, Math.min(centre - left, b.width - 14)))}px`);
+}
+
+function wireExplainers(resolve) {
+    if (window.__explainersWired) return;
+    window.__explainersWired = true;
+
+    const targetOf = e => (e.target instanceof Element ? e.target.closest('[data-explain]') : null);
+
+    let timer = null;
+    let origin = null;
+    let swallowClick = false;
+    let lastTouch = 0;
+
+    const cancel = () => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+        origin = null;
+    };
+
+    const fire = el => {
+        cancel();
+        if (!el.isConnected) return;       // the sheet redrew under the finger
+        const entry = resolve(el);
+        if (!entry) return;
+        swallowClick = true;
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+        showExplainer(el, entry, true);
+    };
+
+    document.addEventListener('touchstart', e => {
+        lastTouch = Date.now();
+        // Not every browser sends a click after a long press. Left set, the
+        // flag would eat the next real tap instead.
+        swallowClick = false;
+        cancel();
+
+        // A touch anywhere else puts the bubble away. A touch ON the bubble
+        // waits for its click: removing it now would let that click fall
+        // through to the control underneath.
+        if (!(e.target instanceof Element && e.target.closest('#explainer'))) hideExplainer();
+
+        const el = targetOf(e);
+        if (!el || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        origin = { x: touch.clientX, y: touch.clientY };
+        timer = setTimeout(() => fire(el), HOLD_MS);
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+        if (!timer || !origin) return;
+        const touch = e.touches[0];
+        if (Math.abs(touch.clientX - origin.x) > HOLD_SLOP_PX ||
+            Math.abs(touch.clientY - origin.y) > HOLD_SLOP_PX) cancel();
+    }, { passive: true });
+
+    document.addEventListener('touchend', cancel, { passive: true });
+    document.addEventListener('touchcancel', cancel, { passive: true });
+
+    // Scroll does not bubble, hence the capture. A bubble pinned to the
+    // viewport would otherwise be left pointing at nothing.
+    document.addEventListener('scroll', () => { cancel(); hideExplainer(); },
+        { passive: true, capture: true });
+
+    // Most of what explains itself also does something on a tap -- a
+    // condition toggles, a skill flips proficiency. The click that follows a
+    // hold must not do that.
+    document.addEventListener('click', e => {
+        if (swallowClick) {
+            swallowClick = false;
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        if (e.target instanceof Element && e.target.closest('#explainer')) hideExplainer();
+    }, true);
+
+    // Android raises contextmenu on a long press. There is nothing to offer,
+    // and its default can start a text selection under the bubble. A real
+    // right-click with a mouse is left alone.
+    document.addEventListener('contextmenu', e => {
+        if (Date.now() - lastTouch < 1500 && targetOf(e)) e.preventDefault();
+    });
+
+    // ---- Mouse: hover ----
+    // pointerType keeps this to a real mouse. A tap also produces mouse-ish
+    // events, and a bubble on every tap is exactly what the hold avoids.
+    let hoverEl = null;
+    let hoverTimer = null;
+
+    const endHover = () => {
+        if (hoverTimer) clearTimeout(hoverTimer);
+        hoverTimer = null;
+        hoverEl = null;
+        hideExplainer();
+    };
+
+    document.addEventListener('pointerover', e => {
+        if (e.pointerType !== 'mouse') return;
+        const el = targetOf(e);
+        if (el === hoverEl) return;
+        endHover();
+        if (!el) return;
+        hoverEl = el;
+        hoverTimer = setTimeout(() => {
+            hoverTimer = null;
+            if (!el.isConnected) return;
+            const entry = resolve(el);
+            if (entry) showExplainer(el, entry, false);
+        }, EXPLAIN_HOVER_MS);
+    });
+
+    document.documentElement.addEventListener('pointerleave', e => {
+        if (e.pointerType === 'mouse') endHover();
+    });
+    // Clicking is acting on the thing, not asking about it. Not `mousedown`:
+    // lifting a finger after a hold sends one too, and would put away the
+    // bubble the hold had just opened.
+    document.addEventListener('pointerdown', e => {
+        if (e.pointerType === 'mouse') endHover();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') endHover(); });
+}
+
 // A delete that cannot be undone and was reached by a gesture people trigger
 // by accident deserves more than a Yes button: the name has to be typed.
 function confirmByName({ title, name, message, confirmLabel = 'Delete', onConfirm }) {
