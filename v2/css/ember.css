@@ -156,6 +156,17 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 }
 .character-card:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
 .character-card.is-flagged { border-color: var(--border-strong); }
+/* Pending level-up: a marker straddling the top-right corner, out of the
+   name's way. The ring in the page colour separates it from the card border. */
+.character-card { position: relative; }
+.card-flag {
+  position: absolute; top: -7px; right: -7px;
+  width: 18px; height: 18px; border-radius: var(--radius-full);
+  background: var(--accent-primary); color: var(--accent-on);
+  font-size: var(--fs-11); font-weight: 700; line-height: 18px; text-align: center;
+  box-shadow: 0 0 0 2px var(--bg-primary);
+}
+.card-tags { margin-top: 4px; line-height: 1; overflow: hidden; white-space: nowrap; }
 .card-top { display: flex; align-items: flex-start; gap: var(--space-sm); }
 .avatar {
   width: 32px; height: 32px; flex: none; border-radius: var(--radius-md);

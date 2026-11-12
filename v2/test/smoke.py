@@ -848,6 +848,17 @@ TOUCH_HOLD_JS = """({ x, y, ms }) => new Promise(resolve => {
   }, ms);
 })"""
 
+# Not every browser sends a click when a long press is released (Android
+# Chrome does not). Same hold, no click after it.
+TOUCH_HOLD_NOCLICK_JS = """({ x, y, ms }) => new Promise(resolve => {
+  const target = document.elementFromPoint(x, y);
+  const touch = new Touch({ identifier: 3, target, clientX: x, clientY: y });
+  const opts = { touches: [touch], targetTouches: [touch], changedTouches: [touch],
+                 bubbles: true, cancelable: true };
+  target.dispatchEvent(new TouchEvent('touchstart', opts));
+  setTimeout(() => { target.dispatchEvent(new TouchEvent('touchend', opts)); resolve(); }, ms);
+})"""
+
 TOUCH_SCROLL_JS = """({ x, y }) => new Promise(resolve => {
   const target = document.elementFromPoint(x, y);
   const at = (cx, cy) => {
@@ -1072,9 +1083,17 @@ async def main():
         assert (await cards.nth(3).locator(".hp-state").inner_text()).strip() == "DOWN"
         ok("HP labels match the classic tracker's five tiers (HEALTHY/INJURED/BLOODIED/CRITICAL/DOWN)")
 
-        assert (await cards.nth(2).locator(".tag-accent").inner_text()).strip() == "LEVEL UP"
+        # A pending level-up is a corner marker, not a tag beside the name: the
+        # inline tag left a name about three characters in the phone grid.
+        flag = cards.nth(2).locator(".card-flag")
+        assert await flag.count() == 1 and await page.locator(".card-flag").count() == 1
+        assert await flag.get_attribute("aria-label") == "Level up due"
+        assert await page.locator(".character-card .tag-accent").count() == 0
         assert (await cards.nth(1).locator(".tag-warning").inner_text()).strip() == "POISONED"
-        ok("status tags: pending level-up and active condition")
+        assert await page.locator(".card-top > .tag").count() == 0, "a tag is squeezing a name again"
+        fbox, cbox3 = await flag.bounding_box(), await cards.nth(2).bounding_box()
+        assert fbox["x"] + fbox["width"] > cbox3["x"] + cbox3["width"] - 12 and fbox["y"] < cbox3["y"] + 12, (fbox, cbox3)
+        ok("status: level-up marker on the card corner, condition tag under the name")
 
         # Passive perception = 10 + wis mod + prof. Sythra: 10 + 2 + 3 = 15
         chips = await cards.nth(1).locator(".chip").all_inner_texts()
@@ -2865,6 +2884,104 @@ async def main():
         assert coloured, writes
         ok("the colour picker writes the chosen colour")
 
+        # ---------- 49b. Hold to explain ----------
+        # Numbers on a sheet say nothing about what they are for. Holding one
+        # says so in a bubble -- and most of them also do something on a tap,
+        # so the hold must explain without also doing that.
+        await hp.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
+        await hp.wait_for_selector(".ability-box", timeout=10000)
+        tip = hp.locator("#explainer")
+
+        async def hold_explain(selector, click=True):
+            target = hp.locator(selector).first
+            # An open bubble can be lying over the next thing to hold, and a
+            # touch on the bubble only closes it.
+            await hp.evaluate("hideExplainer()")
+            await target.scroll_into_view_if_needed()
+            await hp.wait_for_timeout(150)
+            b = await target.bounding_box()
+            await hp.evaluate(TOUCH_HOLD_JS if click else TOUCH_HOLD_NOCLICK_JS,
+                              {"x": b["x"] + b["width"] / 2, "y": b["y"] + b["height"] / 2, "ms": 700})
+            await hp.wait_for_selector("#explainer", timeout=3000)
+            return b, await tip.locator(".explainer-title").inner_text()
+
+        _, title = await hold_explain(".ability-box .score")
+        assert title == "Strength", title
+        note = await tip.locator(".explainer-note").inner_text()
+        assert "8" in note and "-1" in note, note          # the fixture's Strength
+        assert await tip.locator("li").count() >= 2
+        tb = await tip.bounding_box()
+        assert tb["x"] >= 0 and tb["x"] + tb["width"] <= 390, tb
+        ok("holding an ability score says what it is for, with the character's own number")
+
+        await hp.touchscreen.tap(195, 26)
+        await hp.wait_for_timeout(200)
+        assert await tip.count() == 0
+        ok("a tap anywhere else puts the bubble away")
+
+        absent = await hp.evaluate("""() => [...document.querySelectorAll('.condition-tag')]
+            .map(e => e.dataset.explain.split(':')[1]).filter(n => !GLOSSARY.conditions[n])
+            .concat(Object.keys(SKILLS).filter(n => !GLOSSARY.skills[n]))""")
+        assert absent == [], absent
+        assert await hp.locator(".condition-tag").count() == 15
+        ok("every condition and every skill has an explanation")
+
+        blinded = '.condition-tag:text-is("Blinded")'
+        await hp.evaluate("window.__resetWrites()")
+        anchor, title = await hold_explain(blinded)
+        assert title == "Blinded", title
+        assert await tip.locator("li").count() == 3
+        tb = await tip.bounding_box()
+        assert tb["y"] + tb["height"] <= anchor["y"] or tb["y"] >= anchor["y"] + anchor["height"], (tb, anchor)
+        await hp.wait_for_timeout(300)
+        assert await hp.evaluate("window.__writes.length") == 0
+        assert await hp.locator(blinded + ".active").count() == 0
+        ok("holding a condition explains it without switching it on")
+
+        # The bubble sits over other controls. A tap on it closes it and must
+        # not reach whatever is underneath.
+        await hp.touchscreen.tap(tb["x"] + tb["width"] / 2, tb["y"] + tb["height"] / 2)
+        await hp.wait_for_timeout(400)
+        assert await tip.count() == 0
+        assert await hp.evaluate("window.__writes.length") == 0
+        ok("tapping the bubble closes it and touches nothing beneath")
+
+        await hold_explain(blinded, click=False)
+        await hp.locator(blinded).tap()
+        await hp.wait_for_timeout(500)
+        assert await tip.count() == 0
+        writes = await hp.evaluate("window.__writes")
+        assert any("Blinded" in (w.get("payload") or {}).get("active_conditions", []) for w in writes), writes
+        ok("a hold released without a click does not eat the next real tap")
+
+        await hp.evaluate("window.__resetWrites()")
+        _, title = await hold_explain(".ability-box .save")
+        assert title == "Strength save", title
+        assert "Tap to switch proficiency" in await tip.locator(".explainer-note").inner_text()
+        assert await hp.evaluate("window.__writes.length") == 0
+        ok("the save inside an ability box explains itself, not the ability around it")
+
+        _, title = await hold_explain('[data-explain="stat:ac"]')
+        assert title == "Armor Class", title
+        # Speed is not here: its chip is hidden at phone width. The desktop
+        # hover check below covers it.
+        for key, want in (("init", "Initiative"), ("prof", "Proficiency bonus"),
+                          ("pp", "Passive Perception")):
+            _, title = await hold_explain(f'[data-explain="stat:{key}"]')
+            assert title == want, (key, title)
+        ok("the combat chips in the header explain themselves")
+
+        await hp.touchscreen.tap(195, 26)
+        await click_tab(hp, "Skills")
+        await hp.wait_for_selector(".skill-row", timeout=5000)
+        await hp.evaluate("window.__resetWrites()")
+        _, title = await hold_explain('.skill-row:has-text("Arcana")')
+        assert title == "Arcana · Intelligence", title
+        note = await tip.locator(".explainer-note").inner_text()
+        assert "d20 + 10 (expertise)" in note, note        # +4 Int, +3 proficiency twice
+        assert await hp.evaluate("window.__writes.length") == 0
+        ok("holding a skill explains it, with the roll, and leaves proficiency alone")
+
         await hold.close()
 
         # ---------- 50. The sheet can be written to ----------
@@ -2873,6 +2990,16 @@ async def main():
         # record a spell they had just learned.
         await page.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
         await page.wait_for_selector(".sheet-header", timeout=10000)
+
+        # A mouse cannot hold, so it hovers for the same bubble.
+        await page.hover('[data-explain="stat:speed"]')
+        await page.wait_for_selector("#explainer", timeout=3000)
+        assert await page.locator("#explainer .explainer-title").inner_text() == "Speed"
+        assert await page.locator("#explainer.is-touch").count() == 0
+        await page.hover(".sheet-id h1")
+        await page.wait_for_timeout(150)
+        assert await page.locator("#explainer").count() == 0
+        ok("with a mouse, hovering shows the explanation and leaving puts it away")
 
         await click_tab(page, "Spells")
         await page.wait_for_selector(".slot-chip", timeout=5000)

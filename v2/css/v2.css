@@ -879,6 +879,45 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
    answered here rather than by making the row a button again. */
 a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-decoration: none; }
 
+/* ---------- Explainers: hold or hover for what a thing means ----------
+   Same reasoning as .holdable above: the element is the control, so a long
+   press must not start a text selection or raise iOS's callout under the
+   bubble. */
+[data-explain], [data-explain] * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.explainer {
+  position: fixed; top: 0; left: 0; z-index: 400;
+  width: max-content; max-width: min(280px, calc(100vw - 16px));
+  padding: 10px 12px; border-radius: var(--radius-lg);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fs-12); line-height: 1.45; color: var(--text-secondary);
+  pointer-events: none;
+  animation: explainer-in 120ms ease-out;
+}
+.explainer.is-touch { pointer-events: auto; }
+.explainer-title { font-size: var(--fs-13); font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.explainer p { margin: 0; }
+.explainer ul { margin: 4px 0 0; padding-left: 16px; }
+.explainer li + li { margin-top: 2px; }
+.explainer-note { margin-top: 6px !important; padding-top: 6px; border-top: 1px solid var(--border-default); color: var(--text-tertiary); }
+.explainer-arrow {
+  position: absolute; left: var(--arrow-x, 50%); bottom: -5px; width: 8px; height: 8px;
+  background: inherit; border: inherit; border-width: 0 1px 1px 0;
+  transform: translateX(-50%) rotate(45deg);
+}
+.explainer.is-below .explainer-arrow { bottom: auto; top: -5px; border-width: 1px 0 0 1px; }
+@keyframes explainer-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .explainer { animation: none; } }
+.explain-hint { margin-top: var(--space-md); }
+@media (hover: hover) {
+  .chip[data-explain], .ability-box[data-explain] { cursor: help; }
+}
+
 /* A hint that the gesture exists, for the pointer that can hover. */
 @media (hover: hover) {
   .holdable [data-holdable]:hover { cursor: context-menu; }

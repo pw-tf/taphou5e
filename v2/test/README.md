@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router, and the Owlbear Rodeo extension. 339 assertions.
+version router, and the Owlbear Rodeo extension. 351 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -30,6 +30,10 @@ at it directly — edit `CHROME` at the top of the file, or run
 - The single HP component: values, temp segment, thresholds matching v1, and
   that a bar is two elements rather than one per hit point
 - Derived stats (passive perception), status tags, text escaping
+- Hold-to-explain on the sheet: abilities, saves, skills, conditions and the
+  header chips each open a bubble, the hold never triggers the tap action
+  underneath, a tap on the bubble does not fall through, and a mouse gets the
+  same bubble on hover
 - Light and dark themes, including re-marking the control after the shell
   rebuilds `document.body`
 - 390px: no horizontal scroll, 2-up roster, drawer open/Escape-close

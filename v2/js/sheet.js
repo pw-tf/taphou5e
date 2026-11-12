@@ -596,13 +596,13 @@
             const row = (c.saving_throws || []).find(s => s.ability === a.code);
             const isProf = !!(row && row.proficient);
             return `
-                <div class="ability-box">
+                <div class="ability-box" data-explain="ability:${a.code}">
                     <div class="label mono">${a.label}</div>
                     <div class="score">${scores()[a.key] ?? 10}</div>
                     <div class="mod">${formatMod(mod(a.key))}</div>
                     <div class="save${isProf ? ' is-prof' : ''}"
-                         ${row ? `onclick="sheetToggleSave('${row.id}')" role="button" tabindex="0"` : ''}
-                         title="Saving throw${row ? ' — tap to toggle proficiency' : ''}">
+                         data-explain="save:${a.code}"
+                         ${row ? `onclick="sheetToggleSave('${row.id}')" role="button" tabindex="0"` : ''}>
                         S ${formatMod(saveBonus(a.code))}
                     </div>
                 </div>`;
@@ -611,12 +611,13 @@
         const active = Array.isArray(c.active_conditions) ? c.active_conditions : [];
         const conditions = CONDITIONS.map(name => `
             <button class="condition-tag${active.includes(name) ? ' active' : ''}"
+                    data-explain="condition:${name}"
                     onclick="sheetToggleCondition('${name}')">${name}</button>`).join('');
 
         const down = (c.current_hit_points || 0) <= 0;
         const deathSaves = !down ? '' : `
             <div class="section-head"><span class="eyebrow">Death saves</span><span class="rule"></span></div>
-            <div class="death-saves">
+            <div class="death-saves" data-explain="stat:death">
                 <div class="death-row">
                     <span class="label">Successes</span>
                     ${[1, 2, 3].map(i => `<button class="death-dot success${(c.death_save_successes || 0) >= i ? ' filled' : ''}"
@@ -649,7 +650,8 @@
                 <button class="btn btn-rest short" onclick="sheetShortRest()">Short rest</button>
                 <button class="btn btn-rest long" onclick="sheetLongRest()">Long rest</button>
                 <div class="chip">${c.hit_dice_remaining ?? 0}<span>HD ${escapeHtml(c.hit_dice_total || '')}</span></div>
-            </div>`;
+            </div>
+            <p class="hint explain-hint">Hold a stat, save or condition (or hover over it) to see what it means.</p>`;
     }
 
     function skillsTab() {
@@ -658,6 +660,7 @@
             .sort((a, b) => a.skill_name.localeCompare(b.skill_name))
             .map(s => `
                 <div class="skill-row${s.proficient ? ' proficient' : ''}"
+                     data-explain="skill:${escapeHtml(s.skill_name)}"
                      onclick="sheetToggleSkill('${s.id}')" role="button" tabindex="0">
                     <span class="skill-dot"></span>
                     <span class="skill-name">${escapeHtml(s.skill_name)}</span>
@@ -667,7 +670,8 @@
 
         return `
             <div class="section-head"><span class="eyebrow">Skills</span><span class="rule"></span></div>
-            <div class="skills-grid">${rows || '<p class="hint">No skills recorded.</p>'}</div>`;
+            <div class="skills-grid">${rows || '<p class="hint">No skills recorded.</p>'}</div>
+            ${rows ? '<p class="hint explain-hint">Hold a skill (or hover over it) to see what it covers.</p>' : ''}`;
     }
 
     function listTab(kind, items, emptyText, renderRow, addCall) {
@@ -1089,11 +1093,11 @@
                                 <button class="btn btn-accent" onclick="sheetApply()">Apply</button>
                             </div>
                             <div class="chipline">
-                                <div class="chip">${c.armor_class ?? 10}<span>AC</span></div>
-                                <div class="chip">${formatMod(c.initiative_bonus ?? mod('dexterity'))}<span>INIT</span></div>
-                                <div class="chip chip-sp">${c.speed ?? 30}<span>SPD</span></div>
-                                <div class="chip">${formatMod(prof())}<span>PROF</span></div>
-                                <div class="chip">${passivePerception()}<span>PP</span></div>
+                                <div class="chip" data-explain="stat:ac">${c.armor_class ?? 10}<span>AC</span></div>
+                                <div class="chip" data-explain="stat:init">${formatMod(c.initiative_bonus ?? mod('dexterity'))}<span>INIT</span></div>
+                                <div class="chip chip-sp" data-explain="stat:speed">${c.speed ?? 30}<span>SPD</span></div>
+                                <div class="chip" data-explain="stat:prof">${formatMod(prof())}<span>PROF</span></div>
+                                <div class="chip" data-explain="stat:pp">${passivePerception()}<span>PP</span></div>
                             </div>
                         </div>
                     </header>
@@ -1135,7 +1139,57 @@
 
         wireSideMenu();
         wireCardMenus('.sheet-scroll', '[data-holdable]', sheetRowMenu);
+        wireExplainers(explainSheet);
         if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
+    }
+
+    // Holding (or hovering over) a number says what it is for. The wording
+    // lives in glossary.js; what is added here is this character's own
+    // figure, so the bubble ties the rule to the number under the finger.
+    function explainSheet(el) {
+        if (typeof GLOSSARY === 'undefined') return null;
+        const at = el.dataset.explain.indexOf(':');
+        const kind = el.dataset.explain.slice(0, at);
+        const key = el.dataset.explain.slice(at + 1);
+
+        if (kind === 'ability') {
+            const a = ABILITIES.find(x => x.code === key);
+            const entry = GLOSSARY.abilities[key];
+            if (!a || !entry) return null;
+            return { ...entry,
+                note: `Your score of ${scores()[a.key] ?? 10} gives ${formatMod(mod(a.key))}: the number added to rolls that use it.` };
+        }
+
+        if (kind === 'save') {
+            const full = GLOSSARY.abilities[key];
+            if (!full || !GLOSSARY.saves[key]) return null;
+            const row = (c.saving_throws || []).find(s => s.ability === key);
+            const proficient = !!(row && row.proficient);
+            return {
+                title: `${full.title} save`,
+                text: `${GLOSSARY.saves.intro} ${GLOSSARY.saves[key]}`,
+                note: `Yours is ${formatMod(saveBonus(key))}${
+                    proficient ? ', with your proficiency bonus in it' : ''}.${
+                    row ? ' Tap to switch proficiency on or off.' : ''}`
+            };
+        }
+
+        if (kind === 'skill') {
+            const text = GLOSSARY.skills[key];
+            const skill = (c.skills || []).find(s => s.skill_name === key);
+            if (!text || !skill) return null;
+            const ability = GLOSSARY.abilities[SKILL_ABILITY[key]];
+            const trained = skill.expertise ? ' (expertise)' : skill.proficient ? ' (proficient)' : '';
+            return {
+                title: ability ? `${key} · ${ability.title}` : key,
+                text,
+                note: `You roll d20 ${formatMod(skillBonus(skill)).replace(/^([+-])/, '$1 ')}${trained}. Tap to switch proficiency on or off.`
+            };
+        }
+
+        if (kind === 'condition') return GLOSSARY.conditions[key] || null;
+        if (kind === 'stat') return GLOSSARY.stats[key] || null;
+        return null;
     }
 
     // Holding a row reaches the things that have no room on it: deleting,
