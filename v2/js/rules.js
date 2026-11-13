@@ -72,16 +72,6 @@ function calcHP(cls, level, conMod) {
         : Math.max(1, hd + conMod + (level - 1) * (Math.floor(hd / 2) + 1 + conMod));
 }
 
-function averageHPGain(cls, conMod) {
-    const hd = HIT_DICE[cls] || 8;
-    return Math.max(1, Math.floor(hd / 2) + 1 + conMod);
-}
-
-function rollHPGain(cls, conMod) {
-    const hd = HIT_DICE[cls] || 8;
-    return Math.max(1, Math.floor(Math.random() * hd) + 1 + conMod);
-}
-
 // ---- Option lists, matching v1's create form --------------------------
 
 const RACES = ['Human', 'Elf', 'Dwarf', 'Halfling', 'Dragonborn', 'Gnome', 'Half-Elf',

@@ -622,8 +622,12 @@
             current_hit_points: d.hpAtOne,
             pending_level_up: level > 1,
             temporary_hit_points: 0,
-            hit_dice_total: `${level}d${hd}`,
-            hit_dice_remaining: level,
+            // One hit die, to match the level 1 hit points beside it. The
+            // level-up wizard reads this to know which levels are still owed,
+            // on whatever device finishes the job; writing the target level's
+            // dice here told it there was nothing left to walk.
+            hit_dice_total: `1d${hd}`,
+            hit_dice_remaining: 1,
             death_save_successes: 0,
             death_save_failures: 0,
             proficiency_bonus: d.profBonus,
@@ -724,11 +728,12 @@
         const id = state.createdId;
 
         try {
-            // preGrantLevel is what tells the wizard where the range starts;
-            // the row already says `target`, so this makes the span 2..target.
+            // The row's single hit die already tells the wizard the span is
+            // 2..target. These are kept for the classic wizard, which reads
+            // only localStorage, should the levels be finished there instead.
             localStorage.setItem(`preGrantLevel_${id}`, '1');
             localStorage.setItem(`targetLevel_${id}`, String(target));
-        } catch (e) { /* private mode: the wizard falls back to the row */ }
+        } catch (e) { /* private mode */ }
 
         if (typeof window.openLevelUp !== 'function') {
             toast('Finish levelling them up from their sheet.', 'error');
@@ -751,6 +756,12 @@
             pending_level_up: true,
             hit_point_maximum: derived().hpAtOne,
             current_hit_points: derived().hpAtOne,
+            hit_dice_total: `1d${HIT_DICE[state.cls] || 8}`,
+            hit_dice_remaining: 1,
+            // Feats in the range move these (Mobile, Alert), so the wizard
+            // needs where they start.
+            speed: derived().speed,
+            initiative_bonus: derived().initiative,
             ability_scores: stored || withLongKeys(finalScores()),
             // A character this new owns none of these yet, and saying so
             // saves the wizard three queries that can only come back empty.

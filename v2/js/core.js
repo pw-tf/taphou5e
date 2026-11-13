@@ -1480,11 +1480,11 @@ function expForNextLevel(level) {
 }
 
 // The classic level-up wizard reads the character's level from before the
-// grant out of localStorage, so it knows the range to walk. v2 has no wizard of
-// its own yet -- a granted level is completed in the classic app -- so it
-// writes the same key. It is per-device, so it only helps when the same browser
-// grants and then runs the wizard; that limitation is the classic app's, not
-// something introduced here.
+// grant out of localStorage, so it knows the range to walk; this writes the
+// same key so a level granted here can still be taken there. It is per-device,
+// so it only helps when the same browser grants and then runs the wizard.
+// v2's own wizard does not depend on it: it reads the last completed level
+// from the character's hit dice, which every device can see (levelup.js).
 function rememberPreGrantLevel(character) {
     if (character.pending_level_up) return;   // an earlier grant already set it
     try {

@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router, and the Owlbear Rodeo extension. 361 assertions.
+version router, and the Owlbear Rodeo extension. 381 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -181,7 +181,26 @@ the passes or the select-on-focus behaviour is never exercised.
 - Levelling: a multi-level grant opening as one run, one hit point choice per
   level gained, steps that do not apply skipping themselves, and the finish
   writing level, proficiency, hit dice, the hit point gain on both current and
-  maximum, class *and* subclass features, and clearing the pending flag
+  maximum, class *and* subclass features, and clearing the pending flag -- in
+  one update, sent last
+- **The range coming from the row, not the device**: a grant is made on the
+  DM's machine and taken on the player's, so the levels owed are read from the
+  character's hit dice (`4d12` = level 4 was the last one finished), with the
+  `preGrantLevel_` key only as a fallback
+- Hit points: a roll typed in from a real die (applied without rebuilding the
+  dialog, refused if the die cannot show it), and a Constitution increase
+  counting for the levels already gained
+- Two improvements in one run stacking, so a point that would pass 20 blocks
+  the step rather than being capped away on save
+- Spells and slots **in the shape the SRD API really sends**
+  (`spells_known`, `cantrips_known`, `spell_slots_level_1`..`9`): what a level
+  adds counted from the class table rather than the sheet, the list held to
+  the class and to what can be cast, slots updated without restoring spent
+  ones, and a warlock's lower slots being given up
+- A refused write keeping the dialog open, and a second press of Finish
+  repeating only the write that failed (`window.__failWrites = ['characters']`
+  makes the stub refuse a table)
+- Closing the level-up dialog and reopening it resuming where it was
 - The analytics dashboard: the sign-in gate holding the page back until a
   session exists, the six sections rendering, the worlds table joining party
   counts to the campaign counts the RPC returns, sorting redrawing the table
