@@ -6,7 +6,9 @@
 //
 //   Milestone  level + 1, pending_level_up = true
 //   EXP        experience_points += amount, then level recomputed from the
-//              5e thresholds; pending_level_up set only if the level moved
+//              5e thresholds; pending_level_up set only if the level moved.
+//              Experience is a running total, so the amount is added to at
+//              least the current level's threshold (expFloor in core.js).
 //
 // A grant only raises the level and sets the flag. The level is then taken by
 // whoever plays the character, from the banner on their sheet (levelup.js),
@@ -88,7 +90,9 @@
         try {
             for (const c of targets) {
                 if ((c.level || 1) >= 20) continue;
-                const nextExp = (c.experience_points || 0) + amount;
+                // Added to at least the floor of their current level, so a
+                // character levelled by milestone keeps the levels they have.
+                const nextExp = expProgress(c.level, c.experience_points).total + amount;
                 const nextLevel = levelForExp(nextExp);
                 const updates = { experience_points: nextExp };
 
@@ -170,12 +174,12 @@
 
     function expRow(c) {
         const level = c.level || 1;
-        const exp = c.experience_points || 0;
-        const next = expForNextLevel(level);
-        const pct = next ? Math.min(100, (exp / next) * 100) : 100;
-        const label = next
-            ? `${exp.toLocaleString()} / ${next.toLocaleString()} XP`
-            : `${exp.toLocaleString()} XP (max)`;
+        const p = expProgress(level, c.experience_points);
+        const pct = p.pct;
+        const label = p.next
+            ? `${p.into.toLocaleString()} / ${p.span.toLocaleString()} XP to level ${level + 1}`
+              + ` · ${p.total.toLocaleString()} total`
+            : `${p.total.toLocaleString()} XP (max)`;
 
         return `
             <div class="dm-row dm-row-exp">
