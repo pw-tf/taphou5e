@@ -228,8 +228,6 @@ textarea:focus-visible,
 .sheet-combat .chipline { max-width: 560px; }
 
 /* Stats tab */
-.ability-box .save { cursor: pointer; }
-.ability-box .save:hover { color: var(--accent-primary); }
 .temp-row { display: flex; align-items: center; gap: var(--space-10); }
 .temp-input {
   width: 84px; padding: 8px 10px; text-align: center;
@@ -435,7 +433,24 @@ textarea:focus-visible,
   color: var(--text-primary); font-family: var(--font-mono); font-size: var(--fs-15); font-weight: 600;
 }
 .init-row.is-active .init-input { border-color: var(--accent-primary); color: var(--accent-primary); }
-.init-name { cursor: pointer; }
+.init-name { cursor: pointer; min-width: 0; }
+/* The name opened the details and nothing said so. The arrow beside it is the
+   visible control: it turns, and the name takes the accent, while they are open. */
+.init-name-line { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.init-toggle {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; margin: -4px 0; padding: 0;
+  background: transparent; border: 0; border-radius: var(--radius-md);
+  color: var(--text-tertiary); cursor: pointer;
+}
+.init-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.init-toggle svg { transition: transform var(--transition-fast); }
+.init-toggle[aria-expanded="true"] { color: var(--accent-primary); }
+.init-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.init-row.is-open .init-name { color: var(--accent-primary); }
+@media (prefers-reduced-motion: reduce) { .init-toggle svg { transition: none; } }
+/* A party member: three figures, in the colour of the party stripe. */
+.party-mark { display: inline-flex; align-items: center; color: var(--hp-temp-text); }
 .init-conditions, .init-detail { flex-basis: 100%; }
 .init-detail { padding-top: var(--space-sm); border-top: 1px solid var(--border-subtle); }
 .init-conditions { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -476,8 +491,15 @@ a.list-row, a.list-row:hover,
 .fab-wrap {
   position: fixed; right: var(--space-md); bottom: var(--space-md); z-index: 250;
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-sm);
+  /* The closed menu is hidden but still laid out, so this box is as big as
+     the open menu -- on the tracker, 232px by 420px of the lower right of a
+     phone. Left catching touches, it swallowed every tap on the heal, Down
+     and Remove buttons that scrolled under it, while damage, further left,
+     still worked. Only the button and the open menu take touches. */
+  pointer-events: none;
 }
 .fab {
+  pointer-events: auto;
   width: 56px; height: 56px; border-radius: var(--radius-full);
   background: var(--accent-primary); border: none; color: var(--accent-on);
   box-shadow: var(--shadow-lg); cursor: pointer;
@@ -554,9 +576,11 @@ a.list-row, a.list-row:hover,
 
 /* ---------- Tracker parity with the classic version ---------- */
 
-/* A combatant's assigned colour, as a left stripe. is-party uses the same
-   channel, so an explicit colour wins. */
-.init-row.has-color { border-left: 3px solid var(--row-color); }
+/* A combatant's assigned colour goes all the way round its box. The second
+   pixel is a shadow, not border width, so colouring a row does not move
+   anything inside it. is-party's stripe is on the same border, so an explicit
+   colour wins there too. */
+.init-row.has-color { border-color: var(--row-color); box-shadow: 0 0 0 1px var(--row-color); }
 .init-note {
   flex-basis: 100%; margin-top: 4px;
   font-family: var(--font-body); font-size: var(--fs-12); color: var(--text-tertiary);
@@ -637,7 +661,19 @@ a.list-row, a.list-row:hover,
   border: 2px solid var(--block-color);
   border-radius: var(--radius-lg);
 }
-.colour-block .init-row.has-color { border-left: 1px solid var(--border-default); }
+.colour-block .init-row.has-color { border: 1px solid var(--border-default); box-shadow: none; }
+
+/* ---------- Choosing from a short list (Add players) ---------- */
+.choose-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--space-12); }
+.choose-row {
+  display: flex; align-items: center; gap: var(--space-10); min-width: 0;
+  padding: 11px var(--space-10); border-radius: var(--radius-md); cursor: pointer;
+}
+.choose-row:hover { background: var(--bg-hover); }
+.choose-row input { flex: none; width: 18px; height: 18px; accent-color: var(--accent-primary); }
+.choose-row .name { flex: 1; min-width: 0; font-size: var(--fs-14); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.choose-row .meta { flex: none; font-size: var(--fs-11); color: var(--text-tertiary); }
+.choose-row:has(input:checked) { background: var(--accent-soft); }
 
 /* ---------- Row text must not wrap a character at a time ----------
    .list-row carries fixed-width columns either side of .who, so a long name

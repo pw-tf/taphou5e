@@ -233,6 +233,14 @@ function hpClass(current, max) {
 // The single HP component from the design handoff. One fixed-height rail
 // everywhere -- never one element per hit point, which is what the v1 tracker
 // does today (a 300 HP creature renders 300 divs).
+// The bar is notched: one notch per hit point, drawn by CSS from --hp-max.
+// It is a background on one pseudo-element, never an element per hit point,
+// and the stylesheet coarsens it to every 5, 10, 50 or 100 when single
+// points would be too thin to see at the bar's actual width. A bar with no
+// maximum has nothing to divide by, so it gets no notches.
+function hpNotchClass(max) { return Number(max) > 0 ? ' notched' : ''; }
+function hpNotchStyle(max) { return Number(max) > 0 ? ` style="--hp-max:${Number(max)}"` : ''; }
+
 function renderHP(current, max, temp, variant) {
     const cur = Number(current) || 0;
     const mx = Number(max) || 0;
@@ -240,7 +248,7 @@ function renderHP(current, max, temp, variant) {
     const cls = hpClass(cur, mx);
     const mainPct = mx > 0 ? Math.max(0, Math.min(100, (cur / mx) * 100)) : 0;
     const tempPct = mx > 0 ? Math.max(0, Math.min(100 - mainPct, (tmp / mx) * 100)) : 0;
-    const barClass = variant ? `hp-bar ${variant}` : 'hp-bar';
+    const barClass = `hp-bar${variant ? ' ' + variant : ''}${hpNotchClass(mx)}`;
 
     return `
         <div class="hp">
@@ -250,7 +258,7 @@ function renderHP(current, max, temp, variant) {
                 }</span>
                 <span class="hp-state state-${cls}">${hpStateLabel(cur, mx)}</span>
             </div>
-            <div class="${barClass}">
+            <div class="${barClass}"${hpNotchStyle(mx)}>
                 <div class="fill ${cls}" style="width:${mainPct}%"></div>
                 ${tempPct > 0 ? `<div class="fill temp" style="width:${tempPct}%"></div>` : ''}
             </div>
@@ -357,6 +365,10 @@ const ICONS = {
     bag:        '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
     heart:      '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
     coffee:     '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+    // One step of a disclosure: points down, and is turned by CSS when open.
+    chevron:    '<polyline points="6 9 12 15 18 9"/>',
+    // Three people side by side: a member of the party.
+    party:      '<circle cx="12" cy="8" r="3"/><path d="M7 20v-1a5 5 0 0 1 10 0v1"/><circle cx="4.5" cy="10.5" r="2"/><path d="M1 19v-.5a3.5 3.5 0 0 1 3.5-3.5"/><circle cx="19.5" cy="10.5" r="2"/><path d="M23 19v-.5a3.5 3.5 0 0 0-3.5-3.5"/>',
     chevrons:   '<polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>',
     bug:        '<path d="M8 2 9.5 4.5"/><path d="M16 2 14.5 4.5"/><path d="M9 20a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5z"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5.5 7-1.7-1.3"/><path d="m18.5 7 1.7-1.3"/><path d="m5.5 19-1.7 1.3"/><path d="m18.5 19 1.7 1.3"/>'
 };

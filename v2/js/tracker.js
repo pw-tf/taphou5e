@@ -518,15 +518,16 @@
         draw();
     }
 
-    // The party is the common case, so add the whole active roster at once.
-    window.addParty = async () => {
+    // Player characters not yet in this encounter, by name.
+    function absentCharacters() {
         const already = new Set(combatants.filter(r => r.character_id).map(r => r.character_id));
-        const toAdd = Object.values(characters).filter(ch => !already.has(ch.id));
-        if (!toAdd.length) {
-            toast('Everyone is already in this encounter.');
-            return;
-        }
-        const rows = toAdd.map((ch, i) => ({
+        return Object.values(characters)
+            .filter(ch => !already.has(ch.id))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+
+    async function insertCharacters(list) {
+        const rows = list.map((ch, i) => ({
             encounter_id: enc.id,
             game_world_id: session.gameWorldId,
             combatant_type: 'character',
@@ -541,10 +542,74 @@
         const { error } = await db.from('encounter_combatants').insert(rows);
         if (error) {
             console.error(error);
-            toast('Could not add the party.', 'error');
-            return;
+            toast(rows.length === 1 ? 'Could not add that character.' : 'Could not add those characters.', 'error');
+            return false;
         }
         await reload();
+        return true;
+    }
+
+    // The whole party is the common case and stays one tap past the menu. But
+    // a fight often has only some of them in it -- one scout ahead, a
+    // latecomer -- and the only way to get that was to add everyone and then
+    // remove the rest one by one.
+    window.addPlayers = () => {
+        const absent = absentCharacters();
+        if (!absent.length) {
+            toast(Object.keys(characters).length
+                ? 'Everyone is already in this encounter.'
+                : 'This world has no characters yet.');
+            return;
+        }
+
+        const allLabel = absent.length === 1
+            ? `Add ${absent[0].name}`
+            : `Add all ${absent.length}`;
+
+        openPanel({
+            title: 'Add players',
+            body: `
+                <button class="btn btn-accent btn-block" id="players-all">${escapeHtml(allLabel)}</button>
+                ${absent.length > 1 ? `
+                    <div class="section-head" style="margin-top:var(--space-md)">
+                        <span class="eyebrow">Or choose</span><span class="rule"></span>
+                    </div>
+                    <div class="choose-list">
+                        ${absent.map(ch => `
+                            <label class="choose-row">
+                                <input type="checkbox" value="${escapeHtml(ch.id)}">
+                                <span class="name">${escapeHtml(ch.name)}</span>
+                                <span class="mono meta">${ch.current_hit_points ?? 0}/${ch.hit_point_maximum ?? 0} HP</span>
+                            </label>`).join('')}
+                    </div>
+                    <button class="btn btn-block" id="players-some" disabled>Add selected</button>` : ''}`,
+            onMount: host => {
+                const some = $('#players-some', host);
+                const picked = () => $$('.choose-row input:checked', host).map(box => box.value);
+
+                const add = async list => {
+                    // Everything off while it saves: a second tap would put
+                    // the same characters in twice.
+                    $$('button, input', host).forEach(control => { control.disabled = true; });
+                    const added = await insertCharacters(list);
+                    closeModal();
+                    if (added) toast(list.length === 1 ? `${list[0].name} added.` : `${list.length} added.`);
+                };
+
+                $('#players-all', host).addEventListener('click', () => add(absent));
+                if (!some) return;
+
+                host.addEventListener('change', () => {
+                    const count = picked().length;
+                    some.disabled = !count;
+                    some.textContent = count ? `Add ${count} selected` : 'Add selected';
+                });
+                some.addEventListener('click', () => {
+                    const ids = new Set(picked());
+                    add(absent.filter(ch => ids.has(ch.id)));
+                });
+            }
+        });
     };
 
     window.addNPC = () => {
@@ -666,12 +731,14 @@
 
     // A colour is a marker for a set of combatants -- "the red ones are the
     // archers" -- not a decoration on one row. So same-coloured rows gather
-    // into a single bordered block rather than each carrying its own stripe.
+    // into a single box in that colour, and a combatant alone in its colour is
+    // outlined in it: either way the colour goes all the way round.
     // Adding four goblins in one colour therefore reads as one block of four.
     //
-    // This only applies while preparing. Once the encounter is running the list
-    // is flat in initiative order and the colour goes back to a per-row stripe,
-    // for the same reason groups do: turn order must not be reshuffled.
+    // Gathering only applies while preparing. Once the encounter is running
+    // the list is flat in initiative order and every coloured row is outlined
+    // on its own -- neighbours are not merged -- for the same reason groups go
+    // flat: turn order must not be reshuffled, or look as if it had been.
     function colourBlocks(rows) {
         const coloured = rows.filter(r => r.color);
         const plain = rows.filter(r => !r.color);
@@ -683,7 +750,7 @@
         });
 
         const blocks = Array.from(byColour.entries()).map(([color, group]) => {
-            // A lone coloured combatant needs no box around it.
+            // Alone in its colour: the row's own outline is the box.
             if (group.length === 1) return initRow(group[0]);
             return `
                 <div class="colour-block" style="--block-color:${escapeHtml(color)}">
@@ -749,6 +816,8 @@
         if (isParty) classes.push('is-party');
         if (row.is_defeated) classes.push('is-dead');
         if (row.color) classes.push('has-color');
+        const isOpen = detail === row.id;
+        if (isOpen) classes.push('is-open');
 
         const conditions = Array.isArray(row.conditions) ? row.conditions : [];
         const styleAttr = row.color ? ` style="--row-color:${escapeHtml(row.color)}"` : '';
@@ -765,8 +834,15 @@
                 </div>
 
                 <div class="init-id">
-                    <div class="init-name" onclick="showCombatant('${row.id}')" role="button" tabindex="0">
-                        ${escapeHtml(row.display_name)}
+                    <div class="init-name-line">
+                        <div class="init-name" onclick="showCombatant('${row.id}')" role="button" tabindex="0">
+                            ${escapeHtml(row.display_name)}
+                        </div>
+                        <button class="init-toggle" onclick="showCombatant('${row.id}')"
+                                aria-expanded="${isOpen}"
+                                aria-label="${isOpen ? 'Hide' : 'Show'} details for ${escapeHtml(row.display_name)}">
+                            ${icon('chevron', 16)}
+                        </button>
                     </div>
                     <div class="init-sub">
                         ${isDM && enc.status !== 'completed'
@@ -774,7 +850,7 @@
                                      onclick="editAC('${row.id}')" title="Edit armor class">AC ${row.armor_class ?? '—'}</span>`
                             : (row.armor_class ? `<span class="mono">AC ${row.armor_class}</span>` : '')}
                         ${hideHP ? '' : `<span class="state-${hpClass(hp.current, hp.max)}">${hpStateLabel(hp.current, hp.max)}</span>`}
-                        ${isParty ? '<span class="hidden-pill">party</span>' : ''}
+                        ${isParty ? `<span class="party-mark" role="img" aria-label="Party member" title="Party member">${icon('party', 15)}</span>` : ''}
                     </div>
                 </div>
 
@@ -807,7 +883,7 @@
 
                 ${row.notes ? `<div class="init-note">${escapeHtml(row.notes)}</div>` : ''}
 
-                ${detail === row.id ? `
+                ${isOpen ? `
                     <div class="init-detail">
                         <span class="eyebrow">Conditions</span>
                         <div class="conditions-grid">
@@ -1183,7 +1259,7 @@
 
         return actions.concat([
             { label: 'Roll initiative', onclick: 'rollInitiative()' },
-            { label: 'Add party', onclick: 'addParty()' },
+            { label: 'Add players', onclick: 'addPlayers()' },
             { label: 'Add monsters', onclick: 'openAddMonsters()' },
             { label: 'Add NPC', onclick: 'addNPC()' },
             { label: enc.hide_monster_hp ? 'Monster HP hidden' : 'Monster HP visible',
