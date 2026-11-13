@@ -209,19 +209,59 @@ FIXTURES = {
             "6": {"level": 6, "features": [
                      {"index": "barbarian-path-feature", "name": "Path Feature"}]},
         },
-        "wizard": {
-            "6": {"level": 6, "features": [{"index": "wizard-arcane-tradition", "name": "Arcane Tradition"}],
-                  "spellcasting": {"spells_known_at_level": 4,
-                                   "spell_slots_level": {"1": 4, "2": 3, "3": 3}}},
+        # Spellcasting in the shape the API really sends: one flat key per
+        # slot level, and totals for cantrips and spells known. The wizard
+        # once read `spells_known_at_level` and a `spell_slots_level` object,
+        # which exist nowhere but in the fixture that used to sit here -- so
+        # the suite passed while no live level-up ever offered a spell or
+        # wrote a slot.
+        "bard": {
+            "3": {"level": 3, "features": [{"index": "bard-college", "name": "Bard College"}],
+                  "spellcasting": {"cantrips_known": 2, "spells_known": 6,
+                                   "spell_slots_level_1": 4, "spell_slots_level_2": 2,
+                                   "spell_slots_level_3": 0}},
+            "4": {"level": 4, "features": [
+                     {"index": "bard-ability-score-improvement-1", "name": "Ability Score Improvement"}],
+                  "spellcasting": {"cantrips_known": 3, "spells_known": 7,
+                                   "spell_slots_level_1": 4, "spell_slots_level_2": 3,
+                                   "spell_slots_level_3": 0}},
+        },
+        "warlock": {
+            "2": {"level": 2, "features": [{"index": "eldritch-invocations", "name": "Eldritch Invocations"}],
+                  "spellcasting": {"cantrips_known": 2, "spells_known": 3,
+                                   "spell_slots_level_1": 2, "spell_slots_level_2": 0}},
+            "3": {"level": 3, "features": [{"index": "pact-boon", "name": "Pact Boon"}],
+                  "spellcasting": {"cantrips_known": 2, "spells_known": 4,
+                                   "spell_slots_level_1": 0, "spell_slots_level_2": 2}},
         },
         "fighter": {
             "4": {"level": 4, "features": [{"index": "fighter-asi", "name": "Ability Score Improvement"}]},
         },
     },
+    # A class's own spell list carries each spell's level, which is what lets
+    # the wizard offer only what the character can actually cast.
+    "srd_class_spells": {
+        "bard": {"count": 5, "results": [
+            {"index": "mage-hand", "name": "Mage Hand", "level": 0},
+            {"index": "vicious-mockery", "name": "Vicious Mockery", "level": 0},
+            {"index": "healing-word", "name": "Healing Word", "level": 1},
+            {"index": "shatter", "name": "Shatter", "level": 2},
+            {"index": "hypnotic-pattern", "name": "Hypnotic Pattern", "level": 3}]},
+        "warlock": {"count": 3, "results": [
+            {"index": "eldritch-blast", "name": "Eldritch Blast", "level": 0},
+            {"index": "hex", "name": "Hex", "level": 1},
+            {"index": "misty-step", "name": "Misty Step", "level": 2}]},
+    },
     "srd_subclasses": {"results": [
         {"index": "berserker", "name": "Berserker", "url": "/api/subclasses/berserker"}]},
+    # Every level a subclass grants something at, as /subclasses/<x>/levels
+    # returns it. Frenzy at 3 matters: a character who picks the subclass late
+    # is owed it too.
     "srd_subclass_levels": {
-        "berserker-5": {"features": [{"index": "berserker-mindless-rage", "name": "Mindless Rage"}]}},
+        "berserker": [
+            {"level": 3, "features": [{"index": "frenzy", "name": "Frenzy"}]},
+            {"level": 6, "features": [{"index": "mindless-rage", "name": "Mindless Rage"}]},
+            {"level": 10, "features": [{"index": "intimidating-presence", "name": "Intimidating Presence"}]}]},
     "srd_subclass_berserker": {
         "index": "berserker", "name": "Berserker",
         "desc": ["For some barbarians, rage is a means to an end: that end being violence."]},
@@ -327,17 +367,22 @@ STUB = """
   function writer(table, verb) {
     return (payload) => {
       recordWrite({ table, verb, payload: payload || null });
+      // __failWrites names tables whose writes the database "refuses", the
+      // way Supabase does it: an error in the result, nothing thrown. A
+      // refused write changes no row, so it must not touch the fixtures --
+      // the page holds the very same objects.
+      const refused = (window.__failWrites || []).indexOf(table) !== -1;
       const single = FIXTURES[table + '_single'];
-      if (verb === 'update' && single) Object.assign(single, payload);
+      if (verb === 'update' && single && !refused) Object.assign(single, payload);
       // Mirror an update onto the list fixture too, so a re-read reflects it.
-      if (verb === 'update' && Array.isArray(FIXTURES[table]) && window.__lastEq) {
+      if (verb === 'update' && !refused && Array.isArray(FIXTURES[table]) && window.__lastEq) {
         const row = FIXTURES[table].find(r => r.id === window.__lastEq);
         if (row) Object.assign(row, payload);
       }
       const w = {};
       ['in','match'].forEach(m => { w[m] = () => w; });
       w.eq = (_col, val) => { window.__lastEq = val;
-        if (verb === 'update' && Array.isArray(FIXTURES[table])) {
+        if (verb === 'update' && !refused && Array.isArray(FIXTURES[table])) {
           const row = FIXTURES[table].find(r => r.id === val);
           if (row) Object.assign(row, payload);
         }
@@ -347,8 +392,9 @@ STUB = """
       w.maybeSingle = () => Promise.resolve({ data: null, error: null });
       // A delete hands back the row it removed, as PostgREST does when asked;
       // the client reads an empty result as "refused".
-      w.then = (res, rej) => Promise.resolve({
-        data: verb === 'delete' ? [{ id: window.__lastEq }] : null, error: null }).then(res, rej);
+      w.then = (res, rej) => Promise.resolve(refused
+        ? { data: null, error: { message: 'refused by the stub' } }
+        : { data: verb === 'delete' ? [{ id: window.__lastEq }] : null, error: null }).then(res, rej);
       return w;
     };
   }
@@ -369,18 +415,22 @@ STUB = """
     if (/\/api\/features\/action-surge-1-use$/.test(url)) return json(FIXTURES.srd_feature_action_surge);
     if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
     if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
-    // Class levels drive the level-up wizard's feature and spell steps.
-    const lvl = url.match(/\/api\/classes\/([a-z]+)\/levels\/(\d+)$/);
+    // Class levels drive the level-up wizard's feature and spell steps. The
+    // wizard names the API's 2014 tree; everything else uses the unversioned
+    // alias for it, so both spellings are served.
+    const lvl = url.match(/\/api\/(?:2014\/)?classes\/([a-z]+)\/levels\/(\d+)$/);
     if (lvl) {
       const table = FIXTURES.srd_class_levels[lvl[1]] || {};
       return table[lvl[2]] ? json(table[lvl[2]])
                            : Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
     }
-    if (/\/api\/classes\/[a-z]+\/subclasses$/.test(url)) return json(FIXTURES.srd_subclasses);
-    const feat = url.match(/\/api\/features\/([a-z0-9-]+)$/);
+    const classSpells = url.match(/\/api\/(?:2014\/)?classes\/([a-z]+)\/spells$/);
+    if (classSpells) return json(FIXTURES.srd_class_spells[classSpells[1]] || { count: 0, results: [] });
+    if (/\/api\/(?:2014\/)?classes\/[a-z]+\/subclasses$/.test(url)) return json(FIXTURES.srd_subclasses);
+    const feat = url.match(/\/api\/(?:2014\/)?features\/([a-z0-9-]+)$/);
     if (feat) return json({ name: feat[1], desc: ['Fixture text for ' + feat[1] + '.'] });
-    const sub = url.match(/\/api\/subclasses\/([a-z-]+)\/levels\/(\d+)$/);
-    if (sub) return json(FIXTURES.srd_subclass_levels[sub[1] + '-' + sub[2]] || { features: [] });
+    const sub = url.match(/\/api\/(?:2014\/)?subclasses\/([a-z-]+)\/levels$/);
+    if (sub) return json(FIXTURES.srd_subclass_levels[sub[1]] || []);
     if (/\/api\/subclasses\/berserker$/.test(url)) return json(FIXTURES.srd_subclass_berserker);
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
   };
@@ -690,6 +740,85 @@ KORR = {
     "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
     "character_details": {},
 }
+
+# Lira, a caster, for what the wizard does about spells. Level 3 finished
+# (three hit dice, two of them spent), level 4 granted. A bard gains a cantrip
+# and a spell at 4, and a third 2nd-level slot. Her subclass is one the SRD
+# does not carry, which is true of most.
+LIRA = {
+    "id": "c5", "game_world_id": "w1", "name": "Lira", "player_name": "Jo",
+    "race": "Human", "class": "Bard", "subclass": "College of Swords", "level": 4,
+    "armor_class": 13, "speed": 30, "initiative_bonus": 2, "proficiency_bonus": 2,
+    "current_hit_points": 20, "hit_point_maximum": 24, "temporary_hit_points": 0,
+    "hit_dice_total": "3d8", "hit_dice_remaining": 1,
+    "death_save_successes": 0, "death_save_failures": 0,
+    "active_conditions": [], "pending_level_up": True, "experience_points": 0,
+    "notes": "",
+    "ability_scores": {"strength": 8, "dexterity": 14, "constitution": 15,
+                       "intelligence": 10, "wisdom": 12, "charisma": 16},
+    "saving_throws": [], "skills": [], "weapons": [], "inventory_items": [],
+    "spells": [
+        {"id": "sp1", "name": "Vicious Mockery", "level": 0, "api_index": "vicious-mockery", "prepared": True},
+        {"id": "sp2", "name": "Light", "level": 0, "api_index": "light", "prepared": True},
+        {"id": "sp3", "name": "Healing Word", "level": 1, "api_index": "healing-word", "prepared": True}],
+    "spell_slots": [{"id": "sl1", "slot_level": 1, "total": 4, "used": 1},
+                    {"id": "sl2", "slot_level": 2, "total": 2, "used": 2}],
+    "features_traits": [],
+    "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
+    "character_details": {},
+}
+
+# Vex, a warlock going from 2 to 3: Pact Magic trades two 1st-level slots for
+# two 2nd-level ones rather than adding to them.
+VEX = {
+    "id": "c6", "game_world_id": "w1", "name": "Vex", "player_name": "Ari",
+    "race": "Tiefling", "class": "Warlock", "subclass": "The Hexblade", "level": 3,
+    "armor_class": 12, "speed": 30, "initiative_bonus": 1, "proficiency_bonus": 2,
+    "current_hit_points": 15, "hit_point_maximum": 15, "temporary_hit_points": 0,
+    "hit_dice_total": "2d8", "hit_dice_remaining": 2,
+    "death_save_successes": 0, "death_save_failures": 0,
+    "active_conditions": [], "pending_level_up": True, "experience_points": 0,
+    "notes": "",
+    "ability_scores": {"strength": 8, "dexterity": 12, "constitution": 12,
+                       "intelligence": 10, "wisdom": 10, "charisma": 16},
+    "saving_throws": [], "skills": [], "weapons": [], "inventory_items": [],
+    "spells": [], "spell_slots": [{"id": "ws1", "slot_level": 1, "total": 2, "used": 1}],
+    "features_traits": [],
+    "currency": {"copper": 0, "silver": 0, "electrum": 0, "gold": 0, "platinum": 0},
+    "character_details": {},
+}
+
+LEVELUP_SESSION = """
+    try {
+      localStorage.setItem('dnd-session', JSON.stringify({
+        gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
+        dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(),
+        timestamp: Date.now() }));
+      __EXTRA__
+    } catch (e) {}
+"""
+
+
+async def open_levelup(browser, character, extra="", label=None, viewport=None):
+    """A sheet for `character` with its level-up wizard open.
+
+    The sheet stub serves one character whatever the id, so each of these
+    needs a context of its own. `label` None leaves console errors unwatched,
+    for the test that makes a save fail on purpose.
+    """
+    ctx = await browser.new_context(**({"viewport": viewport} if viewport else {}))
+    await ctx.add_init_script(stub_with(characters_single=character))
+    await ctx.add_init_script(LEVELUP_SESSION.replace("__EXTRA__", extra))
+    page = await ctx.new_page()
+    if label:
+        watch(page, label)
+    await page.goto(f"{BASE}/v2/character-sheet.html?id={character['id']}", wait_until="domcontentloaded")
+    await page.wait_for_selector(".levelup-banner", timeout=10000)
+    await page.click(".levelup-banner")
+    await page.wait_for_selector(".wizard-steps", timeout=10000)
+    await page.wait_for_timeout(600)
+    return ctx, page
+
 
 # ========================================
 # Analytics dashboard fixtures
@@ -2164,7 +2293,8 @@ async def main():
 
         assert await page.locator('.dm-row:has-text("Korr") .tag-accent').count() == 1
         banner = await page.locator(".error-banner").inner_text()
-        assert "level waiting" in banner and "classic version" in banner, banner
+        assert "level waiting" in banner and "banner on their sheet" in banner, banner
+        assert "classic version" not in banner, "v2 has its own wizard now; this sent players to v1"
         ok("characters owed a level are flagged, and the panel says where levelling finishes")
 
         # Milestone: granting sets the level and the pending flag, and records
@@ -2749,33 +2879,13 @@ async def main():
         ok(f"the adjusted scores are numbers, not undefined ({sorted(adjusted)[:3]}...)")
 
         # ---------- 45. Level-up wizard ----------
-        # Korr is a level 4 Barbarian owed a level, granted from 4 to 6. The
-        # sheet stub serves one character whatever the id, so this needs its
-        # own context carrying Korr as the single character.
-        luctx = await browser.new_context()
-        await luctx.add_init_script(stub_with(characters_single=KORR))
-        await luctx.add_init_script("""
-            try {
-              localStorage.setItem('dnd-session', JSON.stringify({
-                gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
-                dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(),
-                timestamp: Date.now() }));
-              localStorage.setItem('preGrantLevel_c3', '4');
-              localStorage.setItem('targetLevel_c3', '6');
-            } catch (e) {}
-        """)
-        lu = await luctx.new_page()
-        watch(lu, "levelup")
-
-        await lu.goto(f"{BASE}/v2/character-sheet.html?id=c3", wait_until="domcontentloaded")
-        await lu.wait_for_selector(".sheet-header", timeout=10000)
-
-        assert await lu.locator(".levelup-banner").count() == 1
+        # Korr is a level 4 Barbarian granted two levels. A grant only raises
+        # `level`, and nothing on THIS device recorded where he started --
+        # which is the usual case: the DM grants on their machine, the player
+        # levels up on their own. The range has to come from the row itself,
+        # where four hit dice say level 4 was the last one finished.
+        luctx, lu = await open_levelup(browser, KORR, label="levelup")
         ok("a character owed a level gets a banner on their sheet")
-
-        await lu.click(".levelup-banner")
-        await lu.wait_for_selector(".wizard-steps", timeout=10000)
-        await lu.wait_for_timeout(900)
 
         title = await lu.locator(".modal-head h2").inner_text()
         assert "4" in title and "6" in title, title
@@ -2784,7 +2894,7 @@ async def main():
         # Two levels gained means two hit point choices, not one repeated.
         rows = await lu.locator(".hp-choice-row").count()
         assert rows == 2, rows
-        ok("each level gained gets its own hit point choice")
+        ok("a player on their own device is offered every level granted, not just the last")
 
         steps = [t.strip() for t in await lu.locator(".wizard-steps li .label").all_inner_texts()]
         # Barbarians take ASIs at 4, 8, 12 -- neither 5 nor 6 is one. The class
@@ -2792,7 +2902,23 @@ async def main():
         assert "ASI" not in steps, steps
         assert "Spells" not in steps, steps
         assert "Subclass" in steps, steps
+        assert steps[-1] == "Review", steps
         ok(f"steps that do not apply skip themselves ({steps})")
+
+        # A roll made at the table can be typed in. It is applied in place: a
+        # rebuild per keystroke would drop the keyboard on a phone.
+        own = lu.locator("[data-hpown]").first
+        await own.fill("9")
+        await lu.wait_for_timeout(150)
+        assert (await lu.locator('[data-hpgain="0"]').inner_text()).strip() == "+9"
+        assert await own.evaluate("el => el === document.activeElement"), \
+            "typing a roll must not rebuild the dialog"
+        assert await lu.locator("#lu-next").is_disabled(), "level 6 still has no choice"
+        await own.fill("13")
+        await lu.wait_for_timeout(150)
+        assert (await lu.locator('[data-hpgain="0"]').inner_text()).strip() == "", \
+            "13 is not a face on a d12"
+        ok("a roll made at the table can be typed in, and one the die cannot show is refused")
 
         await lu.click("#lu-avg-all")
         await lu.wait_for_timeout(300)
@@ -2800,6 +2926,17 @@ async def main():
         # d12 Barbarian, CON 10 (+0): average is 7 a level, so 14 for two.
         assert "+14" in total, total
         ok(f"taking the average for all fills every level ({total.strip()})")
+
+        # The dialog closes on a stray tap outside it. Coming back must not
+        # throw the choices away -- or hand out a fresh set of rolls.
+        await lu.click("#modal-close")
+        await lu.wait_for_timeout(300)
+        await lu.click(".levelup-banner")
+        await lu.wait_for_selector(".hp-choice-row", timeout=5000)
+        total = await lu.locator(".wizard-body .hint").last.inner_text()
+        assert "+14" in total, total
+        assert not await lu.locator("#lu-next").is_disabled()
+        ok("closing the dialog and reopening it resumes with the choices already made")
 
         await lu.click("#lu-next")
         await lu.wait_for_selector(".subclass-list", timeout=5000)
@@ -2817,35 +2954,49 @@ async def main():
         assert "+3" in summary and "6d12" in summary, summary
         ok(f"the summary shows the level 6 proficiency and hit dice")
 
+        # Subclass features are looked up when the review first needs them.
+        await lu.wait_for_function(
+            "document.querySelector('.pick-list') && "
+            "document.querySelector('.pick-list').innerText.includes('Frenzy')", timeout=5000)
         features = await lu.locator(".pick-list").inner_text()
         assert "Extra Attack" in features and "Path Feature" in features, features
         ok("features from every level in the range are listed, not just the last")
+        # Korr reached level 4 without a subclass. Choosing one now brings
+        # what it granted at 3 as well as what it grants at 6.
+        assert "Frenzy" in features and "Mindless Rage" in features, features
+        assert "Intimidating Presence" not in features, "that is level 10's"
+        ok("the review lists the subclass's features too, including the level 3 one a late choice still owes")
 
+        # A stale marker from an earlier grant, to check it is cleaned up.
+        await lu.evaluate("localStorage.setItem('preGrantLevel_c3', '4')")
         await lu.evaluate("window.__resetWrites()")
         await lu.click("#lu-next")
         await lu.wait_for_timeout(1500)
 
         writes = await lu.evaluate("window.__writes")
         updates = [w for w in writes if w["table"] == "characters" and w["verb"] == "update"]
-        assert updates, [w["table"] for w in writes]
-        final = updates[-1]["payload"]
+        # One write, last: it is the one that clears the pending flag, so a
+        # failure anywhere before it leaves the level owed and nothing doubled.
+        assert len(updates) == 1, [w["payload"] for w in updates]
+        assert writes[-1]["table"] == "characters", writes[-1]
+        final = updates[0]["payload"]
         assert final["level"] == 6, final
         assert final["proficiency_bonus"] == 3, final
         assert final["hit_dice_total"] == "6d12", final
         assert final["pending_level_up"] is False, final
-        ok("finishing writes the target level, proficiency, hit dice and clears the flag")
+        assert final["subclass"] == "Path of the Berserker", final
+        ok("finishing writes the level, proficiency, hit dice, subclass and the cleared flag in one update, last")
 
-        hp = [w for w in updates if "hit_point_maximum" in w["payload"]]
-        assert hp, [w["payload"] for w in updates]
         # Korr was 52/22; +14 across two levels.
-        assert hp[-1]["payload"]["hit_point_maximum"] == 66, hp[-1]
-        assert hp[-1]["payload"]["current_hit_points"] == 36, hp[-1]
+        assert final["hit_point_maximum"] == 66, final
+        assert final["current_hit_points"] == 36, final
         ok("the hit point gain is added to both maximum and current")
 
         saved_features = [w for w in writes if w["table"] == "features_traits" and w["verb"] == "insert"]
         names = [w["payload"]["name"] for w in saved_features]
         assert "Extra Attack" in names, names
-        assert "Mindless Rage" in names, "subclass features should be saved too"
+        assert "Mindless Rage" in names and "Frenzy" in names, "subclass features should be saved too"
+        assert len(names) == len(set(names)), names
         ok(f"class and subclass features are both saved ({len(names)} rows)")
 
         left = await lu.evaluate("localStorage.getItem('preGrantLevel_c3')")
@@ -2853,6 +3004,170 @@ async def main():
         ok("the wizard clears the level markers it consumed")
 
         await luctx.close()
+
+        # A row whose hit dice say nothing useful -- one written before the
+        # wizard kept them in step -- still falls back to the marker the
+        # granting device left behind.
+        fbctx, fb = await open_levelup(browser, {**KORR, "hit_dice_total": "6d12"},
+                                       extra="localStorage.setItem('preGrantLevel_c3', '4');",
+                                       label="levelup-fallback")
+        assert await fb.locator(".hp-choice-row").count() == 2
+        ok("when the hit dice cannot say where the run starts, the stored marker still does")
+        await fbctx.close()
+
+        # ---------- 45b. A save the database refuses ----------
+        # Supabase reports a refused write in its return value and throws
+        # nothing. Unchecked, the dialog closed as though the level had been
+        # taken. (No console watch here: the failure is logged on purpose.)
+        rfctx, rf = await open_levelup(browser, KORR)
+        await rf.click("#lu-avg-all")
+        await rf.click("#lu-next")
+        await rf.click('[data-subclass="Path of the Berserker"]')
+        await rf.click("#lu-next")
+        await rf.wait_for_function(
+            "document.querySelector('.pick-list') && "
+            "document.querySelector('.pick-list').innerText.includes('Frenzy')", timeout=5000)
+
+        await rf.evaluate("window.__failWrites = ['characters']; window.__resetWrites()")
+        await rf.click("#lu-next")
+        await rf.wait_for_selector(".toast-error", timeout=5000)
+        await rf.wait_for_timeout(300)
+        assert "Could not save" in await rf.locator(".toast-error").first.inner_text()
+        assert await rf.locator("#lu-next").count() == 1, "the dialog must stay open"
+        assert not await rf.locator("#lu-next").is_disabled(), "and Finish must be pressable again"
+        first_pass = await rf.evaluate("window.__writes")
+        first_features = [w for w in first_pass if w["table"] == "features_traits"]
+        assert len(first_features) == 5, [w["payload"]["name"] for w in first_features]
+        ok("a refused write keeps the dialog open and says so, instead of closing as if it had worked")
+
+        await rf.evaluate("window.__failWrites = []")
+        await rf.click("#lu-next")
+        await rf.wait_for_selector("#lu-next", state="detached", timeout=5000)
+        second_pass = await rf.evaluate("window.__writes")
+        all_features = [w for w in second_pass if w["table"] == "features_traits"]
+        assert len(all_features) == 5, "the retry must not write the features a second time"
+        landed = [w for w in second_pass if w["table"] == "characters" and w["verb"] == "update"]
+        assert landed[-1]["payload"]["pending_level_up"] is False, landed[-1]
+        assert landed[-1]["payload"]["hit_point_maximum"] == 66, "the hit points must not be added twice"
+        ok("pressing Finish again repeats only the write that failed")
+        await rfctx.close()
+
+        # ---------- 45c. A caster: spells, slots and Constitution ----------
+        cactx, ca = await open_levelup(browser, LIRA, label="levelup-caster")
+        steps = [t.strip() for t in await ca.locator(".wizard-steps li .label").all_inner_texts()]
+        assert steps == ["Hit points", "ASI", "Spells", "Review"], steps
+        ok(f"a bard reaching level 4 is offered spells as well as an improvement ({steps})")
+
+        # d8, CON 15 (+2): the average is 5 + 2.
+        assert "+7" in await ca.locator('[data-hp="0"][data-method="average"]').inner_text()
+        await ca.click('[data-hp="0"][data-method="average"]')
+        await ca.click("#lu-next")
+        await ca.wait_for_selector("[data-asi]", timeout=5000)
+        await ca.click('[data-asi="0"][data-ab="con"][data-delta="1"]')
+        await ca.wait_for_timeout(150)
+        await ca.click('[data-asi="0"][data-ab="cha"][data-delta="1"]')
+        await ca.wait_for_timeout(150)
+        await ca.click("#lu-next")
+        await ca.wait_for_selector("#lu-spell-search", timeout=5000)
+        await ca.wait_for_selector("[data-spell]", timeout=5000)
+
+        hint = await ca.locator(".wizard-body .hint").first.inner_text()
+        # Level 3 knows 2 cantrips and 6 spells, level 4 knows 3 and 7. The
+        # three spells already on her sheet have nothing to do with it.
+        assert "1 new cantrip" in hint and "1 new spell" in hint and "level 2 or lower" in hint, hint
+        ok("the spell step offers what the level adds, counted from the class table rather than the sheet")
+
+        offered = await ca.locator("[data-spell]").evaluate_all("els => els.map(e => e.dataset.spell)")
+        assert "shatter" in offered and "mage-hand" in offered, offered
+        assert "hypnotic-pattern" not in offered, "a 3rd-level spell with no 3rd-level slot"
+        assert "vicious-mockery" not in offered and "healing-word" not in offered, "already on the sheet"
+        ok(f"only spells from her class list, castable now and not already known, are offered ({offered})")
+
+        await ca.click('[data-spell="mage-hand"]')
+        await ca.wait_for_selector('[data-unspell]', timeout=5000)
+        await ca.wait_for_selector("[data-spell]", timeout=5000)
+
+        # Off the class list (Magical Secrets, a DM's allowance) the level
+        # limit still holds: Fireball is 3rd level.
+        await ca.click("#lu-spell-classonly")
+        await ca.wait_for_selector('[data-spell="fireball"]', timeout=5000)
+        await ca.click('[data-spell="fireball"]')
+        await ca.wait_for_selector(".toast-error", timeout=5000)
+        assert await ca.locator("[data-unspell]").count() == 1, "Fireball must not have been added"
+        ok("a spell from off the class list is still held to the level she can cast")
+        await ca.click("#lu-spell-classonly")
+        await ca.wait_for_selector('[data-spell="shatter"]', timeout=5000)
+        await ca.click('[data-spell="shatter"]')
+        await ca.wait_for_function("document.querySelectorAll('[data-unspell]').length === 2", timeout=5000)
+
+        await ca.click("#lu-next")
+        await ca.wait_for_selector(".review-grid", timeout=5000)
+        await ca.wait_for_function(
+            "!document.querySelector('.wizard-body').innerText.includes('Looking up')", timeout=5000)
+        review = await ca.locator(".wizard-body").inner_text()
+        # Level 4's die is 5, and CON is now 16 (+3): 8. The modifier going up
+        # is also worth a point for each of the three levels she already had.
+        assert "+11" in await ca.locator(".review-grid").inner_text(), review
+        assert "Constitution modifier going up" in review, review
+        assert "CON 15" in review and "16" in review, review
+        ok("raising Constitution raises hit points for the levels already behind her, and the review says why")
+        assert "College of Swords is not in the free rules" in review, review
+        ok("a subclass the SRD does not carry is named, with where to add its features by hand")
+
+        await ca.evaluate("window.__resetWrites()")
+        await ca.click("#lu-next")
+        await ca.wait_for_selector("#lu-next", state="detached", timeout=5000)
+        writes = await ca.evaluate("window.__writes")
+
+        scores = [w for w in writes if w["table"] == "ability_scores"]
+        assert len(scores) == 1 and scores[0]["payload"] == {"constitution": 16, "charisma": 17}, scores
+        ok("only the scores that changed are written")
+
+        learned = {w["payload"]["name"]: w["payload"] for w in writes
+                   if w["table"] == "spells" and w["verb"] == "insert"}
+        assert set(learned) == {"Mage Hand", "Shatter"}, learned
+        assert learned["Mage Hand"]["level"] == 0 and learned["Shatter"]["level"] == 2, learned
+        assert learned["Shatter"]["prepared"] is True, "a bard's known spell is ready to cast"
+        ok("the spells chosen are added to the sheet with their levels")
+
+        slots = [w for w in writes if w["table"] == "spell_slots"]
+        # 1st-level slots stay at 4, so that row is left alone; 2nd goes 2 -> 3
+        # and keeps the two already spent.
+        assert len(slots) == 1 and slots[0]["verb"] == "update", slots
+        assert slots[0]["payload"] == {"total": 3, "used": 2}, slots
+        ok("spell slots move to the new level's, and slots already spent stay spent")
+
+        final = [w for w in writes if w["table"] == "characters" and w["verb"] == "update"][-1]["payload"]
+        assert final["hit_point_maximum"] == 35 and final["current_hit_points"] == 31, final
+        assert final["hit_dice_total"] == "4d8", final
+        # One of three hit dice was left; a level adds one, it does not refill.
+        assert final["hit_dice_remaining"] == 2, final
+        assert "initiative_bonus" not in final, "Dexterity did not change"
+        ok("levelling adds one hit die and leaves the spent ones spent")
+        await cactx.close()
+
+        # ---------- 45d. Pact Magic trades its slots up ----------
+        wkctx, wk = await open_levelup(browser, VEX, label="levelup-warlock")
+        await wk.click('[data-hp="0"][data-method="average"]')
+        await wk.click("#lu-next")
+        await wk.wait_for_selector("#lu-spell-search", timeout=5000)
+        # Choosing is not forced: the list can fail to load, and a player may
+        # want to read up first. The review says what is still owed.
+        await wk.click("#lu-next")
+        await wk.wait_for_selector(".review-grid", timeout=5000)
+        assert "1 spell to choose" in await wk.locator(".wizard-body").inner_text()
+        ok("a spell left unchosen is flagged on the review rather than silently dropped")
+
+        await wk.evaluate("window.__resetWrites()")
+        await wk.click("#lu-next")
+        await wk.wait_for_selector("#lu-next", state="detached", timeout=5000)
+        writes = await wk.evaluate("window.__writes")
+        slots = [(w["verb"], w["payload"]) for w in writes if w["table"] == "spell_slots"]
+        assert ("delete", None) in slots, slots
+        gained = [p for v, p in slots if v == "insert"]
+        assert len(gained) == 1 and gained[0]["slot_level"] == 2 and gained[0]["total"] == 2, slots
+        ok("a warlock reaching level 3 gains 2nd-level slots and gives up the 1st-level ones")
+        await wkctx.close()
 
         # ---------- 46. Press-and-hold card menus ----------
         # The gesture has to survive three things: a scroll that starts on a
@@ -3807,7 +4122,11 @@ async def main():
         assert made["payload"]["hit_point_maximum"] == 12, made
         assert made["payload"]["level"] == 6, made
         assert made["payload"]["pending_level_up"] is True, made
-        ok("the row is written at level 1 hit points, flagged for the levels above")
+        # One hit die to go with the level 1 hit points. It is what tells the
+        # wizard which levels are still owed, on whatever device finishes.
+        assert made["payload"]["hit_dice_total"] == "1d12", made
+        assert made["payload"]["hit_dice_remaining"] == 1, made
+        ok("the row is written at level 1 hit points and hit dice, flagged for the levels above")
 
         title = await page.locator(".modal-head h2").inner_text()
         assert "1" in title and "6" in title, title
@@ -3837,15 +4156,17 @@ async def main():
         # openPanel rebuilds the dialog on every redraw, which resets its
         # scroll. With two levels owing an improvement, pressing + on the
         # lower one threw the dialog back to the top on every click.
+        # Three hit dice: level 3 was the last one finished. The level on the
+        # row is 6 and this device was told the target is 8, so the run is 4..8.
         lvl = await browser.new_context(viewport={"width": 390, "height": 720})
-        await lvl.add_init_script(stub_with(characters_single=KORR))
+        await lvl.add_init_script(stub_with(characters_single={
+            **KORR, "hit_dice_total": "3d12", "hit_dice_remaining": 3}))
         await lvl.add_init_script("""
             try {
               localStorage.setItem('dnd-session', JSON.stringify({
                 gameWorldId: 'w1', gameWorldName: 'Thornfell Reach', role: 'dm',
                 dmToken: 'tok_' + 'a'.repeat(60), dmTokenIssued: Date.now(),
                 timestamp: Date.now() }));
-              localStorage.setItem('preGrantLevel_c3', '3');
               localStorage.setItem('targetLevel_c3', '8');
             } catch (e) {}
         """)
@@ -3880,17 +4201,32 @@ async def main():
         assert after > before - 40, f"scroll jumped from {before} to {after}"
         ok(f"pressing + on the lower improvement keeps the dialog's place ({before} -> {after})")
 
-        # ---------- 66. Subclass summaries ----------
-        # Both improvements owe two points each before the step will let go.
-        for i in range(2):
-            block = lp.locator(".asi-block").nth(i)
-            for _ in range(2):
-                plus = block.locator('[data-delta="1"]:not([disabled])').first
-                if await plus.count():
-                    await plus.click()
-                    await lp.wait_for_timeout(200)
+        # ---------- 65b. Two improvements in one run stack ----------
+        # The press above put a point of level 8's on Strength, which is 18.
+        # Spending both of level 4's there too takes it to 20 first, so that
+        # later point no longer fits. Each improvement used to be measured
+        # against the score on the sheet alone, and the save then capped the
+        # result at 20 and threw the difference away without a word.
+        first = lp.locator(".asi-block").nth(0)
+        second = lp.locator(".asi-block").nth(1)
+        for _ in range(2):
+            await first.locator('[data-ab="str"][data-delta="1"]').click()
+            await lp.wait_for_timeout(200)
+        assert await second.locator('[data-ab="str"][data-delta="1"]').is_disabled()
+        blocked = await lp.locator(".wizard-blocker").inner_text()
+        assert "Strength" in blocked and "20" in blocked, blocked
+        assert await lp.locator("#lu-next").is_disabled()
+        ok("a later improvement sees an earlier one: a point that would pass 20 blocks the step, not vanishes on save")
+
+        await second.locator('[data-ab="str"][data-delta="-1"]').click()
+        await lp.wait_for_timeout(200)
+        for _ in range(2):
+            await second.locator('[data-ab="con"][data-delta="1"]').click()
+            await lp.wait_for_timeout(200)
         assert not await lp.locator("#lu-next").is_disabled(), \
             await lp.locator(".wizard-blocker").inner_text()
+
+        # ---------- 66. Subclass summaries ----------
 
         await lp.click("#lu-next")
         await lp.wait_for_selector("[data-subclass]", timeout=5000)

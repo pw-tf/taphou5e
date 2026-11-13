@@ -8,10 +8,10 @@
 //   EXP        experience_points += amount, then level recomputed from the
 //              5e thresholds; pending_level_up set only if the level moved
 //
-// v2 has no level-up wizard of its own — that lives in the classic app, driven
-// by level-up-engine.js and feature-registry.js. So a granted level is flagged
-// here and completed there, and the panel says so rather than leaving a player
-// wondering why nothing happened.
+// A grant only raises the level and sets the flag. The level is then taken by
+// whoever plays the character, from the banner on their sheet (levelup.js),
+// and the panel says so rather than leaving a DM wondering why the hit points
+// have not moved.
 // ========================================
 
 (function () {
@@ -118,7 +118,7 @@
         confirmModal({
             title: 'Grant a level to the party',
             message: `${eligible.length} character${eligible.length === 1 ? '' : 's'} will gain a level. ` +
-                     'They finish levelling up in the classic version.',
+                     'Each player then takes it from the banner on their own sheet.',
             confirmLabel: 'Grant to party',
             onConfirm: () => grantLevels(characters)
         });
@@ -225,8 +225,9 @@
             ${pending ? `
                 <div class="error-banner" style="background:var(--accent-soft);border-color:var(--accent-soft-border);color:var(--text-secondary)">
                     ${pending} character${pending === 1 ? ' has' : 's have'} a level waiting to be taken.
-                    Levelling up is finished in the classic version, which picks the
-                    new features and hit points.
+                    Each player takes theirs from the banner on their sheet, which asks
+                    for hit points, improvements, a subclass and spells. Grant more than
+                    one before they do and the sheet walks every level in between.
                 </div>` : ''}
 
             <div class="section-head">

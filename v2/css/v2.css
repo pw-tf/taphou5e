@@ -863,6 +863,21 @@ a.check-row:hover { text-decoration: none; background: var(--bg-hover); }
 .hp-choice-row .ab { font-size: var(--fs-11); color: var(--text-tertiary); font-weight: 600; flex: none; }
 .hp-choice-actions { display: flex; gap: var(--space-6); margin-left: auto; min-width: 0; }
 .hp-choice-actions .btn { padding: 7px 12px; font-size: var(--fs-12); white-space: nowrap; }
+/* A roll made at the table, typed in: wide enough for "12" and its spinner. */
+.hp-own {
+  flex: none; width: 58px; padding: 7px 8px; border-radius: var(--radius-sm);
+  background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+  color: var(--text-primary); font: inherit; font-size: var(--fs-12); text-align: center;
+}
+.hp-gain { flex: none; min-width: 3ch; text-align: right; font-weight: 700; font-size: var(--fs-13); }
+
+.chip-row .chip:disabled { opacity: .4; cursor: not-allowed; }
+.pick-row:disabled { opacity: .4; cursor: not-allowed; }
+
+.review-notes {
+  margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: var(--space-6);
+  font-size: var(--fs-12); color: var(--text-secondary); line-height: 1.5;
+}
 
 .asi-block { display: flex; flex-direction: column; gap: var(--space-sm); }
 .asi-block + .asi-block { margin-top: var(--space-md); }
