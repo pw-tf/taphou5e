@@ -1233,6 +1233,7 @@ async def main():
                      width: bar.getBoundingClientRect().width,
                      radius: getComputedStyle(bar).borderTopLeftRadius,
                      tile: r.width, line: r.height,
+                     after_width: parseFloat(after.width),
                      layers: after.backgroundImage.split('gradient(').length - 1,
                      repeating: after.backgroundImage.startsWith('repeating-linear-gradient(') }; })"""
 
@@ -1244,6 +1245,8 @@ async def main():
             every = expected_every(b)
             assert every is not None and b["line"] == 1, b
             assert abs(b["tile"] - b["width"] / b["max"] * every) < 0.01, b
+            # The notch layer stops 2px short, so no notch is drawn on the end.
+            assert abs(b["after_width"] - (b["width"] - 2)) < 0.01, b
             return every
 
         bars = await page.evaluate(NOTCHES_JS)

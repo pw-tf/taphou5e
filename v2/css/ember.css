@@ -139,13 +139,30 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
     calc(var(--hp-step) * 10  + var(--off10)  * 99999),
     calc(var(--hp-step) * 50  + var(--off50)  * 99999),
     calc(var(--hp-step) * 100 + var(--off100) * 99999));
-  --hp-line: calc(1px - var(--off100));
+  /* A whole number of device pixels (theme.js sets --device-line), so every
+     notch is the same thickness at fractional pixel ratios. 0 if no step fits. */
+  --hp-line: max(0px, calc(var(--device-line, 1px) - var(--off100) * 9));
 }
+/* The gradient stops 2px short of the bar's end. A notch that falls ON the
+   end (whenever max HP is a multiple of the step) landed flush, a sliver
+   short, or not at all depending on rounding; cut off, every bar ends in a
+   whole segment. 2px is less than the narrowest step (--hp-notch-min), so no
+   other notch is lost.
+
+   Stops are hard on purpose. A bar's width rarely divides evenly by its hit
+   points, so segments differ by one device pixel; softening the stops to
+   place lines between pixels gives each line a faint fringe that reads as a
+   second notch. */
 .hp-bar.notched::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
+  content: ''; position: absolute; inset: 0 2px 0 0; pointer-events: none;
+  /* Lines sit --hp-nudge early. Without it a notch at a round fraction of the
+     bar (half way, a quarter) can have an edge exactly on a pixel centre,
+     where the rasteriser's tie-break draws that one line a pixel thinner. */
+  --hp-nudge: .02px;
   background-image: repeating-linear-gradient(to right,
-    transparent 0 calc(var(--hp-tile) - var(--hp-line)),
-    var(--hp-gap) calc(var(--hp-tile) - var(--hp-line)) var(--hp-tile));
+    transparent 0 calc(var(--hp-tile) - var(--hp-line) - var(--hp-nudge)),
+    var(--hp-gap) calc(var(--hp-tile) - var(--hp-line) - var(--hp-nudge)) calc(var(--hp-tile) - var(--hp-nudge)),
+    transparent calc(var(--hp-tile) - var(--hp-nudge)) var(--hp-tile));
 }
 .hp-bar > .fill { height: 100%; transition: width var(--transition-normal), background var(--transition-normal); }
 .hp-bar > .fill.high { background: var(--hp-high); }
