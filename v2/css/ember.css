@@ -101,7 +101,41 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .hp-value .max { color: var(--text-tertiary); }
 .hp-value .temp { color: var(--hp-temp-text); margin-left: 4px; }
 .hp-state { font-family: var(--font-mono); font-size: var(--fs-10); letter-spacing: .06em; }
-.hp-bar { height: var(--hp-bar-h); background: var(--bg-hover); border-radius: var(--radius-full); overflow: hidden; display: flex; }
+.hp-bar {
+  height: var(--hp-bar-h); background: var(--bg-hover); border-radius: var(--radius-sm);
+  overflow: hidden; display: flex; position: relative;
+  /* So the notches below can measure the bar itself, in cqw. */
+  container-type: inline-size;
+}
+/* Notches: a gap in the card's own colour after every hit point, cut through
+   the fill and the empty track alike, so what is left and what is lost can
+   both be counted. One pseudo-element, five stacked backgrounds: every 1, 5,
+   10, 50 and 100 points. Each layer's line is as wide as its step is clear of
+   --hp-notch-min, clamped to 0..1px -- so a step too narrow to see draws
+   nothing, and the next coarser one, whose lines sit on the same points,
+   carries on. No script measures anything; it follows the bar's real width. */
+.hp-bar.notched::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  --hp-step: calc(100cqw / var(--hp-max));
+  --hp-gap: var(--hp-notch-color, var(--bg-secondary));
+  --w1:   clamp(0px, calc((var(--hp-step)       - var(--hp-notch-min)) * 999), 1px);
+  --w5:   clamp(0px, calc((var(--hp-step) * 5   - var(--hp-notch-min)) * 999), 1px);
+  --w10:  clamp(0px, calc((var(--hp-step) * 10  - var(--hp-notch-min)) * 999), 1px);
+  --w50:  clamp(0px, calc((var(--hp-step) * 50  - var(--hp-notch-min)) * 999), 1px);
+  --w100: clamp(0px, calc((var(--hp-step) * 100 - var(--hp-notch-min)) * 999), 1px);
+  background-image:
+    linear-gradient(to right, transparent calc(100% - var(--w1)),   var(--hp-gap) 0),
+    linear-gradient(to right, transparent calc(100% - var(--w5)),   var(--hp-gap) 0),
+    linear-gradient(to right, transparent calc(100% - var(--w10)),  var(--hp-gap) 0),
+    linear-gradient(to right, transparent calc(100% - var(--w50)),  var(--hp-gap) 0),
+    linear-gradient(to right, transparent calc(100% - var(--w100)), var(--hp-gap) 0);
+  background-size:
+    var(--hp-step) 100%,
+    calc(var(--hp-step) * 5) 100%,
+    calc(var(--hp-step) * 10) 100%,
+    calc(var(--hp-step) * 50) 100%,
+    calc(var(--hp-step) * 100) 100%;
+}
 .hp-bar > .fill { height: 100%; transition: width var(--transition-normal), background var(--transition-normal); }
 .hp-bar > .fill.high { background: var(--hp-high); }
 .hp-bar > .fill.mid  { background: var(--hp-mid); }

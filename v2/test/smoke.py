@@ -1077,6 +1077,50 @@ async def main():
         assert fills <= 8, f"expected at most 2 fills per card, got {fills} total"
         ok(f"HP bars use {fills} fill elements for 4 characters (not one per hit point)")
 
+        # The bar is square and notched: a gap per hit point, drawn as stacked
+        # backgrounds on one pseudo-element. Five layers -- every 1, 5, 10, 50
+        # and 100 points -- and a layer whose step would be under 3.5px wide
+        # at this bar's real width draws nothing.
+        NOTCHES_JS = """() => [...document.querySelectorAll('.character-card .hp-bar')].map(bar => {
+            const after = getComputedStyle(bar, '::after');
+            return { max: Number(bar.style.getPropertyValue('--hp-max')),
+                     notched: bar.classList.contains('notched'),
+                     width: bar.getBoundingClientRect().width,
+                     radius: getComputedStyle(bar).borderTopLeftRadius,
+                     step: parseFloat(after.backgroundSize),
+                     drawn: after.backgroundImage.split('linear-gradient(').slice(1)
+                                 .map(layer => layer.includes('calc(100% - 1px)')) }; })"""
+
+        def expected_layers(bar):
+            return [bar["width"] / bar["max"] * every > 3.6 for every in (1, 5, 10, 50, 100)]
+
+        bars = await page.evaluate(NOTCHES_JS)
+        assert [b["max"] for b in bars] == [44, 44, 52, 33], bars
+        assert all(b["notched"] and b["radius"] == "2px" for b in bars), bars
+        for b in bars:
+            assert abs(b["step"] - b["width"] / b["max"]) < 0.01, b
+            assert b["drawn"] == expected_layers(b), b
+        assert all(b["drawn"][0] for b in bars), "at this width every point should have its own notch"
+        ok("HP bars are square, with one notch per hit point")
+
+        await page.evaluate("""
+            window.__patchFixture('characters', 'c1', { hit_point_maximum: 600, current_hit_points: 450 });
+            window.__liveEmit({ table: 'characters', character_id: 'c1', op: 'UPDATE' });
+        """)
+        await page.wait_for_function(
+            "document.querySelector('.character-card .hp-bar').style.getPropertyValue('--hp-max') === '600'",
+            timeout=5000)
+        big = (await page.evaluate(NOTCHES_JS))[0]
+        assert big["drawn"] == expected_layers(big) and not big["drawn"][0] and any(big["drawn"]), big
+        ok(f"a 600 hit point bar drops the per-point notches for coarser ones {big['drawn']}")
+        await page.evaluate("""
+            window.__patchFixture('characters', 'c1', { hit_point_maximum: 44, current_hit_points: 44 });
+            window.__liveEmit({ table: 'characters', character_id: 'c1', op: 'UPDATE' });
+        """)
+        await page.wait_for_function(
+            "document.querySelector('.character-card .hp-bar').style.getPropertyValue('--hp-max') === '44'",
+            timeout=5000)
+
         # Korr 22/52 -> mid ; Brannor 44/44 -> high ; Wisp 0/33 -> DOWN
         assert (await cards.nth(2).locator(".hp-state").inner_text()).strip() == "BLOODIED"
         assert (await cards.nth(0).locator(".hp-state").inner_text()).strip() == "HEALTHY"
@@ -1924,7 +1968,7 @@ async def main():
         await mp.click("#fab-toggle")
         await mp.wait_for_timeout(400)
         labels = [t.strip() for t in await mp.locator(".fab-item").all_inner_texts()]
-        for expected in ("Roll initiative", "Add party", "Add monsters", "Add NPC"):
+        for expected in ("Roll initiative", "Add players", "Add monsters", "Add NPC"):
             assert expected in labels, (expected, labels)
         ok(f"tracker actions live in the flip-up menu ({len(labels)} of them)")
 
@@ -2277,6 +2321,80 @@ async def main():
         assert inner == "1px", f"rows inside the block should drop their own stripe: {inner}"
         ok("rows inside a colour block drop their individual stripe")
 
+        # A combatant alone in its colour has no set to be boxed with, so the
+        # colour goes all the way round its own row instead of down one edge.
+        lone = page.locator('.init-row:has-text("Bog Lurker")')
+        lone_id = await lone.get_attribute("data-id")
+        await page.evaluate("""id => {
+            window.__patchFixture('encounter_combatants', id, { color: '#7fa65c' });
+            window.__liveEmit({ table: 'encounter_combatants', encounter_id: 'e1', op: 'UPDATE' });
+        }""", lone_id)
+        await page.wait_for_selector('.init-row.has-color:has-text("Bog Lurker")', timeout=5000)
+        assert await page.locator('.colour-block:has-text("Bog Lurker")').count() == 0
+        sides = await lone.evaluate("""el => { const s = getComputedStyle(el);
+            return [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor]; }""")
+        assert sides == ["rgb(127, 166, 92)"] * 4, sides
+        ok("a combatant alone in its colour is outlined in it on every side")
+        await page.evaluate("""id => {
+            window.__patchFixture('encounter_combatants', id, { color: null });
+            window.__liveEmit({ table: 'encounter_combatants', encounter_id: 'e1', op: 'UPDATE' });
+        }""", lone_id)
+        await page.wait_for_function("document.querySelectorAll('.init-row.has-color').length === 2", timeout=5000)
+
+        # A party member is marked with a figure, not the word.
+        party_row = page.locator(".init-row.is-party")
+        assert await party_row.locator(".party-mark svg").count() == 1
+        assert await party_row.locator(".party-mark").get_attribute("aria-label") == "Party member"
+        assert await page.locator('.init-row .hidden-pill:has-text("party")').count() == 0
+        ok("a party member carries the party icon, with a label for screen readers")
+
+        # The name opened the details and nothing showed that it would. The
+        # arrow beside it is the control, and it shows when they are open.
+        toggle = party_row.locator(".init-toggle")
+        assert await page.locator(".init-toggle").count() == await page.locator(".init-row").count()
+        assert await toggle.get_attribute("aria-expanded") == "false"
+        await toggle.click()
+        await page.wait_for_selector(".init-row.is-party.is-open .init-detail", timeout=5000)
+        assert await party_row.locator(".init-toggle").get_attribute("aria-expanded") == "true"
+        assert await page.locator(".init-detail").count() == 1
+        await party_row.locator(".init-toggle").click()
+        await page.wait_for_timeout(300)
+        assert await page.locator(".init-detail").count() == 0
+        assert await page.locator(".init-row.is-open").count() == 0
+        ok("the arrow beside a name opens and closes the details, and shows which it is")
+
+        # Add players: everyone at once, or only some. The fixture world has
+        # four characters and one is already in this encounter.
+        await act(page, "Add players")
+        await page.wait_for_selector("#players-all", timeout=5000)
+        assert (await page.locator("#players-all").inner_text()).strip() == "Add all 3"
+        names = [n.strip() for n in await page.locator(".choose-row .name").all_inner_texts()]
+        assert names == ["Brannor Hale", "Korr", "Wisp"], names
+        assert await page.locator("#players-some").is_disabled()
+        await page.evaluate("window.__resetWrites()")
+        await page.locator('.choose-row:has-text("Korr") input').check()
+        assert (await page.locator("#players-some").inner_text()).strip() == "Add 1 selected"
+        await page.click("#players-some")
+        await page.wait_for_timeout(600)
+        added = [w for w in await page.evaluate("window.__writes")
+                 if w["table"] == "encounter_combatants" and w["verb"] == "insert"]
+        assert len(added) == 1 and len(added[0]["payload"]) == 1, added
+        row = added[0]["payload"][0]
+        assert row["character_id"] == "c3" and row["combatant_type"] == "character", row
+        assert "current_hit_points" not in row and "max_hit_points" not in row, row
+        assert await page.locator("#players-all").count() == 0
+        ok("a single player character can be added to an encounter on their own")
+
+        await act(page, "Add players")
+        await page.wait_for_selector("#players-all", timeout=5000)
+        await page.evaluate("window.__resetWrites()")
+        await page.click("#players-all")
+        await page.wait_for_timeout(600)
+        added = [w for w in await page.evaluate("window.__writes")
+                 if w["table"] == "encounter_combatants" and w["verb"] == "insert"]
+        assert len(added) == 1 and sorted(r["character_id"] for r in added[0]["payload"]) == ["c1", "c3", "c4"], added
+        ok("Add all still puts every missing character in at once")
+
         # Picking a suggestion must put the chosen name in the box, not leave
         # the fragment that was typed.
         await act(page, "Add monsters")
@@ -2307,7 +2425,11 @@ async def main():
         await page.wait_for_timeout(700)
         assert await page.locator(".colour-block").count() == 0, "colour blocks are a planning view"
         assert await page.locator(".init-row.has-color").count() == 2
-        ok("a running encounter keeps flat initiative order with per-row colour stripes")
+        sides = await page.locator(".init-row.has-color").evaluate_all(
+            """els => els.map(el => { const s = getComputedStyle(el);
+                 return [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].join('|'); })""")
+        assert sides == ["|".join(["rgb(61, 90, 114)"] * 4)] * 2, sides
+        ok("a running encounter keeps flat initiative order, each coloured row outlined on its own")
 
         await page.screenshot(path="/tmp/shot-17-colour.png", full_page=True)
 

@@ -1091,7 +1091,7 @@
                                 <span class="hp-state state-${hpClass(c.current_hit_points, c.hit_point_maximum)}"
                                       style="margin-left:auto">${hpStateLabel(c.current_hit_points, c.hit_point_maximum)}</span>
                             </div>
-                            <div class="hp-bar">
+                            <div class="hp-bar${hpNotchClass(c.hit_point_maximum)}"${hpNotchStyle(c.hit_point_maximum)}>
                                 <div class="fill ${hpClass(c.current_hit_points, c.hit_point_maximum)}"
                                      style="width:${c.hit_point_maximum ? Math.max(0, Math.min(100, (c.current_hit_points / c.hit_point_maximum) * 100)) : 0}%"></div>
                             </div>
