@@ -2,7 +2,7 @@
 
 A Playwright pass over v2: login, hub, roster, character sheet, theming,
 campaigns, the compendium, the encounter tracker, responsive behaviour and the
-version router, and the Owlbear Rodeo extension. 381 assertions.
+version router, and the Owlbear Rodeo extension. 393 assertions.
 
 It injects a **stub Supabase client** before any page script runs and asserts
 against fixtures, rather than hitting the live database. Two reasons: the tests
@@ -116,6 +116,14 @@ at it directly — edit `CHROME` at the top of the file, or run
   - HP bars: their geometry and colours, a player getting no enemy bar while
     monster HP is hidden, and both kinds of change (a character's, an
     encounter's) redrawing them live;
+  - the bars' notches (every point, or every 5/10/50/100 where a point would
+    be under 3.5px, as on v2's bars) and their `9/44 +5` number;
+  - a name over each linked token, shown to players even while an enemy's HP
+    is hidden, and nothing at all for a token hidden in Owlbear;
+  - an encounter starting in taphou5e badging the GM's button with the
+    enemies still hidden on the map and saying so once, revealing nothing by
+    itself; the panel revealing only what is left ticked; and the badge
+    letting go once the GM has answered;
   - the popup's writes: clamped damage, a monster defeated at zero, the
     monster-HP switch, and the sheet opening in a modal;
   - link by name never reusing a combatant already on the map;

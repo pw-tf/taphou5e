@@ -567,7 +567,7 @@ const put = (k, v) => localStorage.setItem('__obr_' + k, JSON.stringify(v));
 const listeners = { room: [], items: [], player: [], local: [] };
 const on = kind => cb => { listeners[kind].push(cb); return () => {}; };
 const fire = (kind, value) => listeners[kind].forEach(cb => cb(value));
-window.__obr = { menus: {}, popovers: [], modals: [], closed: [], badge: null };
+window.__obr = { menus: {}, popovers: [], modals: [], closed: [], badge: null, notes: [] };
 
 const pick = (list, filter) => !filter ? list
   : Array.isArray(filter) ? list.filter(i => filter.includes(i.id)) : list.filter(filter);
@@ -587,11 +587,16 @@ function bounds(item) {
            width: w, height: h, center: { x, y } };
 }
 
-export function buildShape() {
-  const item = { type: 'SHAPE', metadata: {}, visible: true };
+// A builder records each call as a property: .plainText('9/44') -> item.plainText.
+function builder(item) {
   const b = new Proxy({}, { get: (_, name) => name === 'build'
     ? () => copy(item) : value => { item[name] = value; return b; } });
   return b;
+}
+export function buildShape() { return builder({ type: 'SHAPE', metadata: {}, visible: true }); }
+// The real builder defaults to rich text on the TEXT layer; so does this.
+export function buildText() {
+  return builder({ type: 'TEXT', metadata: {}, visible: true, layer: 'TEXT', textType: 'RICH' });
 }
 
 const OBR = {
@@ -643,6 +648,10 @@ const OBR = {
   modal: { open: async m => { window.__obr.modals.push(m); }, close: async id => { window.__obr.closed.push(id); } },
   action: { setBadgeText: async t => { window.__obr.badge = t === undefined ? null : t; },
             setIcon: async icon => { window.__obr.icon = icon; } },
+  notification: {
+    show: async (message, variant) => { window.__obr.notes.push({ message, variant }); return 'n' + window.__obr.notes.length; },
+    close: async () => {}
+  },
   theme: { getTheme: async () => ({ mode: get('theme', 'DARK') }), onChange: () => () => {} },
   viewport: { getWidth: async () => 1280, getHeight: async () => 900 }
 };
@@ -4867,8 +4876,10 @@ async def main():
         ok("the toolbar button and every menu carry the white taphou5e logo in Owlbear's dark theme")
 
         # The GM sees every linked token's bar: Sythra 9/44 with 5 temp, the
-        # gargoyle full. A bar is three shapes at most, whatever the HP.
-        await until(gm, "window.__obrLocal().length === 5")
+        # gargoyle full.
+        await until(gm, """(() => { const ids = window.__obrLocal().map(i => i.id);
+            return ['t-sythra/hp', 't-sythra/name', 't-garg/hp', 't-garg/name']
+                .every(s => ids.some(id => id.endsWith(s))); })()""")
         local = await gm.evaluate("window.__obrLocal()")
         by_id = {i["id"].split("/")[-2] + "/" + i["id"].split("/")[-1]: i for i in local}
         track, fill, temp = by_id["t-sythra/track"], by_id["t-sythra/fill"], by_id["t-sythra/temp"]
@@ -4879,6 +4890,32 @@ async def main():
         assert track["position"]["y"] > 375, track["position"]          # below the token
         assert by_id["t-garg/fill"]["fillColor"] == "#7fa65c"
         ok("bars: Sythra's track, low fill at 9/44 and temp segment; the gargoyle's full and green")
+
+        # Notches, as on v2's own bars. On a 126px bar a single point of 44 or
+        # 52 would be under 3.5px, so they fall back to one every 5.
+        notches = lambda tok: sorted(int(k.split("notch-")[1]) for k in by_id if k.startswith(tok + "/notch-"))
+        assert notches("t-sythra") == [5, 10, 15, 20, 25, 30, 35, 40], notches("t-sythra")
+        assert notches("t-garg") == list(range(5, 52, 5)), notches("t-garg")
+        n15 = by_id["t-sythra/notch-15"]
+        assert abs(n15["position"]["x"] + n15["width"] / 2 - (track["position"]["x"] + 126 * 15 / 44)) < 0.01, n15
+        assert n15["zIndex"] > fill["zIndex"] and n15["zIndex"] > temp["zIndex"], "notches sit over the fill"
+        ok("bars are notched across their whole width, every 5 HP where single points would be too fine")
+
+        # The number on the bar: current/max, and the temporary hit points.
+        hp = by_id["t-sythra/hp"]
+        assert hp["plainText"] == "9/44 +5" and hp["textType"] == "PLAIN", hp
+        assert by_id["t-garg/hp"]["plainText"] == "52/52"
+        assert hp["layer"] == "ATTACHMENT" and hp["attachedTo"] == "t-sythra" and hp["disableHit"], hp
+        assert abs(hp["width"] - 126) < 0.01 and hp["position"] == track["position"], (hp, track)
+        ok("each bar carries its numbers, '9/44 +5', as plain text under the fog layer")
+
+        # Names above the tokens: the character's own, the encounter's for an enemy.
+        name = by_id["t-sythra/name"]
+        assert name["plainText"] == "Sythra of the Ninefold Ash", name
+        assert by_id["t-garg/name"]["plainText"] == "Gargoyle 1"
+        assert name["position"]["y"] + name["height"] <= 225, name        # the token's top edge is 225
+        assert name["layer"] == "ATTACHMENT" and name["textAlign"] == "CENTER", name
+        ok("linked tokens are named above them in Owlbear: Sythra by name, the enemy as 'Gargoyle 1'")
 
         # The player's client adopts the room's session and draws only what a
         # player may see: Sythra, and no gargoyle while monster HP is hidden.
@@ -4897,12 +4934,15 @@ async def main():
         await until(pl, "(JSON.parse(localStorage.getItem('dnd-session')) || {}).dmToken === 'tok_' + 's'.repeat(60)")
         sess = await pl.evaluate("JSON.parse(localStorage.getItem('dnd-session'))")
         assert sess["role"] == "player" and sess["gameWorldId"] == "w1", sess
-        await until(pl, "window.__obrLocal().length === 3")
+        await until(pl, """(() => { const ids = window.__obrLocal().map(i => i.id);
+            return ids.some(id => id.endsWith('t-sythra/hp')) && ids.some(id => id.endsWith('t-garg/name')); })()""")
         ids = sorted(i["id"] for i in await pl.evaluate("window.__obrLocal()"))
-        assert all("t-sythra" in i for i in ids), ids
+        garg = [i for i in ids if "t-garg" in i]
+        assert garg == ["com.taphou5e.owlbear/bar/t-garg/name"], garg
         hdrs = await pl.evaluate("window.__capturedHeaders")
         assert hdrs.get("x-dm-token") == "tok_" + "s" * 60, hdrs
         ok("a player's client adopts the shared session, with no PIN, and draws no enemy bar while HP is hidden")
+        ok("a player sees an enemy's name over its token even while its HP is hidden")
 
         # The DM shows monster HP. The encounter signal alone brings the bar.
         await until(pl, "typeof window.__liveEmit === 'function'")
@@ -4910,8 +4950,27 @@ async def main():
             window.__patchFixture('encounters', 'e1', { hide_monster_hp: false });
             window.__liveEmit({ table: 'encounters', encounter_id: 'e1', op: 'UPDATE' });
         """)
-        await until(pl, "window.__obrLocal().length === 5")
-        ok("showing monster HP in taphou5e puts the gargoyle's bar on the player's map, live")
+        await until(pl, "window.__obrLocal().some(i => i.id.endsWith('t-garg/track'))")
+        await until(pl, "(window.__obrLocal().find(i => i.id.endsWith('t-garg/hp')) || {}).plainText === '52/52'")
+        ok("showing monster HP in taphou5e puts the gargoyle's notched bar and numbers on the player's map, live")
+
+        # Hidden in Owlbear, a token shows a player nothing: no bar, no name.
+        await pl.evaluate("""() => {
+            const items = JSON.parse(localStorage.getItem('__obr_items'));
+            items.find(i => i.id === 't-garg').visible = false;
+            localStorage.setItem('__obr_items', JSON.stringify(items));
+            window.dispatchEvent(new StorageEvent('storage', { key: '__obr_items' }));
+        }""")
+        await until(pl, "!window.__obrLocal().some(i => i.id.includes('t-garg'))")
+        assert any(i["id"].endswith("t-sythra/name") for i in await pl.evaluate("window.__obrLocal()"))
+        ok("a token hidden in Owlbear shows a player neither its bar nor its name")
+        await pl.evaluate("""() => {
+            const items = JSON.parse(localStorage.getItem('__obr_items'));
+            items.find(i => i.id === 't-garg').visible = true;
+            localStorage.setItem('__obr_items', JSON.stringify(items));
+            window.dispatchEvent(new StorageEvent('storage', { key: '__obr_items' }));
+        }""")
+        await until(pl, "window.__obrLocal().some(i => i.id.endsWith('t-garg/track'))")
 
         # Damage in taphou5e redraws the bar.
         await pl.evaluate("""
@@ -4921,7 +4980,9 @@ async def main():
         await until(pl, """(() => { const f = window.__obrLocal().find(i => i.id.endsWith('t-sythra/fill'));
                                    return f && Math.abs(f.width - 63) < 0.01 && f.fillColor === '#d9a94a'; })()""")
         assert not any(i["id"].endswith("t-sythra/temp") for i in await pl.evaluate("window.__obrLocal()"))
-        ok("HP changed on the sheet redraws the Owlbear bar: half, amber, temp gone")
+        hp_now = await pl.evaluate("window.__obrLocal().find(i => i.id.endsWith('t-sythra/hp')).plainText")
+        assert hp_now == "22/44", hp_now
+        ok("HP changed on the sheet redraws the Owlbear bar: half, amber, temp gone, '22/44'")
 
         await pl.evaluate("localStorage.setItem('__obr_theme', JSON.stringify('LIGHT'))")
         await pl.reload(wait_until="domcontentloaded")
@@ -4941,6 +5002,71 @@ async def main():
         await until(pl, "localStorage.getItem('dnd-session') === null")
         ok("stopping the share signs the player's client out")
         await octx.close()
+
+        # ---------- Revealing enemies when an encounter starts ----------
+        # Two enemies hidden on the map, the encounter not yet started. When it
+        # starts in taphou5e, the GM's toolbar button is badged and a notice
+        # says where to reveal them -- but nothing appears until the GM says.
+        planned = stub_with(encounters=[{"id": "e1", "name": "Ambush at the Ford", "status": "planned",
+                                         "round": 0, "campaign_id": "cam1", "hide_monster_hp": True}])
+        hidden_items = [dict(OBR_ITEMS[0]), dict(OBR_ITEMS[1], visible=False),
+                        {"id": "t-g2", "name": "Gargoyle", "layer": "CHARACTER", "visible": False,
+                         "position": {"x": 900, "y": 300}, "width": 150, "height": 150,
+                         "metadata": {OBR_LINK: {"kind": "combatant", "id": "cb4"}}}]
+        rctx = await obr_context(browser, planned)
+        # The stub's fixtures are rebuilt on every load, so once the encounter
+        # has "started" this flag starts it again on each page that follows.
+        await rctx.add_init_script("""try { if (localStorage.getItem('__e1_active'))
+            window.__patchFixture('encounters', 'e1', { status: 'active', round: 1 }); } catch (e) {}""")
+        bg = await rctx.new_page()
+        watch(bg, "obr-reveal-bg")
+        await obr_seed(bg, "GM", items=hidden_items, session=OBR_DM)
+        await bg.goto(f"{BASE}/owlbear/background.html", wait_until="domcontentloaded")
+        await until(bg, "window.__obrLocal().some(i => i.id.endsWith('t-g2/name'))")
+        await bg.wait_for_timeout(300)
+        assert await bg.evaluate("window.__obr.badge") is None
+        assert await bg.evaluate("window.__obr.notes") == []
+        ok("hidden enemies of an encounter not yet started are not offered")
+
+        await until(bg, "typeof window.__liveEmit === 'function'")
+        await bg.evaluate("""
+            window.__patchFixture('encounters', 'e1', { status: 'active', round: 1 });
+            window.__liveEmit({ table: 'encounters', encounter_id: 'e1', op: 'UPDATE' });
+        """)
+        await until(bg, "window.__obr.badge === '2'")
+        notes = await bg.evaluate("window.__obr.notes")
+        assert len(notes) == 1, notes
+        assert "Ambush at the Ford has started" in notes[0]["message"] and "2 enemies" in notes[0]["message"], notes
+        items = {i["id"]: i for i in await bg.evaluate("JSON.parse(localStorage.getItem('__obr_items'))")}
+        assert items["t-garg"]["visible"] is False and items["t-g2"]["visible"] is False, "never automatic"
+        ok("starting the encounter badges the GM's button with the 2 hidden enemies and says so, revealing nothing itself")
+
+        await bg.evaluate("localStorage.setItem('__e1_active', '1')")
+        await bg.reload(wait_until="domcontentloaded")
+        await until(bg, "window.__obr.badge === '2'")
+        await bg.wait_for_timeout(300)
+        assert await bg.evaluate("window.__obr.notes") == [], "told once per encounter, not on every load"
+        ok("the notice comes once per encounter; the badge stays until the GM answers")
+
+        pn = await rctx.new_page()
+        watch(pn, "obr-reveal-panel")
+        await pn.goto(f"{BASE}/owlbear/panel.html", wait_until="domcontentloaded")
+        await pn.wait_for_selector(".pn-reveal", timeout=8000)
+        rows = await pn.locator(".pn-reveal-row").all_inner_texts()
+        assert len(rows) == 2 and any("Gargoyle 2" in r for r in rows), rows
+        assert (await pn.locator("#pn-reveal").inner_text()).strip() == "Reveal 2"
+        await pn.locator('[data-reveal="t-g2"]').uncheck()
+        assert (await pn.locator("#pn-reveal").inner_text()).strip() == "Reveal 1"
+        await pn.click("#pn-reveal")
+        await until(pn, "!document.querySelector('.pn-reveal')")
+        items = {i["id"]: i for i in await pn.evaluate("JSON.parse(localStorage.getItem('__obr_items'))")}
+        assert items["t-garg"]["visible"] is True and items["t-g2"]["visible"] is False, items
+        assert "Revealed 1 enemy" in await pn.locator(".pn-note").inner_text()
+        ok("the panel lists the hidden enemies, and reveals only the ones left ticked")
+
+        await until(bg, "window.__obr.badge === null")
+        ok("once answered the badge clears, and the one held back is not offered again")
+        await rctx.close()
 
         # A database without world_share_player_session: the GM gives the
         # player PIN once, and the room gets a player session that way.
