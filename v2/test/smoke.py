@@ -2348,6 +2348,19 @@ async def main():
         assert await page.locator('.init-row .hidden-pill:has-text("party")').count() == 0
         ok("a party member carries the party icon, with a label for screen readers")
 
+        # Outlined all the way round in the party blue, not striped down one edge.
+        # The blue is --hp-temp, which differs by theme, so compare with what
+        # the theme resolves it to rather than one theme's value.
+        sides = await party_row.evaluate("""el => { const s = getComputedStyle(el);
+            const probe = document.createElement('i');
+            probe.style.color = 'var(--hp-temp)'; document.body.appendChild(probe);
+            const blue = getComputedStyle(probe).color; probe.remove();
+            return { blue, sides: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor],
+                     widths: [s.borderTopWidth, s.borderLeftWidth], shadow: s.boxShadow }; }""")
+        assert sides["sides"] == [sides["blue"]] * 4 and sides["widths"] == ["1px", "1px"], sides
+        assert sides["blue"] in sides["shadow"], sides
+        ok("a party member's row is outlined on every side, not striped down one")
+
         # The name opened the details and nothing showed that it would. The
         # arrow beside it is the control, and it shows when they are open.
         toggle = party_row.locator(".init-toggle")

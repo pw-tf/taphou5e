@@ -272,7 +272,9 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: var(--radius-lg);
 }
 .init-row.is-active { background: var(--accent-soft); border-color: var(--accent-soft-border); }
-.init-row.is-party { border-left: 3px solid var(--hp-temp); }
+/* The party is outlined all the way round, the way an assigned colour is:
+   the second pixel is a shadow, so nothing inside the row moves. */
+.init-row.is-party { border-color: var(--hp-temp); box-shadow: 0 0 0 1px var(--hp-temp); }
 .init-row.is-dead { opacity: .55; background: var(--bg-sunken); }
 .init-row.is-dead .init-name { text-decoration: line-through; color: var(--text-secondary); }
 .init-value { width: 40px; flex: none; text-align: center; }
