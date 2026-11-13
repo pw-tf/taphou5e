@@ -136,9 +136,11 @@ export async function stopRoomSession(worldId) {
 // Reading what tokens are linked to
 // ========================================
 
-const CHARACTER_COLUMNS = 'id, name, current_hit_points, hit_point_maximum, temporary_hit_points';
+const CHARACTER_COLUMNS =
+    'id, name, current_hit_points, hit_point_maximum, temporary_hit_points, armor_class, initiative_bonus';
 const COMBATANT_COLUMNS =
-    'id, encounter_id, display_name, current_hit_points, max_hit_points, temporary_hit_points, is_defeated';
+    'id, encounter_id, display_name, current_hit_points, max_hit_points, temporary_hit_points, is_defeated, ' +
+    'armor_class, initiative';
 
 const byId = rows => Object.fromEntries((rows || []).map(r => [r.id, r]));
 const unique = list => Array.from(new Set(list));
@@ -151,19 +153,34 @@ export async function fetchLinked(links) {
     const combatantIds = unique(links.filter(l => l.kind === 'combatant').map(l => l.id));
     const none = { data: [] };
 
-    const [characters, combatants] = await Promise.all([
+    const [characters, combatants, seats] = await Promise.all([
         characterIds.length ? db.from('characters').select(CHARACTER_COLUMNS).in('id', characterIds) : none,
-        combatantIds.length ? db.from('encounter_combatants').select(COMBATANT_COLUMNS).in('id', combatantIds) : none
+        combatantIds.length ? db.from('encounter_combatants').select(COMBATANT_COLUMNS).in('id', combatantIds) : none,
+        // A character's own place in a fight: the initiative they rolled.
+        characterIds.length ? db.from('encounter_combatants').select('character_id, encounter_id, initiative')
+            .in('character_id', characterIds) : none
     ]);
-    const encounterIds = unique((combatants.data || []).map(c => c.encounter_id));
+    const seatRows = (seats.data || []).filter(r => characterIds.includes(r.character_id));
+    const encounterIds = unique((combatants.data || []).concat(seatRows).map(c => c.encounter_id));
     const encounters = encounterIds.length
         ? await db.from('encounters').select('id, name, status, hide_monster_hp').in('id', encounterIds)
         : none;
+    const encounterById = byId(encounters.data);
+
+    // Only a running encounter counts; a planned one has no turn order yet.
+    const rolled = {};
+    seatRows.forEach(r => {
+        const enc = encounterById[r.encounter_id];
+        if (enc && enc.status === 'active' && r.initiative !== null && r.initiative !== undefined) {
+            rolled[r.character_id] = r.initiative;
+        }
+    });
 
     return {
         characters: byId(characters.data),
         combatants: byId(combatants.data),
-        encounters: byId(encounters.data)
+        encounters: encounterById,
+        rolled
     };
 }
 
@@ -177,10 +194,15 @@ export function hpView(link, data, role) {
     if (link.kind === 'character') {
         const ch = data.characters[link.id];
         if (!ch) return null;
+        // In a running fight, the initiative rolled; otherwise the bonus.
+        const turn = (data.rolled || {})[ch.id];
         return {
             kind: 'character', name: ch.name, row: ch,
             current: ch.current_hit_points ?? 0, max: ch.hit_point_maximum ?? 0,
             temp: ch.temporary_hit_points ?? 0,
+            ac: ch.armor_class ?? null,
+            init: turn !== undefined ? String(turn)
+                : ch.initiative_bonus !== null && ch.initiative_bonus !== undefined ? formatMod(ch.initiative_bonus) : null,
             bar: true, state: true, edit: true
         };
     }
@@ -195,6 +217,10 @@ export function hpView(link, data, role) {
         kind: 'combatant', name: row.display_name, row, encounter: enc,
         current: row.current_hit_points ?? 0, max: row.max_hit_points ?? 0,
         temp: row.temporary_hit_points ?? 0,
+        // Shown with the bar, so a player learns a monster's AC only when
+        // the DM shows its HP.
+        ac: row.armor_class ?? null,
+        init: row.initiative !== null && row.initiative !== undefined ? String(row.initiative) : null,
         bar: !!visible, state: true, edit: gm
     };
 }
