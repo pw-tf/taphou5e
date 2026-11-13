@@ -4894,15 +4894,18 @@ async def main():
         assert by_id["t-garg/fill"]["fillColor"] == "#7fa65c"
         ok("bars: Sythra's track, low fill at 9/44 and temp segment; the gargoyle's full and green")
 
-        # Notches, as on v2's own bars. On a 126px bar a single point of 44 or
-        # 52 would be under 3.5px, so they fall back to one every 5.
-        notches = lambda tok: sorted(int(k.split("notch-")[1]) for k in by_id if k.startswith(tok + "/notch-"))
-        assert notches("t-sythra") == [5, 10, 15, 20, 25, 30, 35, 40], notches("t-sythra")
-        assert notches("t-garg") == list(range(5, 52, 5)), notches("t-garg")
-        n15 = by_id["t-sythra/notch-15"]
-        assert abs(n15["position"]["x"] + n15["width"] / 2 - (track["position"]["x"] + 126 * 15 / 44)) < 0.01, n15
-        assert n15["zIndex"] > fill["zIndex"] and n15["zIndex"] > temp["zIndex"], "notches sit over the fill"
-        ok("bars are notched across their whole width, every 5 HP where single points would be too fine")
+        # Plain bars: notches were tried and did not scale to large pools.
+        assert not [k for k in by_id if "/notch-" in k], [k for k in by_id if "/notch-" in k]
+        ok("bars are plain, with no notches")
+
+        # Under the bar, AC and initiative. Sythra is in the running
+        # encounter, so hers is the 17 she rolled, not her +3 bonus.
+        stats = by_id["t-sythra/stats"]
+        assert stats["plainText"] == "AC 12  ·  Init 17", stats
+        assert by_id["t-garg/stats"]["plainText"] == "AC 15  ·  Init 12"
+        assert stats["position"]["y"] > track["position"]["y"] + track["height"], (stats, track)
+        assert stats["layer"] == "ATTACHMENT" and stats["attachedTo"] == "t-sythra", stats
+        ok("under each bar, AC and initiative: the roll in a running fight ('AC 12 · Init 17')")
 
         # The number on the bar: current/max, and the temporary hit points.
         hp = by_id["t-sythra/hp"]
@@ -4941,7 +4944,9 @@ async def main():
             return ids.some(id => id.endsWith('t-sythra/hp')) && ids.some(id => id.endsWith('t-garg/name')); })()""")
         ids = sorted(i["id"] for i in await pl.evaluate("window.__obrLocal()"))
         garg = [i for i in ids if "t-garg" in i]
+        # Name only: no bar, no numbers and no AC while the DM hides its HP.
         assert garg == ["com.taphou5e.owlbear/bar/t-garg/name"], garg
+        assert any(i.endswith("t-sythra/stats") for i in ids), ids
         hdrs = await pl.evaluate("window.__capturedHeaders")
         assert hdrs.get("x-dm-token") == "tok_" + "s" * 60, hdrs
         ok("a player's client adopts the shared session, with no PIN, and draws no enemy bar while HP is hidden")
@@ -4955,7 +4960,8 @@ async def main():
         """)
         await until(pl, "window.__obrLocal().some(i => i.id.endsWith('t-garg/track'))")
         await until(pl, "(window.__obrLocal().find(i => i.id.endsWith('t-garg/hp')) || {}).plainText === '52/52'")
-        ok("showing monster HP in taphou5e puts the gargoyle's notched bar and numbers on the player's map, live")
+        await until(pl, "(window.__obrLocal().find(i => i.id.endsWith('t-garg/stats')) || {}).plainText === 'AC 15  ·  Init 12'")
+        ok("showing monster HP in taphou5e puts the gargoyle's bar, numbers, AC and initiative on the player's map, live")
 
         # Hidden in Owlbear, a token shows a player nothing: no bar, no name.
         await pl.evaluate("""() => {

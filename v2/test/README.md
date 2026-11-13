@@ -116,8 +116,9 @@ at it directly — edit `CHROME` at the top of the file, or run
   - HP bars: their geometry and colours, a player getting no enemy bar while
     monster HP is hidden, and both kinds of change (a character's, an
     encounter's) redrawing them live;
-  - the bars' notches (every point, or every 5/10/50/100 where a point would
-    be under 3.5px, as on v2's bars) and their `9/44 +5` number;
+  - the bars' `9/44 +5` number, and `AC 12 · Init 17` under them -- the
+    initiative rolled in a running fight, a character's bonus otherwise,
+    and nothing for an enemy whose HP the DM hides;
   - a name over each linked token, shown to players even while an enemy's HP
     is hidden, and nothing at all for a token hidden in Owlbear;
   - an encounter starting in taphou5e badging the GM's button with the

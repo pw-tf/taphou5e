@@ -23,14 +23,8 @@ const HP_COLOURS = { high: '#7fa65c', mid: '#d9a94a', low: '#c4452f' };
 const TEMP_COLOUR = '#3d5a72';
 const TRACK_COLOUR = '#15110e';
 const TRACK_EDGE = '#47392e';
-const NOTCH_COLOUR = TRACK_EDGE;     // a dark line on the fill, a faint one on the empty track
 const LABEL_INK = '#f4ece1';
 const LABEL_OUTLINE = '#15110e';
-
-// One notch per hit point while a point is at least this wide on the bar;
-// past that, every 5, 10, 50 or 100 -- the steps v2's own bars use.
-const NOTCH_MIN_PX = 3.5;
-const NOTCH_UNITS = [1, 5, 10, 50, 100];
 
 // The toolbar badge carries two things: '!' while the GM is not signed in,
 // otherwise how many enemies are waiting to be revealed.
@@ -212,7 +206,7 @@ function startBars(role) {
             // A move needs no redraw: everything is attached and follows. A
             // new size, name or hit points do.
             const sig = [Math.round(bounds.width), Math.round(bounds.height), view.name,
-                         view.bar ? [view.current, view.max, view.temp].join(':') : '-'].join('/');
+                         view.bar ? [view.current, view.max, view.temp, view.ac, view.init].join(':') : '-'].join('/');
             wanted.set(token.id, { sig, bounds, view });
         }
 
@@ -344,16 +338,6 @@ function barItems(tokenId, bounds, view, dpi) {
     if (mainPct > 0) items.push(part('fill', 0, width * mainPct, HP_COLOURS[hpClass(view.current, max)], 1).build());
     if (tempPct > 0) items.push(part('temp', width * mainPct, width * tempPct, TEMP_COLOUR, 2).build());
 
-    // Notches across the whole bar, so the maximum can be counted as well as
-    // what is left.
-    const unit = max ? NOTCH_UNITS.find(u => width * u / max >= NOTCH_MIN_PX) : null;
-    if (unit) {
-        const notch = Math.max(1, dpi * 0.008);
-        for (let hp = unit; hp < max; hp += unit) {
-            items.push(part(`notch-${hp}`, width * hp / max - notch / 2, notch, NOTCH_COLOUR, 3).build());
-        }
-    }
-
     // "18/24", and "+5" while there are temporary hit points.
     const label = `${view.current}/${max}${view.temp > 0 ? ` +${view.temp}` : ''}`;
     items.push(text(`${BAR}/${tokenId}/hp`, tokenId, label, height * 0.78, z + 4)
@@ -362,6 +346,20 @@ function barItems(tokenId, bounds, view, dpi) {
         .height(height)
         .textAlignVertical('MIDDLE')
         .build());
+
+    // Under the bar: "AC 15 · Init 12". A part that is not known is left out.
+    const stats = [view.ac !== null && view.ac !== undefined ? `AC ${view.ac}` : null,
+                   view.init !== null && view.init !== undefined ? `Init ${view.init}` : null]
+        .filter(Boolean).join('  ·  ');
+    if (stats) {
+        const size = height * 0.7;
+        items.push(text(`${BAR}/${tokenId}/stats`, tokenId, stats, size, z + 5)
+            .position({ x: bounds.center.x - width, y: y + height + dpi * 0.015 })
+            .width(width * 2)
+            .height(size * 1.3)
+            .textAlignVertical('TOP')
+            .build());
+    }
     return items;
 }
 
