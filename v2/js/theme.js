@@ -31,3 +31,21 @@
   };
   document.addEventListener('DOMContentLoaded', function () { window.markThemeButtons(); });
 })();
+
+// --device-line: the CSS length nearest 1px that is a whole number of device
+// pixels. At a fractional pixel ratio (2.625 on many Android phones, 1.25 and
+// 1.5 under Windows scaling) a 1px hairline is 2.6 or 1.5 device pixels, so a
+// row of them renders some thick and some thin. The HP bar notches use this
+// instead (ember.css). CSS cannot read the ratio itself; without this script
+// the notches fall back to 1px.
+(function () {
+  function set() {
+    var dpr = window.devicePixelRatio || 1;
+    document.documentElement.style.setProperty('--device-line', (Math.max(1, Math.round(dpr)) / dpr) + 'px');
+    // The ratio changes with browser zoom or a move to another screen.
+    try {
+      window.matchMedia('(resolution: ' + dpr + 'dppx)').addEventListener('change', set, { once: true });
+    } catch (e) { /* old engine: keeps the value from load */ }
+  }
+  set();
+})();
