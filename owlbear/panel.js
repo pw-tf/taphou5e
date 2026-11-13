@@ -2,14 +2,16 @@
 // TAPHOU5E for Owlbear Rodeo — the toolbar panel
 //
 // GM: sign in with the world name and DM PIN, share a player session with
-// the room, choose the encounter enemies come from, flip its monster-HP
-// switch, and link tokens by name.
+// the room, reveal a running encounter's hidden enemies, choose the
+// encounter enemies come from, flip its monster-HP switch, and link tokens
+// by name.
 // Player: nothing to do. The panel says whether the GM has connected.
 // ========================================
 
 import {
     OBR, LINK, ROOM_SESSION, ROOM_ENCOUNTER, linkOf, liveSession, roomSessionUsable,
-    shareRoomSession, publishRoomSession, stopRoomSession, fetchLinked, followTheme
+    shareRoomSession, publishRoomSession, stopRoomSession, fetchLinked, followTheme,
+    pendingReveals, markRevealHandled
 } from './obr.js';
 
 const root = document.getElementById('panel');
@@ -153,7 +155,9 @@ OBR.onReady(async () => {
         const linkedTokens = await OBR.scene.isReady()
             ? await OBR.scene.items.getItems(item => !!linkOf(item)) : [];
         const data = linkedTokens.length ? await fetchLinked(linkedTokens.map(linkOf))
-            : { characters: {}, combatants: {} };
+            : { characters: {}, combatants: {}, encounters: {} };
+        const hidden = pendingReveals(linkedTokens, data);
+        const started = Array.from(new Set(hidden.map(h => h.encounter.name)));
         const target = item => {
             const l = linkOf(item);
             const row = l.kind === 'character' ? data.characters[l.id] : data.combatants[l.id];
@@ -163,6 +167,25 @@ OBR.onReady(async () => {
         root.innerHTML = `
             <div class="eyebrow">Connected · DM</div>
             <h2 class="pn-world">${escapeHtml(session.gameWorldName)}</h2>
+
+            ${hidden.length ? `
+                <section class="pn-section pn-reveal">
+                    <div class="eyebrow">Hidden enemies</div>
+                    <p>${escapeHtml(started.join(', '))} has started. ${hidden.length === 1
+                        ? 'This enemy is' : 'These enemies are'} still hidden from players:</p>
+                    <div class="lk-list">
+                        ${hidden.map(h => `
+                            <label class="lk-row pn-reveal-row">
+                                <input type="checkbox" data-reveal="${escapeHtml(h.token.id)}"
+                                       data-encounter="${escapeHtml(h.encounter.id)}" checked>
+                                <span class="lk-name">${escapeHtml(h.token.name)}</span>
+                                <span class="lk-meta">${escapeHtml(h.row.display_name)}</span>
+                            </label>`).join('')}
+                    </div>
+                    <button class="btn btn-accent btn-block" id="pn-reveal">Reveal ${hidden.length}</button>
+                    <button class="btn btn-block" id="pn-reveal-later">Keep them hidden</button>
+                    <p class="hint">Untick any you want to hold back. A token in a fogged room stays out of sight until you clear the fog.</p>
+                </section>` : ''}
 
             <section class="pn-section">
                 ${sharing ? `
@@ -211,6 +234,7 @@ OBR.onReady(async () => {
             ${note ? `<p class="hint pn-note" role="status">${escapeHtml(note)}</p>` : ''}
             <button class="btn btn-block" id="pn-signout">Sign out</button>`;
 
+        wireReveal(hidden);
         document.getElementById('pn-stop')?.addEventListener('click', () => stopRoomSession(session.gameWorldId));
         document.getElementById('pn-share')?.addEventListener('click', share);
         document.getElementById('pn-pinshare')?.addEventListener('submit', shareWithPlayerPin);
@@ -234,6 +258,41 @@ OBR.onReady(async () => {
             await stopRoomSession(session.gameWorldId);
             clearSession();
             window.location.reload();
+        });
+    }
+
+    // Reveal what is ticked. Everything listed counts as offered, ticked or
+    // not, so the badge lets go of it and a token hidden again later is not
+    // offered a second time.
+    function wireReveal(hidden) {
+        const boxes = Array.from(root.querySelectorAll('[data-reveal]'));
+        const button = document.getElementById('pn-reveal');
+        if (!button) return;
+        const handled = () => {
+            const byEncounter = {};
+            hidden.forEach(h => { (byEncounter[h.encounter.id] = byEncounter[h.encounter.id] || []).push(h.token.id); });
+            Object.entries(byEncounter).forEach(([id, tokenIds]) => markRevealHandled(id, tokenIds));
+        };
+        const count = () => {
+            const n = boxes.filter(b => b.checked).length;
+            button.textContent = n ? `Reveal ${n}` : 'Reveal';
+            button.disabled = !n;
+        };
+        boxes.forEach(b => b.addEventListener('change', count));
+
+        button.addEventListener('click', async () => {
+            const ids = boxes.filter(b => b.checked).map(b => b.dataset.reveal);
+            if (!ids.length) return;
+            button.setAttribute('aria-busy', 'true');
+            await OBR.scene.items.updateItems(ids, drafts => { drafts.forEach(d => { d.visible = true; }); });
+            handled();
+            note = `Revealed ${ids.length} enem${ids.length === 1 ? 'y' : 'ies'}.`;
+            draw();
+        });
+        document.getElementById('pn-reveal-later').addEventListener('click', () => {
+            handled();
+            note = 'Left hidden. Reveal them in Owlbear whenever you are ready.';
+            draw();
         });
     }
 
@@ -308,8 +367,9 @@ OBR.onReady(async () => {
     let listed = '';
     OBR.scene.items.onChange(items => {
         if (role !== 'GM' || !session) return;
+        // Visibility too: revealing or hiding an enemy changes what is offered.
         const key = items.filter(item => !!linkOf(item))
-            .map(item => `${item.id}=${item.name}=${linkOf(item).id}`).sort().join('|');
+            .map(item => `${item.id}=${item.name}=${linkOf(item).id}=${item.visible !== false}`).sort().join('|');
         if (key === listed) return;
         listed = key;
         redraw();

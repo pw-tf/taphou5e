@@ -69,3 +69,8 @@ body.obr-panel { min-height: 100vh; overflow-y: auto; }
   color: var(--text-tertiary); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .lk-row .icon-btn { flex: none; width: 26px; height: 26px; font-size: 18px; }
+
+/* ---------- Revealing enemies ---------- */
+.pn-reveal { border-top-color: var(--accent-primary); }
+.pn-reveal-row { cursor: pointer; }
+.pn-reveal-row input { flex: none; margin: 0; accent-color: var(--accent-primary); }

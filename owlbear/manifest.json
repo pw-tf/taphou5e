@@ -1,6 +1,6 @@
 {
   "name": "taphou5e",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "manifest_version": 1,
   "author": "taphou5e",
   "description": "taphou5e character sheets and HP bars on your tokens. Enemy HP follows the encounter tracker.",

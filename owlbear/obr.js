@@ -14,7 +14,7 @@
 
 import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 export { OBR };
-export { buildShape } from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
+export { buildShape, buildText } from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 
 export const ID = 'com.taphou5e.owlbear';
 
@@ -30,8 +30,15 @@ export const LINK = `${ID}/link`;
 export const ROOM_SESSION = `${ID}/session`;
 export const ROOM_ENCOUNTER = `${ID}/encounter`;
 
-// Marks the HP bars this extension draws as local items.
+// Marks the HP bars and name labels this extension draws as local items.
 export const BAR = `${ID}/bar`;
+
+// localStorage, shared by every page of the extension in one browser:
+// { [encounterId]: [tokenId, ...] } -- hidden enemies the GM has already been
+// offered for a running encounter, revealed or deliberately left hidden.
+export const REVEAL_HANDLED = `${ID}/reveal-handled`;
+// localStorage: encounter ids the GM has already been told about.
+export const REVEAL_NOTIFIED = `${ID}/reveal-notified`;
 
 export const SHEET_MODAL = `${ID}/sheet`;
 export const LINK_POPOVER = `${ID}/link`;
@@ -190,6 +197,49 @@ export function hpView(link, data, role) {
         temp: row.temporary_hit_points ?? 0,
         bar: !!visible, state: true, edit: gm
     };
+}
+
+// ========================================
+// Revealing enemies when a fight starts
+// ========================================
+
+function readJSON(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; }
+}
+
+function writeJSON(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* private mode */ }
+}
+
+export const revealHandled = () => readJSON(REVEAL_HANDLED, {});
+
+// Mark tokens as offered for an encounter, so the badge lets go of them.
+export function markRevealHandled(encounterId, tokenIds) {
+    const all = revealHandled();
+    all[encounterId] = Array.from(new Set((all[encounterId] || []).concat(tokenIds)));
+    writeJSON(REVEAL_HANDLED, all);
+}
+
+export const revealNotified = () => readJSON(REVEAL_NOTIFIED, []);
+export const markRevealNotified = ids => writeJSON(REVEAL_NOTIFIED, Array.from(new Set(revealNotified().concat(ids))));
+
+// Enemy tokens still hidden from players although their encounter has
+// started: what the GM is offered to reveal. Defeated enemies and tokens the
+// GM has already been asked about are left out. Fog is Owlbear's business:
+// a revealed token in a fogged room stays out of sight until the fog goes.
+export function pendingReveals(tokens, data) {
+    const handled = revealHandled();
+    const out = [];
+    for (const token of tokens) {
+        const link = linkOf(token);
+        if (!link || link.kind !== 'combatant' || token.visible !== false) continue;
+        const row = data.combatants[link.id];
+        const enc = row && data.encounters[row.encounter_id];
+        if (!enc || enc.status !== 'active' || row.is_defeated) continue;
+        if ((handled[enc.id] || []).includes(token.id)) continue;
+        out.push({ token, row, encounter: enc });
+    }
+    return out;
 }
 
 // The tracker's applyHP and the sheet's setHP, for one token: clamp to
