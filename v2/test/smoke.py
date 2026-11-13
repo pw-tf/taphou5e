@@ -2324,8 +2324,32 @@ async def main():
 
         await page.wait_for_selector(".dm-row-exp", timeout=5000)
         korr = page.locator('.dm-row:has-text("Korr")')
-        assert "6,000 / 6,500 XP" in await korr.inner_text()
-        ok("EXP mode shows progress toward the next threshold")
+        # Level 4 starts at 2,700 and level 5 at 6,500: Korr's 6,000 is 3,300
+        # of the 3,800 between them. Against the total it read 6,000 / 6,500.
+        korr_text = await korr.inner_text()
+        assert "3,300 / 3,800 XP to level 5" in korr_text and "6,000 total" in korr_text, korr_text
+        ok("EXP mode shows progress through the current level, not the running total")
+
+        # Brannor was just granted level 6 above, and holds exactly its
+        # 14,000. Having just reached a level, he has made no progress into
+        # it -- the bar once showed him well on his way to the next.
+        brannor_text = await page.locator('.dm-row:has-text("Brannor")').inner_text()
+        assert "0 / 9,000 XP to level 7" in brannor_text, brannor_text
+        ok("a character who has just levelled shows no progress toward the next level")
+
+        # Wisp is level 5 with nothing recorded, as a character levelled by
+        # milestone is. She stands at level 5's floor, not at zero.
+        wisp = page.locator('.dm-row:has-text("Wisp")')
+        assert "0 / 7,500 XP to level 6" in await wisp.inner_text()
+        await page.evaluate("window.__resetWrites()")
+        await wisp.locator("input").fill("100")
+        await wisp.locator('button:has-text("Grant")').click()
+        await page.wait_for_timeout(800)
+        writes = await page.evaluate("window.__writes")
+        wisp_grant = [w for w in writes if w["table"] == "characters"][-1]
+        assert wisp_grant["payload"]["experience_points"] == 6600, wisp_grant
+        assert "level" not in wisp_grant["payload"], wisp_grant
+        ok("EXP granted to a character levelled by milestone adds to their level's floor, not to zero")
 
         # 6000 + 1000 crosses the level 5 threshold of 6500.
         await korr.locator("input").fill("1000")

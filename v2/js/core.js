@@ -1479,6 +1479,30 @@ function expForNextLevel(level) {
     return level >= 20 ? null : EXP_THRESHOLDS[level];
 }
 
+// The least experience a character of `level` can have. 5e counts experience
+// as a running total -- level 2 at 300, level 3 at 900 -- so a character who
+// has just reached a level already holds its threshold. One levelled by
+// milestone may have nothing recorded at all; they are treated as holding the
+// floor, or every grant afterwards would make them earn those levels again.
+function expFloor(level) {
+    return EXP_THRESHOLDS[Math.min(20, Math.max(1, level || 1)) - 1];
+}
+
+// Where a character stands within their level, which is what a progress bar
+// should show. Measured against the total instead, someone who had just
+// reached level 2 read as 300 / 900 -- a third of the way to level 3, when
+// they had made no progress at all.
+function expProgress(level, exp) {
+    const lvl = Math.min(20, Math.max(1, level || 1));
+    const total = Math.max(exp || 0, expFloor(lvl));
+    const next = expForNextLevel(lvl);
+    if (!next) return { total, next: null, into: null, span: null, pct: 100 };
+    const floor = expFloor(lvl);
+    const span = next - floor;
+    const into = total - floor;
+    return { total, next, into, span, pct: Math.min(100, (into / span) * 100) };
+}
+
 // The classic level-up wizard reads the character's level from before the
 // grant out of localStorage, so it knows the range to walk; this writes the
 // same key so a level granted here can still be taken there. It is per-device,
