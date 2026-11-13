@@ -1328,9 +1328,15 @@ async def main():
         # Derived: INT 18 -> +4, proficient save -> +4+3 = +7
         int_box = page.locator(".ability-box", has_text="INT")
         assert (await int_box.locator(".mod").inner_text()).strip() == "+4"
-        assert "+7" in (await int_box.locator(".save").inner_text())
-        assert "is-prof" in (await int_box.locator(".save").get_attribute("class"))
-        ok("abilities merge the saving throw: INT +4, save +7, marked proficient")
+        # Saves have a row of their own. Inside the ability box they were an
+        # unlabelled "S +7" that wrapped onto two lines when the box was narrow.
+        assert await page.locator(".ability-box .save, .ability-box [data-explain^='save']").count() == 0
+        int_save = page.locator('.save-chip[data-explain="save:int"]')
+        assert await page.locator(".save-chip").count() == 6
+        assert "+7" in (await int_save.inner_text())
+        assert "is-prof" in (await int_save.get_attribute("class"))
+        assert await page.locator('.section-head:has-text("Saving throws")').count() == 1
+        ok("saving throws have their own labelled row: INT +4, save +7, marked proficient")
 
         # Passive perception uses the skill row: 10 + (wis 1 + prof 3) = 14
         pp = [t for t in await page.locator(".sheet-combat .chip").all_inner_texts() if "PP" in t]
@@ -2955,11 +2961,24 @@ async def main():
         ok("a hold released without a click does not eat the next real tap")
 
         await hp.evaluate("window.__resetWrites()")
-        _, title = await hold_explain(".ability-box .save")
+        chip = '.save-chip[data-explain="save:str"]'
+        _, title = await hold_explain(chip)
         assert title == "Strength save", title
         assert "Tap to switch proficiency" in await tip.locator(".explainer-note").inner_text()
         assert await hp.evaluate("window.__writes.length") == 0
-        ok("the save inside an ability box explains itself, not the ability around it")
+        ok("holding a saving throw explains it without switching proficiency")
+
+        # One line each, at phone width: the wrap is what made them look broken.
+        heights = await hp.evaluate("""() => [...document.querySelectorAll('.save-chip')]
+            .map(e => Math.round(e.getBoundingClientRect().height))""")
+        assert len(set(heights)) == 1 and heights[0] < 44, heights
+        await hp.evaluate("hideExplainer()")
+        await hp.locator(chip).tap()
+        await hp.wait_for_timeout(500)
+        writes = await hp.evaluate("window.__writes")
+        assert any(w["table"] == "saving_throws" and w["payload"] == {"proficient": True} for w in writes), writes
+        assert await hp.locator(chip + ".is-prof").count() == 1
+        ok("a tap on a saving throw still switches its proficiency")
 
         _, title = await hold_explain('[data-explain="stat:ac"]')
         assert title == "Armor Class", title

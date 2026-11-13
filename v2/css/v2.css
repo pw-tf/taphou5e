@@ -228,8 +228,6 @@ textarea:focus-visible,
 .sheet-combat .chipline { max-width: 560px; }
 
 /* Stats tab */
-.ability-box .save { cursor: pointer; }
-.ability-box .save:hover { color: var(--accent-primary); }
 .temp-row { display: flex; align-items: center; gap: var(--space-10); }
 .temp-input {
   width: 84px; padding: 8px 10px; text-align: center;

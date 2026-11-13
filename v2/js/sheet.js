@@ -592,20 +592,27 @@
     // ========================================
 
     function statsTab() {
-        const abilities = ABILITIES.map(a => {
-            const row = (c.saving_throws || []).find(s => s.ability === a.code);
-            const isProf = !!(row && row.proficient);
-            return `
+        const abilities = ABILITIES.map(a => `
                 <div class="ability-box" data-explain="ability:${a.code}">
                     <div class="label mono">${a.label}</div>
                     <div class="score">${scores()[a.key] ?? 10}</div>
                     <div class="mod">${formatMod(mod(a.key))}</div>
-                    <div class="save${isProf ? ' is-prof' : ''}"
-                         data-explain="save:${a.code}"
-                         ${row ? `onclick="sheetToggleSave('${row.id}')" role="button" tabindex="0"` : ''}>
-                        S ${formatMod(saveBonus(a.code))}
-                    </div>
-                </div>`;
+                </div>`).join('');
+
+        // Saves used to ride inside each ability box as "S +3": unlabelled,
+        // and wrapping onto two lines whenever the box ran short of width.
+        // They are their own numbers, rolled often, so they get their own row.
+        const saves = ABILITIES.map(a => {
+            const row = (c.saving_throws || []).find(s => s.ability === a.code);
+            const isProf = !!(row && row.proficient);
+            return `
+                <button class="save-chip${isProf ? ' is-prof' : ''}" data-explain="save:${a.code}"
+                        aria-label="${ABILITY_FULL[a.code]} save ${formatMod(saveBonus(a.code))}${isProf ? ', proficient' : ''}"
+                        ${row ? `onclick="sheetToggleSave('${row.id}')"` : ''}>
+                    <span class="skill-dot"></span>
+                    <span class="label mono">${a.label}</span>
+                    <span class="bonus mono">${formatMod(saveBonus(a.code))}</span>
+                </button>`;
         }).join('');
 
         const active = Array.isArray(c.active_conditions) ? c.active_conditions : [];
@@ -632,8 +639,11 @@
 
         return `
             ${deathSaves}
-            <div class="section-head"><span class="eyebrow">Abilities &amp; saves</span><span class="rule"></span></div>
+            <div class="section-head"><span class="eyebrow">Abilities</span><span class="rule"></span></div>
             <div class="ability-grid">${abilities}</div>
+
+            <div class="section-head"><span class="eyebrow">Saving throws</span><span class="rule"></span></div>
+            <div class="save-grid">${saves}</div>
 
             <div class="section-head"><span class="eyebrow">Temporary HP</span><span class="rule"></span></div>
             <div class="temp-row">

@@ -192,8 +192,21 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .ability-box .label { font-size: var(--fs-9); color: var(--text-tertiary); letter-spacing: .08em; }
 .ability-box .score { font-family: var(--font-mono); font-size: var(--fs-17); font-weight: 600; line-height: 1.1; }
 .ability-box .mod { font-family: var(--font-mono); font-size: var(--fs-13); color: var(--accent-primary); }
-.ability-box .save { font-family: var(--font-mono); font-size: var(--fs-10); color: var(--text-tertiary); }
-.ability-box .save.is-prof { color: var(--hp-high); }
+/* Saving throws: one chip per ability, in the same columns as the boxes above.
+   Proficiency is marked the way a skill row marks it -- filled dot, accent tint. */
+.save-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-6); }
+.save-chip {
+  display: flex; align-items: center; gap: var(--space-sm); min-width: 0;
+  padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md);
+  background: var(--bg-secondary); border: 1px solid var(--border-default);
+  color: var(--text-secondary); font: inherit; cursor: pointer; white-space: nowrap;
+}
+.save-chip:hover { border-color: var(--border-strong); }
+.save-chip .label { font-size: var(--fs-10); color: var(--text-tertiary); letter-spacing: .08em; }
+.save-chip .bonus { font-size: var(--fs-14); margin-left: auto; color: var(--text-primary); }
+.save-chip.is-prof { background: var(--accent-soft); border-color: var(--accent-soft-border); }
+.save-chip.is-prof .skill-dot { background: var(--accent-primary); border-color: var(--accent-primary); }
+.save-chip.is-prof .label { color: var(--text-secondary); }
 
 .conditions-grid { display: flex; flex-wrap: wrap; gap: 5px; }
 .condition-tag {
@@ -356,7 +369,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   .card-name { font-size: var(--fs-14); }
   .avatar { width: 34px; height: 34px; }
 
-  .ability-grid { grid-template-columns: repeat(6, 1fr); }
+  .ability-grid, .save-grid { grid-template-columns: repeat(6, 1fr); }
   .skills-grid { grid-template-columns: 1fr 1fr; gap: 6px var(--space-lg); }
 
   /* two-pane pages: list + detail */
