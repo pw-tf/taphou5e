@@ -474,8 +474,15 @@ a.list-row, a.list-row:hover,
 .fab-wrap {
   position: fixed; right: var(--space-md); bottom: var(--space-md); z-index: 250;
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-sm);
+  /* The closed menu is hidden but still laid out, so this box is as big as
+     the open menu -- on the tracker, 232px by 420px of the lower right of a
+     phone. Left catching touches, it swallowed every tap on the heal, Down
+     and Remove buttons that scrolled under it, while damage, further left,
+     still worked. Only the button and the open menu take touches. */
+  pointer-events: none;
 }
 .fab {
+  pointer-events: auto;
   width: 56px; height: 56px; border-radius: var(--radius-full);
   background: var(--accent-primary); border: none; color: var(--accent-on);
   box-shadow: var(--shadow-lg); cursor: pointer;

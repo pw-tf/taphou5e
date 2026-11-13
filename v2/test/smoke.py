@@ -2860,6 +2860,40 @@ async def main():
         await hp.wait_for_selector(".init-row", timeout=10000)
         # Target the party row: initiative order decides which row is first,
         # and the "stays in the world" wording is specific to a character.
+
+        # The closed + menu is hidden but still laid out, and its wrapper used
+        # to catch touches: every heal, Down and Remove button that scrolled
+        # under that invisible box was dead, while damage, further left, worked.
+        dead = await hp.evaluate("""() => {
+            const out = [];
+            for (const btn of document.querySelectorAll('.init-row button')) {
+                btn.scrollIntoView({ block: 'end' });
+                const r = btn.getBoundingClientRect();
+                const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+                if (at !== btn && !btn.contains(at)) out.push(btn.textContent.trim() + ' <- ' + (at && at.className));
+            }
+            return out;
+        }""")
+        assert dead == [], dead
+        ok("no row button on the tracker is covered by the closed + menu")
+
+        await hp.evaluate("window.__resetWrites()")
+        mob = hp.locator('.init-row:not(.is-party):not(.is-dead)').last
+        mob_id = await mob.get_attribute("data-id")
+        await hp.evaluate("id => document.querySelector(`.init-row[data-id=\"${id}\"] .hp-btn.heal`).scrollIntoView({ block: 'end' })", mob_id)
+        await mob.locator(".hp-btn.damage").tap()
+        await hp.wait_for_timeout(300)
+        await hp.locator(f'.init-row[data-id="{mob_id}"] .hp-btn.heal').tap()
+        await hp.wait_for_timeout(300)
+        await hp.locator(f'.init-row[data-id="{mob_id}"] button:has-text("Remove")').tap()
+        await hp.wait_for_timeout(500)
+        verbs = [w["verb"] for w in await hp.evaluate("window.__writes") if w["table"] == "encounter_combatants"]
+        assert verbs == ["update", "update", "delete"], verbs
+        assert await hp.locator(f'.init-row[data-id="{mob_id}"]').count() == 0
+        ok("at the bottom of a phone screen, heal and Remove work as well as damage")
+        await hp.evaluate("document.scrollingElement.scrollTo(0, 0)")
+        await hp.wait_for_timeout(200)
+
         b = await hp.locator(".init-row.is-party").first.bounding_box()
         await press_hold(hp, b["x"] + 120, b["y"] + 18)
         await hp.wait_for_selector(".card-menu", timeout=5000)
