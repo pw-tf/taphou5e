@@ -1215,30 +1215,41 @@ async def main():
         assert fills <= 8, f"expected at most 2 fills per card, got {fills} total"
         ok(f"HP bars use {fills} fill elements for 4 characters (not one per hit point)")
 
-        # The bar is square and notched: a gap per hit point, drawn as stacked
-        # backgrounds on one pseudo-element. Five layers -- every 1, 5, 10, 50
-        # and 100 points -- and a layer whose step would be under 3.5px wide
-        # at this bar's real width draws nothing.
+        # The bar is square and notched: a gap per hit point, drawn as ONE
+        # repeating gradient on the bar's pseudo-element. When a point is under
+        # 3.5px wide at the bar's real width, the notches fall back to every 5,
+        # 10, 50 or 100 points. A probe child measures the step the CSS chose.
+        # One gradient, not stacked layers: stacked tiled layers rounded their
+        # tiling differently and drew double notches.
         NOTCHES_JS = """() => [...document.querySelectorAll('.character-card .hp-bar')].map(bar => {
             const after = getComputedStyle(bar, '::after');
+            const probe = document.createElement('i');
+            probe.style.cssText = 'position:absolute;width:var(--hp-tile);height:var(--hp-line)';
+            bar.appendChild(probe);
+            const r = probe.getBoundingClientRect();
+            probe.remove();
             return { max: Number(bar.style.getPropertyValue('--hp-max')),
                      notched: bar.classList.contains('notched'),
                      width: bar.getBoundingClientRect().width,
                      radius: getComputedStyle(bar).borderTopLeftRadius,
-                     step: parseFloat(after.backgroundSize),
-                     drawn: after.backgroundImage.split('linear-gradient(').slice(1)
-                                 .map(layer => layer.includes('calc(100% - 1px)')) }; })"""
+                     tile: r.width, line: r.height,
+                     layers: after.backgroundImage.split('gradient(').length - 1,
+                     repeating: after.backgroundImage.startsWith('repeating-linear-gradient(') }; })"""
 
-        def expected_layers(bar):
-            return [bar["width"] / bar["max"] * every > 3.6 for every in (1, 5, 10, 50, 100)]
+        def expected_every(bar):
+            return next((k for k in (1, 5, 10, 50, 100) if bar["width"] / bar["max"] * k >= 3.5), None)
+
+        def check_notches(b):
+            assert b["layers"] == 1 and b["repeating"], b
+            every = expected_every(b)
+            assert every is not None and b["line"] == 1, b
+            assert abs(b["tile"] - b["width"] / b["max"] * every) < 0.01, b
+            return every
 
         bars = await page.evaluate(NOTCHES_JS)
         assert [b["max"] for b in bars] == [44, 44, 52, 33], bars
         assert all(b["notched"] and b["radius"] == "2px" for b in bars), bars
-        for b in bars:
-            assert abs(b["step"] - b["width"] / b["max"]) < 0.01, b
-            assert b["drawn"] == expected_layers(b), b
-        assert all(b["drawn"][0] for b in bars), "at this width every point should have its own notch"
+        assert all(check_notches(b) == 1 for b in bars), "at this width every point should have its own notch"
         ok("HP bars are square, with one notch per hit point")
 
         await page.evaluate("""
@@ -1249,8 +1260,9 @@ async def main():
             "document.querySelector('.character-card .hp-bar').style.getPropertyValue('--hp-max') === '600'",
             timeout=5000)
         big = (await page.evaluate(NOTCHES_JS))[0]
-        assert big["drawn"] == expected_layers(big) and not big["drawn"][0] and any(big["drawn"]), big
-        ok(f"a 600 hit point bar drops the per-point notches for coarser ones {big['drawn']}")
+        big_every = check_notches(big)
+        assert big_every > 1, big
+        ok(f"a 600 hit point bar drops the per-point notches for one every {big_every}")
         await page.evaluate("""
             window.__patchFixture('characters', 'c1', { hit_point_maximum: 44, current_hit_points: 44 });
             window.__liveEmit({ table: 'characters', character_id: 'c1', op: 'UPDATE' });
