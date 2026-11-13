@@ -3231,6 +3231,9 @@ async def main():
 
         await hp.go_back(wait_until="domcontentloaded")
         await hp.wait_for_selector(".campaign-card", timeout=10000)
+        # Let the page transition finish: while it runs, input goes to the
+        # transition overlay rather than the page (v2.css, Page transitions).
+        await hp.wait_for_timeout(500)
 
         async def press_hold(page, x, y, ms=700):
             await page.evaluate(TOUCH_HOLD_JS, {"x": x, "y": y, "ms": ms})
