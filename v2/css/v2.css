@@ -1133,3 +1133,129 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 }
 .embed-waiting p { margin: 0; }
 #embed-close { font-size: 22px; line-height: 1; }
+
+/* ==========================================================================
+   Icon hover motion
+   Every icon from icon() is <svg class="ico ico-NAME"><g class="ico-g">…</g>.
+   Hovering or keyboard-focusing the link/button an icon sits in plays that
+   icon's own move. Animations target the <g> or its children, never the
+   <svg>, so they stack with page transforms like #sb-collapse's flip.
+   Disabled ("soon") items and reduced-motion users get nothing.
+   ========================================================================== */
+
+.ico { overflow: visible; }
+.ico-g, .ico-g > * { transform-box: fill-box; transform-origin: center; }
+.ico-ink { stroke-dasharray: 1; stroke-dashoffset: 1; }
+
+.ico-overview .ico-g > *          { transform-origin: 50% 100%; }
+.ico-user .ico-g > :nth-child(2)  { transform-origin: 50% 100%; }
+.ico-map .ico-g > :nth-child(1)   { transform-origin: 100% 50%; }
+.ico-map .ico-g > :nth-child(3)   { transform-origin: 0% 50%; }
+.ico-crown .ico-g > :nth-child(1) { transform-origin: 50% 100%; }
+.ico-monster .ico-g               { transform-origin: 50% 85%; }
+.ico-sword .ico-g                 { transform-origin: 82% 82%; }
+.ico-star .ico-g                  { transform-box: view-box; transform-origin: 12px 12.52px; }
+.ico-bag .ico-g                   { transform-origin: 50% 0%; }
+.ico-swap .ico-g                  { transform-box: view-box; transform-origin: 12px 12px; }
+.ico-menu .ico-g > *              { transform-origin: 0% 50%; }
+.ico-party .ico-g > *             { transform-origin: 50% 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(a, button):not([aria-disabled="true"]):is(:hover, :focus-visible) {
+    /* Overview / Stats: bars drop and regrow, left to right */
+    .ico-overview .ico-g > *              { animation: ico-regrow .7s cubic-bezier(.34, 1.56, .64, 1) both; }
+    .ico-overview .ico-g > :nth-child(1)  { animation-delay: 70ms; }
+    .ico-overview .ico-g > :nth-child(2)  { animation-delay: 140ms; }
+    /* Characters / Skills: head hops, body squashes on landing */
+    .ico-user .ico-g > :nth-child(1)      { animation: ico-hop .75s ease-out; }
+    .ico-user .ico-g > :nth-child(2)      { animation: ico-squash .75s ease-out; }
+    /* Campaigns: side panels fold out from the middle one */
+    .ico-map .ico-g > :nth-child(1)       { animation: ico-unfold .7s cubic-bezier(.34, 1.4, .64, 1) both; }
+    .ico-map .ico-g > :nth-child(3)       { animation: ico-unfold .7s cubic-bezier(.34, 1.4, .64, 1) 90ms both; }
+    /* Encounters: head shakes, jaw chomps, eyes blink */
+    .ico-monster .ico-g                   { animation: ico-growl .7s ease-in-out; }
+    .ico-monster .ico-g > :nth-child(1)   { animation: ico-chomp .7s ease-in-out; }
+    .ico-monster .ico-g > :nth-child(n+3) { animation: ico-blink .7s ease-in-out; }
+    /* Compendium: lens sweeps an arc */
+    .ico-search .ico-g                    { animation: ico-scan .9s ease-in-out; }
+    /* DM panel: crown lifts off its base and settles */
+    .ico-crown .ico-g > :nth-child(1)     { animation: ico-coronate .8s ease-out; }
+    /* Sheet tabs */
+    .ico-sword .ico-g                     { animation: ico-slash .65s cubic-bezier(.3, 0, .2, 1); }
+    .ico-star .ico-g                      { animation: ico-twirl .7s cubic-bezier(.34, 1.56, .64, 1); }
+    .ico-bag .ico-g                       { animation: ico-jingle .7s ease-out; }
+    .ico-bag .ico-g > :nth-child(3)       { animation: ico-grin .7s ease-out; }
+    .ico-book .ico-g > :nth-child(3)      { animation: ico-write1 1.2s ease-in-out; }
+    .ico-book .ico-g > :nth-child(4)      { animation: ico-write2 1.2s ease-in-out; }
+    /* Sidebar foot and menus */
+    .ico-heart .ico-g                     { animation: ico-beat .9s ease-in-out infinite; }
+    .ico-coffee .ico-g > :nth-child(n+3)  { animation: ico-steam 1.2s ease-in-out infinite both; }
+    .ico-coffee .ico-g > :nth-child(4)    { animation-delay: .2s; }
+    .ico-coffee .ico-g > :nth-child(5)    { animation-delay: .4s; }
+    .ico-logout .ico-g > :nth-child(n+2)  { animation: ico-exit .7s cubic-bezier(.5, 0, .3, 1); }
+    .ico-swap .ico-g                      { animation: ico-flip .6s cubic-bezier(.65, 0, .35, 1); }
+    .ico-menu .ico-g > *                  { animation: ico-shuffle .6s ease-in-out both; }
+    .ico-menu .ico-g > :nth-child(2)      { animation-delay: 80ms; }
+    .ico-menu .ico-g > :nth-child(3)      { animation-delay: 160ms; }
+    .ico-chevrons .ico-g                  { animation: ico-nudge .7s ease-in-out; }
+    .ico-party .ico-g > *                 { animation: ico-hop .6s ease-out both; }
+    .ico-party .ico-g > :nth-child(-n+2)  { animation-delay: 100ms; }
+    .ico-party .ico-g > :nth-child(n+5)   { animation-delay: 200ms; }
+    .ico-bug .ico-g                       { animation: ico-scuttle .6s linear; }
+  }
+}
+
+@keyframes ico-regrow   { 0% { transform: none; } 25% { transform: scaleY(.15); } 100% { transform: none; } }
+@keyframes ico-hop      { 0%, 100% { transform: none; } 30% { transform: translateY(-4px); } 55% { transform: translateY(.5px); } 75% { transform: translateY(-1.5px); } }
+@keyframes ico-squash   { 0%, 100% { transform: none; } 50% { transform: scale(1.1, .85); } 70% { transform: scale(.97, 1.04); } }
+@keyframes ico-unfold   { 0%, 15% { transform: scaleX(0); } 100% { transform: none; } }
+@keyframes ico-growl    { 0%, 100% { transform: none; } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(3deg); } }
+@keyframes ico-chomp    { 0%, 50%, 100% { transform: none; } 25%, 75% { transform: scale(1.6, 2.4); } }
+@keyframes ico-blink    { 0%, 40%, 60%, 100% { transform: none; } 50% { transform: scaleY(.1); } }
+@keyframes ico-scan     { 0%, 100% { transform: none; } 25% { transform: translate(-2px, 1px) rotate(-8deg); } 50% { transform: translate(0, -2px); } 75% { transform: translate(2px, 1px) rotate(8deg); } }
+@keyframes ico-coronate { 0%, 100% { transform: none; } 35% { transform: translateY(-3.5px) rotate(-10deg); } 65% { transform: translateY(-1.5px) rotate(6deg); } 85% { transform: translateY(-.5px) rotate(-2deg); } }
+@keyframes ico-slash    { 0%, 100% { transform: none; } 25% { transform: rotate(-30deg); } 55% { transform: rotate(22deg); } 75% { transform: rotate(-6deg); } }
+@keyframes ico-twirl    { 0% { transform: none; } 50% { transform: rotate(36deg) scale(1.3); } 100% { transform: rotate(72deg); } }
+@keyframes ico-jingle   { 0%, 100% { transform: none; } 15% { transform: rotate(12deg); } 35% { transform: rotate(-10deg); } 55% { transform: rotate(6deg); } 75% { transform: rotate(-3deg); } }
+@keyframes ico-grin     { 0%, 100% { transform: none; } 40% { transform: scaleY(1.5) translateY(.5px); } }
+@keyframes ico-write1   { 0% { opacity: 1; stroke-dashoffset: 1; } 35% { stroke-dashoffset: 0; } 80% { opacity: 1; stroke-dashoffset: 0; } 100% { opacity: 0; stroke-dashoffset: 0; } }
+@keyframes ico-write2   { 0%, 35% { opacity: 0; stroke-dashoffset: 1; } 36% { opacity: 1; } 65% { stroke-dashoffset: 0; } 80% { opacity: 1; stroke-dashoffset: 0; } 100% { opacity: 0; stroke-dashoffset: 0; } }
+@keyframes ico-beat     { 0%, 30%, 60%, 100% { transform: none; } 15% { transform: scale(1.25); } 45% { transform: scale(1.15); } }
+@keyframes ico-steam    { 0%, 100% { transform: none; opacity: 1; } 50% { transform: translateY(-2.5px); opacity: 0; } 51% { transform: translateY(1.5px); opacity: 0; } }
+@keyframes ico-exit     { 0%, 100% { transform: none; } 40%, 55% { transform: translateX(4px); } }
+@keyframes ico-flip     { 0% { transform: none; } 100% { transform: rotate(180deg); } }
+@keyframes ico-shuffle  { 0%, 100% { transform: none; } 40% { transform: scaleX(.55); } }
+@keyframes ico-nudge    { 0%, 50%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(-2px); } }
+@keyframes ico-scuttle  { 0%, 100% { transform: none; } 12.5% { transform: translateX(-1.5px) rotate(-6deg); } 37.5% { transform: translateX(1.5px) rotate(6deg); } 62.5% { transform: translateX(-1px) rotate(-4deg); } 87.5% { transform: translateX(1px) rotate(3deg); } }
+
+/* ==========================================================================
+   Page transitions
+   v2 is one HTML file per page. Cross-document view transitions let the
+   browser cross-fade between them instead of flashing a blank reload: the
+   sidebar, rail and mobile header hold still and only the content moves.
+   Supported in Chrome/Edge 126+ and Safari 18.2+; other browsers just load
+   the page as before. Both pages must opt in, so every v2 page gets this
+   through v2.css.
+   ========================================================================== */
+
+@view-transition { navigation: auto; }
+
+.sidebar      { view-transition-name: sidebar; }
+.rail         { view-transition-name: rail; }
+.header       { view-transition-name: header; }
+#main-content { view-transition-name: page; }
+
+::view-transition-group(root),
+::view-transition-group(sidebar),
+::view-transition-group(rail),
+::view-transition-group(header) { animation-duration: 200ms; }
+
+::view-transition-old(page) { animation: vt-page-out 140ms ease-in both; }
+::view-transition-new(page) { animation: vt-page-in 260ms cubic-bezier(.2, .8, .2, 1) 60ms both; }
+
+@keyframes vt-page-out { to   { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-page-in  { from { opacity: 0; transform: translateY(8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
