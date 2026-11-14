@@ -47,7 +47,7 @@ at it directly — edit `CHROME` at the top of the file, or run
   appearing at 0 HP, condition toggles preserving existing conditions, long rest
   restoring HP and resetting slots, and the detail pane
 - That rest buttons appear exactly once per viewport (rail above 900px, body below)
-- The desktop sidebar collapsing to an icon rail and back, with the choice
+- The desktop sidebar staying pinned in view on a long page, and collapsing to an icon rail and back, with the choice
   carried to the next page
 - The sheet having the same sidebar as every other page (collapse and theme
   switch included), linking every page for a DM and for a player, with

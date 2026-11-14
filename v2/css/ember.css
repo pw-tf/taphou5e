@@ -390,10 +390,18 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
    Desktop — sidebar shell above 900px
    ========================================================================== */
 @media (min-width: 900px) {
+  /* Pinned to the window: on a long page (a big encounter) the sidebar
+     used to grow with it, and its footer -- collapse, theme, support,
+     logout -- ended up at the very bottom of the page. */
   .sidebar {
     display: flex; flex-direction: column; width: var(--sidebar-width); flex: none;
     background: var(--bg-secondary); border-right: 1px solid var(--border-default);
+    position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; height: 100dvh; overflow: hidden;
   }
+  /* On a window too short for all of it, the page links scroll and the
+     footer stays put. */
+  .sidebar .sidebar-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .sidebar-brand { padding: var(--space-20) var(--space-20) var(--space-md); border-bottom: 1px solid var(--border-subtle); }
   .sidebar-brand .brand { font-family: var(--font-display); font-size: var(--fs-19); font-weight: 700; letter-spacing: .02em; }
   .sidebar-nav { padding: var(--space-12) var(--space-sm); flex: 1; display: flex; flex-direction: column; gap: 2px; }
@@ -437,7 +445,9 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   .split > .pane { overflow: auto; padding: var(--space-18) var(--space-20); background: var(--bg-sunken); }
 
   /* sheet tab rail replaces the bottom tabs */
-  .sheet-nav { display: flex; flex-direction: column; gap: var(--space-14); width: var(--sheet-nav-width); flex: none; padding: var(--space-18) var(--space-12); border-right: 1px solid var(--border-subtle); }
+  .sheet-nav { display: flex; flex-direction: column; gap: var(--space-14); width: var(--sheet-nav-width); flex: none; padding: var(--space-18) var(--space-12); border-right: 1px solid var(--border-subtle);
+    /* Pinned like the sidebar, so the rest buttons at its foot stay in view. */
+    position: sticky; top: 0; align-self: flex-start; height: 100vh; height: 100dvh; overflow-y: auto; }
   .sheet-nav .tabs { display: flex; flex-direction: column; gap: 2px; }
   .sheet-nav .tabs > * { display: flex; align-items: center; gap: 9px; padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--fs-13); cursor: pointer; }
   .sheet-nav .tabs > .is-active { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }

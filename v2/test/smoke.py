@@ -2230,6 +2230,24 @@ async def main():
         assert not any("Gargoyle 1" in n for n in seen), f"downed combatant took a turn: {seen}"
         ok(f"the turn order skips the downed combatant and wraps into round 2 after {live} turns")
 
+        # ---------- 29a. The sidebar stays in view on a long page ----------
+        # A big encounter: stand-in height under the rows, removed on the next draw.
+        await page.set_viewport_size({"width": 1280, "height": 480})
+        await page.wait_for_timeout(200)
+        await page.evaluate("document.querySelector('#main-content').insertAdjacentHTML('beforeend', '<div id=\"tall\" style=\"height:2400px\"></div>')")
+        await page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+        await page.wait_for_timeout(200)
+        pinned = await page.evaluate("""() => {
+            const sb = document.querySelector('.sidebar').getBoundingClientRect();
+            const out = document.querySelector('#sb-logout').getBoundingClientRect();
+            return [Math.round(sb.top), Math.round(sb.height) === innerHeight, out.bottom <= innerHeight, out.top >= 0];
+        }""")
+        assert pinned == [0, True, True, True], pinned
+        nav = await page.evaluate("(() => { const n = document.querySelector('.sidebar-nav'); return [n.scrollHeight > n.clientHeight, getComputedStyle(n).overflowY]; })()")
+        assert nav == [True, "auto"], nav     # 480px is too short for it all: the links scroll, the footer does not
+        await page.evaluate("document.querySelector('#tall').remove(); window.scrollTo(0, 0)")
+        ok("on a long page the sidebar stays pinned to the window, its footer in view even when the links must scroll")
+
         # ---------- 29b. Who each row is, and their stat block ----------
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.wait_for_timeout(200)
