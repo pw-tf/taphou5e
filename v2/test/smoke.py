@@ -2254,9 +2254,20 @@ async def main():
         assert "Gargoyle 2" in text and "Medium elemental chaotic evil" in text, text
         assert "Holds the far bank." in text, "the row's DM note shows with the stat block"
         assert await page.locator(".modal-host").count() == 0, "on a wide screen it is a side panel, not a popup"
+        clear_js = """() => {
+            const fab = document.querySelector('.fab');
+            if (!fab || fab.offsetParent === null) return 'no fab';
+            return document.querySelector('.info-pane').getBoundingClientRect().bottom <= fab.getBoundingClientRect().top;
+        }"""
+        assert await page.evaluate(clear_js) is True, "the + button covers the bottom of the stat block"
+        await page.mouse.wheel(0, 600)
+        await page.wait_for_timeout(300)
+        assert await page.evaluate(clear_js) is True, "after scrolling, the + button covers the stat block"
+        await page.mouse.wheel(0, -600)
+        await page.wait_for_timeout(300)
         await pane.locator(".pane-close").click()
         await page.wait_for_selector(".info-pane", state="detached", timeout=3000)
-        ok("on a wide screen a monster's 'i' opens its stat block in a side panel, which closes")
+        ok("on a wide screen a monster's 'i' opens its stat block in a side panel, clear of the + button, which closes")
 
         await sythra.locator(".init-info").click()
         dock_frame = page.locator(".sheet-dock iframe.sheet-frame")

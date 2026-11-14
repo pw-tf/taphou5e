@@ -936,14 +936,27 @@
         const slot = $('.sheet-slot');
         if (!slot) { dock.el.hidden = true; return; }
         const r = slot.getBoundingClientRect();
-        const fab = $('.fab');
-        const fabTop = fab && fab.offsetParent !== null ? fab.getBoundingClientRect().top : null;
-        const bottomGap = fabTop !== null ? window.innerHeight - fabTop + 8 : 16;
         Object.assign(dock.el.style, {
             top: `${r.top}px`, left: `${r.left}px`, width: `${r.width}px`,
-            height: `${Math.max(320, Math.min(r.height, window.innerHeight - r.top - bottomGap))}px`
+            height: `${Math.max(320, Math.min(r.height, panelBottom() - r.top))}px`
         });
         dock.el.hidden = false;
+    }
+
+    // Where a side panel has to end: above the + button when it shows,
+    // otherwise just short of the bottom of the window.
+    function panelBottom() {
+        const fab = $('.fab');
+        const visible = fab && fab.offsetParent !== null;
+        return visible ? fab.getBoundingClientRect().top - 8 : window.innerHeight - 16;
+    }
+
+    // A monster's stat block: as tall as it can be without running under
+    // the + button. It scrolls inside itself past that.
+    function fitInfoPane() {
+        const pane = $('.info-pane:not(.sheet-slot)');
+        if (!pane) return;
+        pane.style.maxHeight = `${Math.max(240, panelBottom() - pane.getBoundingClientRect().top)}px`;
     }
 
     function closeDock() {
@@ -966,9 +979,9 @@
 
     let placing = false;
     const placeSoon = () => {
-        if (!dock || placing) return;
+        if (placing || !(dock || $('.info-pane'))) return;
         placing = true;
-        requestAnimationFrame(() => { placing = false; placeDock(); });
+        requestAnimationFrame(() => { placing = false; placeDock(); fitInfoPane(); });
     };
     document.addEventListener('scroll', placeSoon, { passive: true, capture: true });
     window.addEventListener('resize', placeSoon);
@@ -1517,6 +1530,7 @@
         if (enc) { wireCardMenus('#main-content', '.init-row', combatantMenu); fillMissingTypes(); }
         else wireCardMenus('#main-content', '.list-row', encounterMenu);
         syncDock();
+        fitInfoPane();
     }
 
     // Everything the inline buttons do, plus the things that had no room on
