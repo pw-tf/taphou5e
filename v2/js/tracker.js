@@ -997,7 +997,7 @@
                             <div class="meta">${escapeHtml(e.status)}${
                                 e.status === 'active' ? ` · round ${e.round || 1}` : ''}</div>
                         </div>
-                        ${e.status === 'active' ? '<span class="mono nav-count is-live">LIVE</span>' : ''}
+                        ${e.status === 'active' ? '<span class="status-pill is-active">active</span>' : ''}
                     </a>`).join('')}
             </div>`).join('')
             + (isDM ? '<p class="hint">Hold an encounter (or right-click) to share or delete it.</p>' : '');

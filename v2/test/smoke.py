@@ -1178,6 +1178,17 @@ async def main():
         assert any("DM panel" in n for n in nav), nav
         ok(f"DM sees role pill {role!r} and the DM panel item")
 
+        # A running encounter is labelled the same way on the overview as inside
+        # it -- ACTIVE, pulsing -- not LIVE.
+        card = page.locator('.summary-card[href*="monster-tracker.html?id=e1"]')
+        assert await card.count() == 1
+        pill = card.locator(".status-pill.is-active")
+        assert (await pill.inner_text()).strip() == "ACTIVE", await pill.inner_text()
+        assert await page.evaluate(
+            "getComputedStyle(document.querySelector('.summary-card .status-pill.is-active')).animationName") == "pill-pulse"
+        assert await page.locator("text=LIVE").count() == 0
+        ok("the overview's running encounter reads ACTIVE and pulses, as it does inside the encounter")
+
         # ---------- 2. Roster rendering ----------
         cards = page.locator(".character-card")
         assert await cards.count() == 4, await cards.count()

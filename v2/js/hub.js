@@ -120,7 +120,7 @@
                                    <div class="title">${escapeHtml(data.liveEncounter.name)}</div>
                                    <div class="meta">In progress · round ${data.liveEncounter.round || 0}</div>
                                </div>
-                               <span class="mono nav-count is-live">LIVE</span>
+                               <span class="status-pill is-active">active</span>
                            </a>`
                         : ''
                 }

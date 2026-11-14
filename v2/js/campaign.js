@@ -532,7 +532,7 @@
                                                 <span class="dc">ENCOUNTER</span>
                                                 <span style="flex:1;min-width:0">${escapeHtml(e.name)}</span>
                                                 ${e.status === 'active'
-                                                    ? '<span class="mono nav-count is-live">LIVE</span>'
+                                                    ? '<span class="status-pill is-active">active</span>'
                                                     : `<span class="hidden-pill">${escapeHtml(e.status)}</span>`}
                                             </a>`).join('')}
                                         ${bChecks.map(checkRow).join('')}
@@ -909,7 +909,7 @@
                     <div class="name">${escapeHtml(e.name)}</div>
                     <div class="meta">${escapeHtml(e.status)}${e.status === 'active' ? ` · round ${e.round || 0}` : ''}</div>
                 </div>
-                ${e.status === 'active' ? '<span class="mono nav-count is-live">LIVE</span>' : ''}
+                ${e.status === 'active' ? '<span class="status-pill is-active">active</span>' : ''}
             </a>`).join('')}</div>`;
     }
 
