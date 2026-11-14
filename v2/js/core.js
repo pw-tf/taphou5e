@@ -49,11 +49,16 @@ function clearSession() {
 const session = getSession();
 const isDM = !!session && session.role === 'dm';
 
-// Opened inside Owlbear Rodeo by the extension in /owlbear/. The page is the
-// same; it leaves out the navigation and closes the Owlbear modal instead of
-// going back. The session comes from the extension, never from a login here.
-const EMBED = new URLSearchParams(window.location.search).has('embed');
-if (EMBED) {
+// Opened inside Owlbear Rodeo by the extension in /owlbear/ (?embed=1), or in
+// a popup inside taphou5e itself (?embed=app, the encounter tracker's party
+// sheets). The page is the same; it leaves out the navigation and closes its
+// host instead of going back. In Owlbear the session comes from the
+// extension, never from a login here; in the app it is the app's own.
+const EMBED_HOST = new URLSearchParams(window.location.search).get('embed');
+const EMBED = EMBED_HOST !== null;
+if (EMBED_HOST === 'app') {
+    window.closeEmbed = () => window.parent.postMessage({ type: 'taphou5e-close-sheet' }, window.location.origin);
+} else if (EMBED) {
     const bridge = document.createElement('script');
     bridge.type = 'module';
     bridge.src = '../owlbear/embed.js';
@@ -328,7 +333,7 @@ function characterCard(character) {
            style="flex-direction:column;gap:var(--space-10)">
             ${flag}
             <div class="card-top">
-                <div class="avatar">${escapeHtml((character.name || '?').charAt(0).toUpperCase())}</div>
+                ${characterAvatar(character)}
                 <div style="flex:1;min-width:0">
                     <div class="card-name">${escapeHtml(character.name)}</div>
                     <div class="card-meta">${escapeHtml(meta)}</div>
@@ -373,6 +378,35 @@ const ICONS = {
     // Three people side by side: a member of the party.
     party:      '<circle cx="12" cy="8" r="3"/><path d="M7 20v-1a5 5 0 0 1 10 0v1"/><circle cx="4.5" cy="10.5" r="2"/><path d="M1 19v-.5a3.5 3.5 0 0 1 3.5-3.5"/><circle cx="19.5" cy="10.5" r="2"/><path d="M23 19v-.5a3.5 3.5 0 0 0-3.5-3.5"/>',
     chevrons:   '<polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>',
+    // ---- Who a combatant is: a class for a character, a creature type for a
+    // monster. The avatar box on cards and initiative rows shows these. ----
+    'class-fighter':   '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/>',
+    'class-barbarian': '<path d="m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9"/><path d="M15 13 9 7l4-4 6 6h3a8 8 0 0 1-7 7z"/>',
+    'class-bard':      '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    'class-cleric':    '<path d="M10 2h4v6h6v4h-6v10h-4V12H4V8h6z"/>',
+    'class-druid':     '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+    'class-monk':      '<path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+    'class-paladin':   '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v8"/><path d="M9 11h6"/>',
+    'class-ranger':    '<path d="M7 3a14 14 0 0 1 14 14"/><path d="M7 3 21 17"/><path d="M3 21 18 6"/><polyline points="13 6 18 6 18 11"/>',
+    'class-rogue':     '<g transform="rotate(-30 12 12)"><path d="M12 2l2 4v7h-4V6z"/><path d="M8 13h8"/><path d="M12 13v6"/></g><g transform="rotate(30 12 12)"><path d="M12 2l2 4v7h-4V6z"/><path d="M8 13h8"/><path d="M12 13v6"/></g>',
+    'class-sorcerer':  '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+    'class-warlock':   '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+    'class-wizard':    '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M12 6v7"/><path d="M8.5 9.5h7"/>',
+    'type-aberration': '<circle cx="12" cy="8" r="5"/><circle cx="12" cy="8" r="1.5"/><path d="M8 12c-1 4-4 5-5 8"/><path d="M12 13v8"/><path d="M16 12c1 4 4 5 5 8"/>',
+    'type-beast':      '<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.05Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>',
+    'type-celestial':  '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+    'type-construct':  '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    'type-dragon':     '<path d="M3 21 21 3c-1 5-3 8-6 10 1 1.2 1 2.8 0 4-2-1-4-1-6 0 0-1.2-.6-2.2-2-2.5"/><path d="M15 9l-4 4"/>',
+    'type-elemental':  '<path d="M21 4H3"/><path d="M18 8H6"/><path d="M19 12H9"/><path d="M16 16h-6"/><path d="M11 20H9"/>',
+    'type-fey':        '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v5"/><path d="M16.5 18.5h5"/>',
+    'type-fiend':      '<circle cx="12" cy="14" r="7"/><path d="M6.5 9.5 4 3l5 4"/><path d="M17.5 9.5 20 3l-5 4"/><path d="M9.5 13h.01M14.5 13h.01"/>',
+    'type-giant':      '<path d="M8 21c-3 0-4-3-3-7s2-8 5-8 4 3 4 6-1 4-1 6-2 3-5 3z"/><circle cx="16" cy="5" r="1.5"/><circle cx="18.5" cy="8.5" r="1.2"/><circle cx="19.5" cy="12" r="1"/>',
+    'type-humanoid':   '<path d="M4 14a8 8 0 0 1 16 0v7h-5v-6H9v6H4z"/><path d="M4 14h16"/>',
+    'type-monstrosity':'<path d="M6 3c2 6 2 12 0 18"/><path d="M12 3c2 6 2 12 0 18"/><path d="M18 3c2 6 2 12 0 18"/>',
+    'type-ooze':       '<path d="M4 20c0-6 3-9 5-13 1 3 3 3 4 1 2 4 7 6 7 12z"/><path d="M10 15h.01M15 16h.01"/>',
+    'type-plant':      '<path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/>',
+    'type-undead':     '<path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/>',
+    info:              '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
     plus:       '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
     back:       '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
     bug:        '<path d="M8 2 9.5 4.5"/><path d="M16 2 14.5 4.5"/><path d="M9 20a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5z"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5.5 7-1.7-1.3"/><path d="m18.5 7 1.7-1.3"/><path d="m5.5 19-1.7 1.3"/><path d="m18.5 19 1.7 1.3"/>'
@@ -405,7 +439,34 @@ const PIXEL_ICONS = {
     chevrons: 'M3 1h1v2H3zM2 2h1v2H2zM1 3h1v2H1zM2 4h1v2H2zM3 5h1v2H3zM6 1h1v2H6zM5 2h1v2H5zM4 3h1v2H4zM5 4h1v2H5zM6 5h1v2H6z',
     bug:      'M2 2h4v5H2zM1 0h1v1H1zM6 0h1v1H6zM2 1h1v1H2zM5 1h1v1H5zM0 3h1v1H0zM7 3h1v1H7zM1 4h1v1H1zM6 4h1v1H6zM0 6h1v1H0zM7 6h1v1H7z',
     plus:     'M3 1h2v2h2v2H5v2H3V5H1V3h2z',
-    back:     'M1 3h1v2H1zM2 2h1v4H2zM3 1h1v6H3zM4 3h3v2H4z'
+    back:     'M1 3h1v2H1zM2 2h1v4H2zM3 1h1v6H3zM4 3h3v2H4z',
+    'class-fighter':     'M7 0h1v1H7zM6 1h1v1H6zM5 2h1v1H5zM4 3h1v1H4zM1 4h1v1H1zM3 4h1v1H3zM2 5h1v1H2zM1 6h1v1H1zM3 6h1v1H3zM0 7h1v1H0z',
+    'class-barbarian':   'M0 0h1v1H0zM3 0h2v1H3zM7 0h1v1H7zM0 1h2v1H0zM3 1h2v1H3zM6 1h2v1H6zM0 2h8v1H0zM0 3h2v1H0zM3 3h2v1H3zM6 3h2v1H6zM0 4h1v1H0zM3 4h2v1H3zM7 4h1v1H7zM3 5h2v1H3zM3 6h2v1H3zM3 7h2v1H3z',
+    'class-bard':        'M3 0h2v1H3zM3 1h1v1H3zM5 1h1v1H5zM3 2h1v1H3zM6 2h1v1H6zM3 3h1v1H3zM3 4h1v1H3zM1 5h3v1H1zM0 6h4v1H0zM1 7h2v1H1z',
+    'class-cleric':      'M3 0h2v1H3zM3 1h2v1H3zM0 2h8v1H0zM0 3h8v1H0zM3 4h2v1H3zM3 5h2v1H3zM3 6h2v1H3zM3 7h2v1H3z',
+    'class-druid':       'M5 0h3v1H5zM3 1h5v1H3zM2 2h4v1H2zM7 2h1v1H7zM1 3h4v1H1zM6 3h2v1H6zM1 4h3v1H1zM5 4h3v1H5zM1 5h2v1H1zM4 5h3v1H4zM1 6h1v1H1zM3 6h3v1H3zM0 7h1v1H0z',
+    'class-monk':        'M1 0h6v1H1zM0 1h1v1H0zM2 1h1v1H2zM4 1h1v1H4zM6 1h2v1H6zM0 2h1v1H0zM2 2h1v1H2zM4 2h1v1H4zM6 2h2v1H6zM0 3h7v1H0zM0 4h2v1H0zM4 4h3v1H4zM1 5h6v1H1zM2 6h4v1H2zM2 7h4v1H2z',
+    'class-paladin':     'M0 0h8v1H0zM0 1h1v1H0zM3 1h2v1H3zM7 1h1v1H7zM0 2h8v1H0zM0 3h1v1H0zM3 3h2v1H3zM7 3h1v1H7zM0 4h1v1H0zM3 4h2v1H3zM7 4h1v1H7zM1 5h1v1H1zM3 5h2v1H3zM6 5h1v1H6zM2 6h4v1H2zM3 7h2v1H3z',
+    'class-ranger':      'M1 0h2v1H1zM1 1h1v1H1zM3 1h1v1H3zM1 2h1v1H1zM4 2h1v1H4zM6 2h1v1H6zM0 3h8v1H0zM1 4h1v1H1zM4 4h1v1H4zM6 4h1v1H6zM1 5h1v1H1zM3 5h1v1H3zM1 6h2v1H1z',
+    'class-rogue':       'M1 0h1v1H1zM6 0h1v1H6zM1 1h1v1H1zM6 1h1v1H6zM1 2h1v1H1zM6 2h1v1H6zM1 3h1v1H1zM6 3h1v1H6zM0 4h3v1H0zM5 4h3v1H5zM1 5h1v1H1zM6 5h1v1H6zM1 6h1v1H1zM6 6h1v1H6z',
+    'class-sorcerer':    'M4 0h1v1H4zM3 1h2v1H3zM2 2h3v1H2zM6 2h1v1H6zM2 3h5v1H2zM1 4h3v1H1zM5 4h2v1H5zM1 5h2v1H1zM5 5h2v1H5zM1 6h2v1H1zM5 6h2v1H5zM2 7h4v1H2z',
+    'class-warlock':     'M2 1h4v1H2zM1 2h1v1H1zM6 2h1v1H6zM0 3h1v1H0zM3 3h2v1H3zM7 3h1v1H7zM0 4h1v1H0zM3 4h2v1H3zM7 4h1v1H7zM1 5h1v1H1zM6 5h1v1H6zM2 6h4v1H2z',
+    'class-wizard':      'M0 0h6v1H0zM0 1h1v1H0zM6 1h1v1H6zM0 2h1v1H0zM3 2h1v1H3zM6 2h1v1H6zM0 3h1v1H0zM2 3h3v1H2zM6 3h1v1H6zM0 4h1v1H0zM3 4h1v1H3zM6 4h1v1H6zM0 5h1v1H0zM6 5h1v1H6zM0 6h7v1H0zM1 7h6v1H1z',
+    'type-aberration':   'M2 0h4v1H2zM1 1h1v1H1zM6 1h1v1H6zM1 2h1v1H1zM3 2h2v1H3zM6 2h1v1H6zM1 3h1v1H1zM6 3h1v1H6zM2 4h4v1H2zM1 5h1v1H1zM4 5h1v1H4zM6 5h1v1H6zM0 6h1v1H0zM4 6h1v1H4zM7 6h1v1H7zM0 7h1v1H0zM3 7h1v1H3zM7 7h1v1H7z',
+    'type-beast':        'M2 0h1v1H2zM5 0h1v1H5zM2 1h1v1H2zM5 1h1v1H5zM0 2h1v1H0zM7 2h1v1H7zM0 3h1v1H0zM2 3h4v1H2zM7 3h1v1H7zM1 4h6v1H1zM1 5h6v1H1zM2 6h4v1H2z',
+    'type-celestial':    'M0 0h1v1H0zM3 0h2v1H3zM7 0h1v1H7zM1 1h1v1H1zM6 1h1v1H6zM3 2h2v1H3zM0 3h1v1H0zM2 3h4v1H2zM7 3h1v1H7zM0 4h1v1H0zM2 4h4v1H2zM7 4h1v1H7zM3 5h2v1H3zM1 6h1v1H1zM6 6h1v1H6zM0 7h1v1H0zM3 7h2v1H3zM7 7h1v1H7z',
+    'type-construct':    'M3 0h2v1H3zM1 1h6v1H1zM1 2h2v1H1zM5 2h2v1H5zM0 3h3v1H0zM5 3h3v1H5zM0 4h3v1H0zM5 4h3v1H5zM1 5h2v1H1zM5 5h2v1H5zM1 6h6v1H1zM3 7h2v1H3z',
+    'type-dragon':       'M0 0h1v1H0zM1 1h2v1H1zM1 2h4v1H1zM0 3h2v1H0zM3 3h5v1H3zM0 4h8v1H0zM0 5h3v1H0zM0 6h4v1H0zM5 6h1v1H5zM7 6h1v1H7zM1 7h7v1H1z',
+    'type-elemental':    'M0 0h8v1H0zM1 1h6v1H1zM2 2h5v1H2zM3 3h4v1H3zM3 4h3v1H3zM4 5h2v1H4zM4 6h1v1H4zM3 7h1v1H3z',
+    'type-fey':          'M3 0h1v1H3zM3 1h1v1H3zM2 2h3v1H2zM0 3h7v1H0zM2 4h3v1H2zM3 5h1v1H3zM6 5h1v1H6zM3 6h1v1H3zM5 6h3v1H5zM6 7h1v1H6z',
+    'type-fiend':        'M0 0h1v1H0zM7 0h1v1H7zM0 1h2v1H0zM6 1h2v1H6zM1 2h6v1H1zM1 3h1v1H1zM3 3h2v1H3zM6 3h1v1H6zM1 4h6v1H1zM1 5h2v1H1zM5 5h2v1H5zM2 6h4v1H2zM3 7h2v1H3z',
+    'type-giant':        'M1 0h1v1H1zM3 0h1v1H3zM5 0h1v1H5zM1 2h5v1H1zM0 3h7v1H0zM0 4h7v1H0zM1 5h5v1H1zM1 6h5v1H1zM2 7h3v1H2z',
+    'type-humanoid':     'M2 0h4v1H2zM1 1h6v1H1zM0 2h8v1H0zM0 3h1v1H0zM7 3h1v1H7zM0 4h3v1H0zM5 4h3v1H5zM0 5h3v1H0zM5 5h3v1H5zM0 6h3v1H0zM5 6h3v1H5zM0 7h2v1H0zM6 7h2v1H6z',
+    'type-monstrosity':  'M0 0h1v1H0zM3 0h1v1H3zM6 0h1v1H6zM0 1h1v1H0zM3 1h1v1H3zM6 1h1v1H6zM1 2h1v1H1zM4 2h1v1H4zM7 2h1v1H7zM1 3h1v1H1zM4 3h1v1H4zM7 3h1v1H7zM1 4h1v1H1zM4 4h1v1H4zM7 4h1v1H7zM0 5h1v1H0zM3 5h1v1H3zM6 5h1v1H6zM0 6h1v1H0zM3 6h1v1H3zM6 6h1v1H6z',
+    'type-ooze':         'M3 1h2v1H3zM2 2h4v1H2zM1 3h6v1H1zM1 4h1v1H1zM3 4h2v1H3zM6 4h2v1H6zM0 5h8v1H0zM0 6h8v1H0zM0 7h1v1H0zM2 7h1v1H2zM5 7h1v1H5zM7 7h1v1H7z',
+    'type-plant':        'M0 0h2v1H0zM5 0h2v1H5zM0 1h3v1H0zM4 1h3v1H4zM1 2h2v1H1zM4 2h2v1H4zM3 3h1v1H3zM3 4h1v1H3zM3 5h1v1H3zM1 6h5v1H1z',
+    'type-undead':       'M2 0h4v1H2zM1 1h6v1H1zM1 2h1v1H1zM3 2h2v1H3zM6 2h1v1H6zM1 3h6v1H1zM1 4h6v1H1zM1 5h6v1H1zM1 6h6v1H1zM1 7h1v1H1zM3 7h2v1H3zM6 7h1v1H6z',
+    'info':              'M3 0h2v1H3zM2 2h3v1H2zM3 3h2v1H3zM3 4h2v1H3zM3 5h2v1H3zM2 6h4v1H2z'
 };
 
 // A name that is one drawing in Ember and its own in Pixel. The nav's Overview
@@ -422,6 +483,97 @@ function icon(name, size) {
     // transform a page puts on the <svg> itself (e.g. the collapse flip).
     // .ico-lg tells Pixel which of its two sizes to use: 8 cells at 2px or 3px.
     return `<svg class="ico ico-${line}${s >= 20 ? ' ico-lg' : ''}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g">${ICONS[line] || ''}</g>${px ? `<g class="ico-px" transform="scale(3)" fill="currentColor" stroke="none" fill-rule="evenodd"><path d="${px}"/></g>` : ''}</svg>`;
+}
+
+// A character's class and a monster's creature type, as the icon name for
+// their avatar. Anything not recognised falls back: a character to their
+// initial (as before), a monster to the general monster icon.
+const CLASS_ICONS = ['barbarian', 'bard', 'cleric', 'druid', 'fighter', 'monk',
+                     'paladin', 'ranger', 'rogue', 'sorcerer', 'warlock', 'wizard'];
+const CREATURE_TYPES = ['aberration', 'beast', 'celestial', 'construct', 'dragon', 'elemental',
+                        'fey', 'fiend', 'giant', 'humanoid', 'monstrosity', 'ooze', 'plant', 'undead'];
+
+function classIconName(cls) {
+    const key = String(cls || '').trim().toLowerCase();
+    return CLASS_ICONS.includes(key) ? `class-${key}` : null;
+}
+
+// The SRD writes a swarm as "swarm of Tiny beasts" and some types with a tag
+// ("humanoid (goblinoid)"), so the first known type word anywhere wins.
+function creatureIconName(type) {
+    const words = String(type || '').toLowerCase().match(/[a-z]+/g) || [];
+    for (const w of words) {
+        const singular = w.endsWith('s') ? w.slice(0, -1) : w;
+        if (CREATURE_TYPES.includes(w)) return `type-${w}`;
+        if (CREATURE_TYPES.includes(singular)) return `type-${singular}`;
+    }
+    return 'monster';
+}
+
+function characterAvatar(character) {
+    const name = classIconName(character && character.class);
+    const cls = character && character.class ? escapeHtml(character.class) : '';
+    return name
+        ? `<div class="avatar has-icon" title="${cls}">${icon(name, 20)}<span class="sr-only">${cls}</span></div>`
+        : `<div class="avatar">${escapeHtml(((character && character.name) || '?').charAt(0).toUpperCase())}</div>`;
+}
+
+function creatureAvatar(type) {
+    const label = type ? escapeHtml(type) : 'Monster';
+    return `<div class="avatar has-icon" title="${label}">${icon(creatureIconName(type), 20)}<span class="sr-only">${label}</span></div>`;
+}
+
+// ---- Monster stat blocks (the compendium and the encounter tracker) ----
+function crLabel(cr) {
+    if (cr === null || cr === undefined || cr === '') return '—';
+    if (cr === 0.125) return '1/8';
+    if (cr === 0.25) return '1/4';
+    if (cr === 0.5) return '1/2';
+    return String(cr);
+}
+
+// `m` is an SRD monster, or one with the same field names (a campaign
+// monster's overrides spread over it, a homebrew stat block). `extra` is
+// markup that goes at the end, inside the block.
+function renderStatblock(m, extra) {
+    const ac = srdArmorClass(m.armor_class);
+    const abilities = [
+        ['STR', m.strength], ['DEX', m.dexterity], ['CON', m.constitution],
+        ['INT', m.intelligence], ['WIS', m.wisdom], ['CHA', m.charisma]
+    ];
+    const hasAbilities = abilities.some(([, score]) => score != null);
+    const traits = (m.special_abilities || []).concat(m.actions || []);
+    const speed = m.speed && typeof m.speed === 'object'
+        ? Object.entries(m.speed).map(([k, v]) => `${k} ${v}`).join(', ') : m.speed;
+    const flavour = [m.size, m.type, m.alignment].filter(Boolean).join(' ');
+
+    return `
+        <span class="eyebrow">Stat block</span>
+        <h2>${escapeHtml(m.name || '')}</h2>
+        ${flavour ? `<p class="flavour">${escapeHtml(flavour)}</p>` : ''}
+        <div class="stat-trio">
+            <div><b>${ac ?? '—'}</b><span>AC</span></div>
+            <div><b>${m.hit_points ?? '—'}</b><span>HP</span></div>
+            <div><b>${crLabel(m.challenge_rating)}</b><span>CR</span></div>
+        </div>
+        ${hasAbilities ? `
+        <div class="abilities">
+            ${abilities.map(([label, score]) => `
+                <div>
+                    <div class="label mono" style="font-size:var(--fs-9);color:var(--text-tertiary)">${label}</div>
+                    <div class="mono" style="font-weight:600">${score ?? '—'}</div>
+                    <div class="mono" style="font-size:var(--fs-10);color:var(--accent-primary)">${
+                        score ? formatMod(abilityMod(score)) : ''}</div>
+                </div>`).join('')}
+        </div>` : ''}
+        ${speed ? `<p class="mono" style="font-size:var(--fs-12)">Speed: ${escapeHtml(String(speed))}</p>` : ''}
+        ${traits.map(t => `
+            <div>
+                <div class="trait-name">${escapeHtml(t.name)}</div>
+                <p>${escapeHtml(t.desc || '')}</p>
+            </div>`).join('')}
+        ${m.description ? String(m.description).split(/\n{2,}/).map(p => `<p style="white-space:pre-line">${escapeHtml(p)}</p>`).join('') : ''}
+        ${extra || ''}`;
 }
 
 // ========================================

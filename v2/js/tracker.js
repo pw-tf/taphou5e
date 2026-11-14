@@ -30,6 +30,10 @@
     let npcs = [];
     let beats = [];           // this campaign's chapter beats, for linking
     let detail = null;
+    // The combatant whose stat block is in the side panel (tablet and up), or
+    // null. Below that width the stat block is a popup instead.
+    let info = null;
+    const statCache = {};     // campaign monster id -> the merged stat block, once fetched
 
     // ========================================
     // HP read-through
@@ -803,6 +807,141 @@
     // Render: the tracker
     // ========================================
 
+    // ---- Who a row is, and what its 'i' opens ----
+    function monsterOf(row) {
+        return row.campaign_monster_id ? monsters.find(m => m.id === row.campaign_monster_id) || null : null;
+    }
+
+    function avatarFor(row) {
+        if (row.character_id) return characterAvatar(characters[row.character_id] || { name: row.display_name });
+        const m = monsterOf(row);
+        if (!m) return creatureAvatar(row.combatant_type === 'npc' ? 'humanoid' : null);
+        // Monsters added before the type was recorded: the SRD knows it.
+        const cached = statCache[m.id];
+        return creatureAvatar(m.creature_type || (cached && cached.type) || null);
+    }
+
+    // A stat block gives away a monster's numbers, so only the DM gets one.
+    // Anyone can open a party member's sheet.
+    function canInfo(row) {
+        return !!row.character_id || isDM;
+    }
+
+    // The SRD entry with the campaign's own changes spread over it, and this
+    // combatant's armor class and hit points, which the DM may have edited.
+    async function statsFor(row) {
+        const m = monsterOf(row);
+        const key = m ? m.id : `row-${row.id}`;
+        if (!statCache[key]) {
+            let base = {};
+            if (m && m.api_index) {
+                try { base = await srdDetail('monsters', m.api_index); } catch (e) { base = {}; }
+            }
+            const npc = row.npc_id ? npcs.find(n => n.id === row.npc_id) : null;
+            statCache[key] = Object.assign({}, base, (m && m.statblock) || {}, {
+                name: (m && m.name) || (npc && npc.name) || row.display_name,
+                type: base.type || (m && m.creature_type) || (row.combatant_type === 'npc' ? 'NPC' : undefined),
+                size: base.size || (m && m.size) || undefined,
+                challenge_rating: m && m.challenge_rating != null ? m.challenge_rating : base.challenge_rating,
+                description: (m && m.statblock && m.statblock.description) || (npc && npc.description) || undefined
+            });
+        }
+        return Object.assign({}, statCache[key], {
+            name: row.display_name,
+            armor_class: row.armor_class ?? statCache[key].armor_class,
+            hit_points: row.max_hit_points ?? statCache[key].hit_points
+        });
+    }
+
+    function infoBody(row, stats) {
+        return `<div class="statblock">${renderStatblock(stats, `
+            ${row.notes ? `<div><div class="trait-name">DM note</div><p style="white-space:pre-line">${escapeHtml(row.notes)}</p></div>` : ''}
+            ${isDM ? `<div class="pane-actions"><button class="btn btn-quiet btn-tiny" onclick="editNotes('${row.id}')">${
+                row.notes ? 'Edit note' : 'Add note'}</button></div>` : ''}`)}</div>`;
+    }
+
+    // Tablet and up: the side panel. A phone: a popup, like every other panel.
+    const WIDE = window.matchMedia('(min-width: 768px)');
+
+    window.showInfo = async id => {
+        const row = combatants.find(r => r.id === id);
+        if (!row) return;
+        if (row.character_id) { openSheetPopup(row.character_id, row.display_name); return; }
+        if (WIDE.matches) {
+            info = info === id ? null : id;
+            draw();
+            if (info) { await statsFor(row); if (info === id) draw(); }
+            return;
+        }
+        openPanel({ title: row.display_name, body: '<div class="skeleton"></div>' });
+        const stats = await statsFor(row);
+        const body = $('#panel-body');
+        if (body) body.innerHTML = infoBody(row, stats);
+    };
+
+    window.closeInfo = () => { info = null; draw(); };
+
+    function infoPane() {
+        const row = info && combatants.find(r => r.id === info);
+        if (!row || !WIDE.matches) return '';
+        const m = monsterOf(row);
+        const cached = statCache[m ? m.id : `row-${row.id}`];
+        const stats = cached ? Object.assign({}, cached, {
+            name: row.display_name,
+            armor_class: row.armor_class ?? cached.armor_class,
+            hit_points: row.max_hit_points ?? cached.hit_points }) : null;
+        return `
+            <aside class="info-pane" aria-label="Stat block for ${escapeHtml(row.display_name)}">
+                <button class="icon-btn pane-close" onclick="closeInfo()" aria-label="Close stat block">&times;</button>
+                ${stats ? infoBody(row, stats) : '<div class="skeleton"></div>'}
+            </aside>`;
+    }
+
+    // A party member's 'i' opens their real sheet, embedded, in a popup. The
+    // sheet saves as it always does; the tracker re-reads them on close.
+    function openSheetPopup(characterId, name) {
+        closeModal();
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="modal-host" class="modal-host">
+                <div class="modal modal-sheet" role="dialog" aria-modal="true" aria-label="Character sheet: ${escapeHtml(name)}">
+                    <iframe class="sheet-frame" title="Character sheet: ${escapeHtml(name)}"
+                            src="character-sheet.html?id=${encodeURIComponent(characterId)}&embed=app"></iframe>
+                </div>
+            </div>`);
+        document.body.style.overflow = 'hidden';
+        const host = $('#modal-host');
+        const close = async () => {
+            if (!document.contains(host)) return;
+            closeModal();
+            window.removeEventListener('message', onMessage);
+            document.removeEventListener('keydown', onKey);
+            const { data } = await db.from('characters')
+                .select('id, name, class, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
+                .eq('id', characterId);
+            (data || []).forEach(ch => { characters[ch.id] = ch; });
+            draw();
+        };
+        const onMessage = e => {
+            if (e.origin === window.location.origin && e.data && e.data.type === 'taphou5e-close-sheet') close();
+        };
+        const onKey = e => { if (e.key === 'Escape') close(); };
+        // The sheet has its own close button (it posts the message below);
+        // the backdrop and Escape close it from out here.
+        wireBackdropDismiss(host, close);
+        window.addEventListener('message', onMessage);
+        document.addEventListener('keydown', onKey);
+    }
+
+    // Monsters added before their creature type was saved get it from the
+    // SRD, once per session, so their avatar can show it.
+    function fillMissingTypes() {
+        const missing = monsters.filter(m => !m.creature_type && m.api_index && !statCache[m.id]
+            && combatants.some(r => r.campaign_monster_id === m.id));
+        if (!missing.length) return;
+        Promise.all(missing.map(m => statsFor(combatants.find(r => r.campaign_monster_id === m.id))))
+            .then(() => draw()).catch(() => {});
+    }
+
     function initRow(row) {
         const hp = hpOf(row);
         const isActive = enc.active_combatant_id === row.id;
@@ -834,23 +973,27 @@
                 </div>
 
                 <div class="init-id">
-                    <div class="init-name-line">
-                        <div class="init-name" onclick="showCombatant('${row.id}')" role="button" tabindex="0">
-                            ${escapeHtml(row.display_name)}
+                    ${avatarFor(row)}
+                    <div class="init-who">
+                        <div class="init-name-line">
+                            <div class="init-name" onclick="showCombatant('${row.id}')" role="button" tabindex="0">
+                                ${escapeHtml(row.display_name)}
+                            </div>
+                            ${canInfo(row) ? `
+                                <button class="init-info${info === row.id ? ' is-on' : ''}" onclick="showInfo('${row.id}')"
+                                        aria-label="${isParty ? 'Character sheet' : 'Stat block'} for ${escapeHtml(row.display_name)}"
+                                        title="${isParty ? 'Character sheet' : 'Stat block'}">
+                                    ${icon('info', 16)}
+                                </button>` : ''}
                         </div>
-                        <button class="init-toggle" onclick="showCombatant('${row.id}')"
-                                aria-expanded="${isOpen}"
-                                aria-label="${isOpen ? 'Hide' : 'Show'} details for ${escapeHtml(row.display_name)}">
-                            ${icon('chevron', 16)}
-                        </button>
-                    </div>
-                    <div class="init-sub">
-                        ${isDM && enc.status !== 'completed'
-                            ? `<span class="mono ac-edit" role="button" tabindex="0"
-                                     onclick="editAC('${row.id}')" title="Edit armor class">AC ${row.armor_class ?? '—'}</span>`
-                            : (row.armor_class ? `<span class="mono">AC ${row.armor_class}</span>` : '')}
-                        ${hideHP ? '' : `<span class="state-${hpClass(hp.current, hp.max)}">${hpStateLabel(hp.current, hp.max)}</span>`}
-                        ${isParty ? `<span class="party-mark" role="img" aria-label="Party member" title="Party member">${icon('party', 15)}</span>` : ''}
+                        <div class="init-sub">
+                            ${isDM && enc.status !== 'completed'
+                                ? `<span class="mono ac-edit" role="button" tabindex="0"
+                                         onclick="editAC('${row.id}')" title="Edit armor class">AC ${row.armor_class ?? '—'}</span>`
+                                : (row.armor_class ? `<span class="mono">AC ${row.armor_class}</span>` : '')}
+                            ${hideHP ? '' : `<span class="state-${hpClass(hp.current, hp.max)}">${hpStateLabel(hp.current, hp.max)}</span>`}
+                            ${isParty ? `<span class="party-mark" role="img" aria-label="Party member" title="Party member">${icon('party', 15)}</span>` : ''}
+                        </div>
                     </div>
                 </div>
 
@@ -868,13 +1011,18 @@
                         <button class="hp-btn heal" onclick="trackHeal('${row.id}')" aria-label="Heal">+</button>
                     </div>` : ''}
 
-                ${isDM ? `
-                    <div class="row-actions">
+                <div class="row-actions">
+                    <button class="init-toggle" onclick="showCombatant('${row.id}')"
+                            aria-expanded="${isOpen}"
+                            aria-label="${isOpen ? 'Hide' : 'Show'} details for ${escapeHtml(row.display_name)}">
+                        ${icon('chevron', 16)}
+                    </button>
+                    ${isDM ? `
                         <button class="btn btn-quiet btn-tiny" onclick="toggleDefeated('${row.id}')">
                             ${row.is_defeated ? 'Revive' : 'Down'}
                         </button>
-                        <button class="btn btn-quiet btn-tiny" onclick="removeCombatant('${row.id}')">Remove</button>
-                    </div>` : ''}
+                        <button class="btn btn-quiet btn-tiny" onclick="removeCombatant('${row.id}')">Remove</button>` : ''}
+                </div>
 
                 ${conditions.length ? `
                     <div class="init-conditions">
@@ -913,7 +1061,10 @@
         const list = ordered();
         const running = enc.status === 'active';
 
+        const pane = infoPane();
         return `
+            <div class="tracker-split${pane ? ' has-info' : ''}">
+            <div class="tracker-main">
             <div class="campaign-head">
                 <div class="title-row">
                     <a class="btn btn-quiet btn-tiny" href="monster-tracker.html">← All encounters</a>
@@ -934,7 +1085,10 @@
                        <h3>Nobody in this encounter yet</h3>
                        <p>${isDM ? "Add the party, then monsters from this campaign's roster."
                                  : 'Your DM has not set this one up yet.'}</p>
-                   </div>`}`;
+                   </div>`}
+            </div>
+            ${pane}
+            </div>`;
     }
 
     // ========================================
@@ -1281,7 +1435,7 @@
         });
         $('#main-content').innerHTML = enc ? trackerView() : listView();
 
-        if (enc) wireCardMenus('#main-content', '.init-row', combatantMenu);
+        if (enc) { wireCardMenus('#main-content', '.init-row', combatantMenu); fillMissingTypes(); }
         else wireCardMenus('#main-content', '.list-row', encounterMenu);
     }
 
@@ -1295,7 +1449,10 @@
         return {
             title: combatant.display_name,
             actions: [
-                { label: 'Show details', hint: 'Stat block and conditions',
+                ...(canInfo(combatant) ? [{
+                    label: combatant.character_id ? 'Character sheet' : 'Stat block',
+                    run: () => window.showInfo(combatant.id) }] : []),
+                { label: 'Show details', hint: 'Conditions, colour and note',
                   run: () => window.showCombatant(combatant.id) },
                 { label: combatant.is_defeated ? 'Mark as up' : 'Mark as down',
                   run: () => window.toggleDefeated(combatant.id) },
@@ -1321,7 +1478,7 @@
             const [campaignRows, characterRows] = await Promise.all([
                 db.from('campaigns').select('id, name').eq('game_world_id', worldId).order('name'),
                 db.from('characters')
-                  .select('id, name, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
+                  .select('id, name, class, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
                   .eq('game_world_id', worldId)
             ]);
             campaigns = campaignRows.data || [];
@@ -1345,7 +1502,7 @@
             const [combatantRows, monsterRows, npcRows, chapterRows] = await Promise.all([
                 db.from('encounter_combatants').select('*').eq('encounter_id', enc.id).order('sort_order'),
                 db.from('campaign_monsters').select('*').eq('campaign_id', enc.campaign_id).order('name'),
-                db.from('npcs').select('id, name').eq('campaign_id', enc.campaign_id).order('name'),
+                db.from('npcs').select('id, name, description').eq('campaign_id', enc.campaign_id).order('name'),
                 db.from('chapters').select('id, title').eq('campaign_id', enc.campaign_id).order('sort_order')
             ]);
             combatants = combatantRows.data || [];
@@ -1371,7 +1528,7 @@
                 const ours = ids.filter(id => characters[id]);
                 if (!ours.length) return;
                 const { data } = await db.from('characters')
-                    .select('id, name, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
+                    .select('id, name, class, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
                     .in('id', ours);
                 (data || []).forEach(ch => { characters[ch.id] = ch; });
                 draw();

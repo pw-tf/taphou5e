@@ -40,14 +40,6 @@
     const fetchDetail = (which, apiIndex) => srdDetail(which, apiIndex);
     const normaliseAC = srdArmorClass;
 
-    function crLabel(cr) {
-        if (cr === null || cr === undefined) return '—';
-        if (cr === 0.125) return '1/8';
-        if (cr === 0.25) return '1/4';
-        if (cr === 0.5) return '1/2';
-        return String(cr);
-    }
-
     // ========================================
     // Rendering
     // ========================================
@@ -85,42 +77,10 @@
     }
 
     function monsterDetail(m) {
-        const ac = normaliseAC(m.armor_class);
-        const abilities = [
-            ['STR', m.strength], ['DEX', m.dexterity], ['CON', m.constitution],
-            ['INT', m.intelligence], ['WIS', m.wisdom], ['CHA', m.charisma]
-        ];
-        const traits = (m.special_abilities || []).concat(m.actions || []);
-
-        return `
-            <span class="eyebrow">Stat block</span>
-            <h2>${escapeHtml(m.name)}</h2>
-            <p class="flavour">${escapeHtml([m.size, m.type, m.alignment].filter(Boolean).join(' '))}</p>
-            <div class="stat-trio">
-                <div><b>${ac ?? '—'}</b><span>AC</span></div>
-                <div><b>${m.hit_points ?? '—'}</b><span>HP</span></div>
-                <div><b>${crLabel(m.challenge_rating)}</b><span>CR</span></div>
-            </div>
-            <div class="abilities">
-                ${abilities.map(([label, score]) => `
-                    <div>
-                        <div class="label mono" style="font-size:var(--fs-9);color:var(--text-tertiary)">${label}</div>
-                        <div class="mono" style="font-weight:600">${score ?? '—'}</div>
-                        <div class="mono" style="font-size:var(--fs-10);color:var(--accent-primary)">${
-                            score ? formatMod(abilityMod(score)) : ''}</div>
-                    </div>`).join('')}
-            </div>
-            ${m.speed ? `<p class="mono" style="font-size:var(--fs-12)">Speed: ${
-                escapeHtml(Object.entries(m.speed).map(([k, v]) => `${k} ${v}`).join(', '))}</p>` : ''}
-            ${traits.map(t => `
-                <div>
-                    <div class="trait-name">${escapeHtml(t.name)}</div>
-                    <p>${escapeHtml(t.desc || '')}</p>
-                </div>`).join('')}
-            ${isDM ? `
-                <div class="pane-actions">
-                    <button class="btn btn-accent btn-block" onclick="addToRoster()">Add to a campaign</button>
-                </div>` : ''}`;
+        return renderStatblock(m, isDM ? `
+            <div class="pane-actions">
+                <button class="btn btn-accent btn-block" onclick="addToRoster()">Add to a campaign</button>
+            </div>` : '');
     }
 
     function spellDetail(s) {

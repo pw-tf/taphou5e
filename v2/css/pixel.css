@@ -164,6 +164,7 @@
   box-shadow: 3px 3px 0 var(--px-ink);
 }
 [data-theme^="pixel"] :is(.modal, .modal > .modal-content, .explainer, .toast, .fab-menu, .fab) { box-shadow: 4px 4px 0 var(--px-ink); }
+[data-theme^="pixel"] .info-pane { background: var(--bg-primary); border-color: var(--px-ink); box-shadow: 4px 4px 0 var(--px-ink); }
 [data-theme^="pixel"] .modal:has(> .modal-backdrop) { box-shadow: none; }
 [data-theme^="pixel"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row):hover { background: var(--bg-hover); }
 

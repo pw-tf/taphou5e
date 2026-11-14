@@ -254,7 +254,7 @@
             if (!ch) return '';
             return `
                 <div class="list-row party-row" data-holdable data-kind="party" data-id="${escapeHtml(m.id)}">
-                    <div class="avatar">${escapeHtml((ch.name || '?').charAt(0).toUpperCase())}</div>
+                    ${characterAvatar(ch)}
                     <div class="who">
                         <div class="name">${escapeHtml(ch.name)}</div>
                         <div class="meta">Lv ${ch.level || 1} ${escapeHtml(ch.class || '')} · ${escapeHtml(ch.player_name || '')}</div>

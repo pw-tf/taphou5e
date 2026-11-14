@@ -144,7 +144,8 @@ FIXTURES = {
               "sort_order": 0}],
     "campaign_monsters": [
         {"id": "m1", "campaign_id": "cam1", "game_world_id": "w1",
-         "name": "Bog Lurker", "source": "homebrew", "api_index": None,
+         "name": "Bog Lurker", "source": "homebrew", "api_index": None, "creature_type": "ooze",
+         "statblock": {"description": "Lies under the reeds.\n\nEngulf. A creature it hits is pulled under."},
          "challenge_rating": 2, "armor_class": 13, "max_hit_points": 44},
         {"id": "m2", "campaign_id": "cam1", "game_world_id": "w1",
          "name": "Gargoyle", "source": "srd_api", "api_index": "gargoyle",
@@ -167,6 +168,17 @@ FIXTURES = {
         "speed": {"walk": "30 ft."},
         "special_abilities": [{"name": "Nimble Escape", "desc": "Disengage as a bonus action."}],
         "actions": [{"name": "Scimitar", "desc": "Melee weapon attack."}]},
+    # No creature_type on the roster row (added before it was recorded), so
+    # the tracker learns "elemental" from here for the avatar.
+    "srd_monster_gargoyle": {
+        "index": "gargoyle", "name": "Gargoyle", "size": "Medium", "type": "elemental",
+        "alignment": "chaotic evil", "armor_class": [{"type": "natural", "value": 15}],
+        "hit_points": 52, "hit_dice": "7d8", "challenge_rating": 2,
+        "strength": 15, "dexterity": 11, "constitution": 16,
+        "intelligence": 6, "wisdom": 11, "charisma": 7,
+        "speed": {"walk": "30 ft.", "fly": "60 ft."},
+        "special_abilities": [{"name": "False Appearance", "desc": "Motionless, it is indistinguishable from a statue."}],
+        "actions": [{"name": "Claw", "desc": "Melee weapon attack: +4 to hit, one target."}]},
     "srd_spells": {"count": 2, "results": [
         {"index": "fireball", "name": "Fireball", "url": "/api/spells/fireball"},
         {"index": "mage-hand", "name": "Mage Hand", "url": "/api/spells/mage-hand"}]},
@@ -422,6 +434,7 @@ __THEME_PIN__  const FIXTURES = __FIXTURES__;
     if (/\/api\/equipment\/dagger$/.test(url)) return json(FIXTURES.srd_equipment_dagger);
     if (/\/api\/features\/action-surge-1-use$/.test(url)) return json(FIXTURES.srd_feature_action_surge);
     if (/\/api\/monsters\/goblin$/.test(url)) return json(FIXTURES.srd_monster_goblin);
+    if (/\/api\/monsters\/gargoyle$/.test(url)) return json(FIXTURES.srd_monster_gargoyle);
     if (/\/api\/spells\/fireball$/.test(url)) return json(FIXTURES.srd_spell_fireball);
     // Class levels drive the level-up wizard's feature and spell steps. The
     // wizard names the API's 2014 tree; everything else uses the unversioned
@@ -1188,6 +1201,9 @@ async def main():
             "getComputedStyle(document.querySelector('.summary-card .status-pill.is-active')).animationName") == "pill-pulse"
         assert await page.locator("text=LIVE").count() == 0
         ok("the overview's running encounter reads ACTIVE and pulses, as it does inside the encounter")
+        assert await page.locator('.character-card:has-text("Brannor") .avatar .ico-class-fighter').count() == 1
+        assert await page.locator('.character-card:has-text("Wisp") .avatar .ico-class-rogue').count() == 1
+        ok("character cards show their class icon in place of an initial")
 
         # ---------- 2. Roster rendering ----------
         cards = page.locator(".character-card")
@@ -1967,6 +1983,12 @@ async def main():
                          "monster-tracker.html", "compendium.html"], links
         ok("a player's sheet sidebar reaches encounters and the compendium, and not the DM panel")
 
+        await page.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await page.wait_for_selector(".init-row", timeout=10000)
+        assert await page.locator(".init-row:not(.is-party) .init-info").count() == 0, "stat blocks are DM-only"
+        assert await page.locator(".init-row.is-party .init-info").count() == await page.locator(".init-row.is-party").count()
+        ok("a player gets the 'i' for party members' sheets, and none for monsters")
+
         # ---------- 23. Compendium ----------
         # Back to the DM session.
         await page.evaluate("localStorage.clear(); sessionStorage.clear();")
@@ -2207,6 +2229,59 @@ async def main():
         assert turn["payload"]["round"] == 2, turn
         assert not any("Gargoyle 1" in n for n in seen), f"downed combatant took a turn: {seen}"
         ok(f"the turn order skips the downed combatant and wraps into round 2 after {live} turns")
+
+        # ---------- 29b. Who each row is, and their stat block ----------
+        await page.set_viewport_size({"width": 1280, "height": 900})
+        await page.wait_for_timeout(200)
+        sythra = page.locator('.init-row:has-text("Sythra")')
+        lurker = page.locator('.init-row:has-text("Bog Lurker")')
+        gargoyle = page.locator('.init-row:has-text("Gargoyle 2")')
+        assert await sythra.locator(".avatar .ico-class-wizard").count() == 1
+        assert await lurker.locator(".avatar .ico-type-ooze").count() == 1
+        # The Gargoyle's roster row has no type; the SRD entry supplies it.
+        await gargoyle.locator(".avatar .ico-type-elemental").wait_for(timeout=5000)
+        ok("rows show a class icon for a character and a creature-type icon for a monster")
+
+        assert await page.locator(".init-name-line .init-toggle").count() == 0
+        assert await page.locator(".init-row .row-actions .init-toggle").count() == await page.locator(".init-row").count()
+        assert await page.locator(".init-row .init-name-line .init-info").count() == await page.locator(".init-row").count()
+        ok("each row has an 'i' beside the name, and the details arrow sits with Down and Remove")
+
+        await gargoyle.locator(".init-info").click()
+        pane = page.locator(".info-pane")
+        await pane.locator(".trait-name", has_text="False Appearance").wait_for(timeout=5000)
+        text = await pane.inner_text()
+        assert "Gargoyle 2" in text and "Medium elemental chaotic evil" in text, text
+        assert "Holds the far bank." in text, "the row's DM note shows with the stat block"
+        assert await page.locator(".modal-host").count() == 0, "on a wide screen it is a side panel, not a popup"
+        await pane.locator(".pane-close").click()
+        await page.wait_for_selector(".info-pane", state="detached", timeout=3000)
+        ok("on a wide screen a monster's 'i' opens its stat block in a side panel, which closes")
+
+        await sythra.locator(".init-info").click()
+        frame_el = page.locator(".modal-sheet iframe.sheet-frame")
+        await frame_el.wait_for(timeout=5000)
+        assert "embed=app" in await frame_el.get_attribute("src")
+        frame = page.frame_locator(".modal-sheet iframe.sheet-frame")
+        await frame.locator(".sheet-header h1").wait_for(timeout=10000)
+        assert "Sythra" in await frame.locator(".sheet-header h1").inner_text()
+        assert await frame.locator(".sidebar").count() == 0, "the embedded sheet has no navigation"
+        await frame.locator("#embed-close").click()
+        await page.wait_for_selector(".modal-sheet", state="detached", timeout=5000)
+        ok("a party member's 'i' opens their real sheet in a popup, and its close button closes it")
+
+        await page.set_viewport_size({"width": 390, "height": 844})
+        await page.wait_for_timeout(300)
+        await page.locator('.init-row:has-text("Bog Lurker") .init-info').click()
+        await page.locator("#panel-body .statblock").wait_for(timeout=5000)
+        popup = await page.locator("#panel-body").inner_text()
+        assert "Engulf. A creature it hits is pulled under." in popup and "ooze" in popup, popup
+        assert await page.locator(".info-pane").count() == 0
+        await page.keyboard.press("Escape")
+        await page.wait_for_selector(".modal-host", state="detached", timeout=3000)
+        await page.set_viewport_size({"width": 1280, "height": 900})
+        await page.wait_for_timeout(300)
+        ok("on a phone the stat block is a popup instead, with a homebrew monster's own text")
 
         # ---------- 30. Conditions ----------
         await page.locator('.init-row:has-text("Sythra") .init-name').click()
