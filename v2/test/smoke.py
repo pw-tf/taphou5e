@@ -2314,6 +2314,21 @@ async def main():
         await page.wait_for_selector(".sheet-dock", state="detached", timeout=5000)
         assert await page.locator(".sheet-slot").count() == 0
         ok("the sheet's own close button closes the side panel")
+        # A monster's panel and a party member's are the same box.
+        boxes = {}
+        for who, sel in (("monster", ".info-pane"), ("sheet", ".sheet-dock")):
+            await (gargoyle if who == "monster" else sythra).locator(".init-info").click()
+            await page.wait_for_selector(sel, timeout=5000)
+            await page.wait_for_timeout(300)
+            boxes[who] = await page.evaluate("""sel => {
+                const e = document.querySelector(sel), r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+                return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height),
+                        cs.backgroundColor, cs.borderTopWidth, cs.borderTopColor, cs.borderTopLeftRadius, cs.boxShadow];
+            }""", sel)
+            await (gargoyle if who == "monster" else sythra).locator(".init-info").click()   # toggles it shut
+            await page.wait_for_timeout(200)
+        assert boxes["monster"] == boxes["sheet"], boxes
+        ok("a monster's stat block and a party member's sheet sit in identical panels")
 
         await page.set_viewport_size({"width": 390, "height": 844})
         await page.wait_for_timeout(300)

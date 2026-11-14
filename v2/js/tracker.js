@@ -937,8 +937,7 @@
         if (!slot) { dock.el.hidden = true; return; }
         const r = slot.getBoundingClientRect();
         Object.assign(dock.el.style, {
-            top: `${r.top}px`, left: `${r.left}px`, width: `${r.width}px`,
-            height: `${Math.max(320, Math.min(r.height, panelBottom() - r.top))}px`
+            top: `${r.top}px`, left: `${r.left}px`, width: `${r.width}px`, height: `${r.height}px`
         });
         dock.el.hidden = false;
     }
@@ -951,12 +950,13 @@
         return visible ? fab.getBoundingClientRect().top - 8 : window.innerHeight - 16;
     }
 
-    // A monster's stat block: as tall as it can be without running under
-    // the + button. It scrolls inside itself past that.
+    // The side panel runs from its top to panelBottom(): a monster's stat
+    // block scrolls inside itself past that, and a party sheet's slot is the
+    // same height, so the dock over it -- and the two panels -- match.
     function fitInfoPane() {
-        const pane = $('.info-pane:not(.sheet-slot)');
+        const pane = $('.info-pane');
         if (!pane) return;
-        pane.style.maxHeight = `${Math.max(240, panelBottom() - pane.getBoundingClientRect().top)}px`;
+        pane.style.height = `${Math.max(320, panelBottom() - pane.getBoundingClientRect().top)}px`;
     }
 
     function closeDock() {
@@ -981,7 +981,7 @@
     const placeSoon = () => {
         if (placing || !(dock || $('.info-pane'))) return;
         placing = true;
-        requestAnimationFrame(() => { placing = false; placeDock(); fitInfoPane(); });
+        requestAnimationFrame(() => { placing = false; fitInfoPane(); placeDock(); });
     };
     document.addEventListener('scroll', placeSoon, { passive: true, capture: true });
     window.addEventListener('resize', placeSoon);
@@ -1529,8 +1529,8 @@
 
         if (enc) { wireCardMenus('#main-content', '.init-row', combatantMenu); fillMissingTypes(); }
         else wireCardMenus('#main-content', '.list-row', encounterMenu);
-        syncDock();
         fitInfoPane();
+        syncDock();
     }
 
     // Everything the inline buttons do, plus the things that had no room on
