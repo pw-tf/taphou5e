@@ -135,6 +135,15 @@ textarea:focus-visible,
   padding: 2px 8px; color: var(--text-tertiary);
 }
 .status-pill.is-active { color: var(--hp-high); border-color: var(--hp-high); }
+/* A running encounter's pill breathes, so it is plain the fight is on. */
+@media (prefers-reduced-motion: no-preference) {
+  .status-pill.is-active { animation: pill-pulse 2s ease-in-out infinite; }
+}
+@keyframes pill-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hp-high) 55%, transparent); }
+  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--hp-high) 0%, transparent);
+             background: color-mix(in srgb, var(--hp-high) 14%, transparent); }
+}
 .status-pill.is-planning { color: var(--accent-secondary); border-color: var(--accent-secondary); }
 .status-pill.is-completed { color: var(--text-muted); }
 
@@ -578,6 +587,9 @@ a.list-row, a.list-row:hover,
    anything inside it. is-party's outline is on the same border, so an explicit
    colour wins there too. */
 .init-row.has-color { border-color: var(--row-color); box-shadow: 0 0 0 1px var(--row-color); }
+/* The turn ring is dotted; a solid border under it would fill the gaps. The
+   party or colour ring outside it stays. */
+.init-row.is-active, .init-row.is-active.is-party, .init-row.is-active.has-color { border-color: transparent; }
 .init-note {
   flex-basis: 100%; margin-top: 4px;
   font-family: var(--font-body); font-size: var(--fs-12); color: var(--text-tertiary);

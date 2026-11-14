@@ -167,11 +167,22 @@
 [data-theme^="pixel"] .modal:has(> .modal-backdrop) { box-shadow: none; }
 [data-theme^="pixel"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row):hover { background: var(--bg-hover); }
 
-/* The turn marker is a heavier frame; party and colour marks keep their ring. */
+/* Party and colour marks are a solid ring; the turn marker is a dotted one,
+   drawn over the border (ember.css), with the party or colour ring kept. */
 [data-theme^="pixel"] .init-row.is-party { box-shadow: 0 0 0 2px var(--hp-temp), 5px 5px 0 var(--px-ink); }
 [data-theme^="pixel"] .init-row.has-color { box-shadow: 0 0 0 2px var(--row-color), 5px 5px 0 var(--px-ink); }
-[data-theme^="pixel"] .init-row.is-active { box-shadow: 0 0 0 3px var(--px-ink), 7px 7px 0 var(--px-ink); }
+[data-theme^="pixel"] .init-row.is-active { outline: 3px dotted var(--px-ink); outline-offset: -3px; }
 [data-theme^="pixel"] .colour-block .init-row.has-color { box-shadow: 3px 3px 0 var(--px-ink); }
+
+/* The running-encounter pill pulses in whole steps: its ring is there, then
+   not. No fade -- one bit has no in-between. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme^="pixel"] .status-pill.is-active { animation: px-pill-pulse 1.6s steps(1, end) infinite; }
+}
+@keyframes px-pill-pulse {
+  0%, 100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 0 2px var(--px-paper), 0 0 0 4px var(--px-ink); }
+}
 
 /* ---------- Buttons ---------- */
 [data-theme^="pixel"] .btn { background: var(--bg-primary); box-shadow: 2px 2px 0 var(--px-ink); }

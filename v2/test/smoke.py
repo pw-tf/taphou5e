@@ -2154,6 +2154,18 @@ async def main():
         assert "ROUND 1" in await page.locator(".round-pill").inner_text()
         ok("the active combatant is highlighted and the round shows")
 
+        look = await page.evaluate("""() => {
+            const row = getComputedStyle(document.querySelector('.init-row.is-active'));
+            const pill = getComputedStyle(document.querySelector('.status-pill.is-active'));
+            return { style: row.outlineStyle, width: row.outlineWidth, border: row.borderTopColor,
+                     pill: pill.animationName, idle: getComputedStyle(document.querySelector('.init-row:not(.is-active)')).outlineStyle };
+        }""")
+        assert look["style"] == "dotted" and look["width"] == "2px", look
+        assert look["border"] == "rgba(0, 0, 0, 0)", look          # no solid line under the dots
+        assert look["idle"] == "none", look
+        assert look["pill"] == "pill-pulse", look
+        ok("the turn is marked by a dotted ring, not a solid one, and the ACTIVE pill pulses")
+
         # Turn order is global, so a running encounter drops the group headings
         # rather than sending the highlight jumping between them.
         assert await page.locator(".enc-group h2").count() == 0, "groups are a planning view"
@@ -2177,6 +2189,8 @@ async def main():
             await act(page, "Next turn")
             await page.wait_for_timeout(400)
             seen.append(await page.locator(".init-row.is-active .init-name").inner_text())
+        assert await page.evaluate(
+            "getComputedStyle(document.querySelector('.init-row.is-active')).outlineStyle") == "dotted"
         writes = await page.evaluate("window.__writes")
         turn = [w for w in writes if w["table"] == "encounters"][-1]
         assert turn["payload"]["round"] == 2, turn
