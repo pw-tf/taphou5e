@@ -8,10 +8,11 @@
 <link rel="icon" type="image/png" href="../taphou5e.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Pixelify+Sans:wght@400..700&family=DotGothic16&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/ember.css">
 <link rel="stylesheet" href="css/v2.css">
+<link rel="stylesheet" href="css/pixel.css">
 <script src="js/theme.js"></script>
 </head>
 <body>
@@ -96,7 +97,9 @@
       <p class="switch-line">Already have a game world? <a href="#" data-mode="join">Join existing</a></p>
     </form>
 
-    <div class="segmented" style="align-self:center">
+    <div class="segmented theme-seg" style="align-self:center">
+      <button type="button" data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
+      <button type="button" data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
       <button type="button" data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
       <button type="button" data-theme-option="light" onclick="setTheme('light')">Light</button>
       <button type="button" data-theme-option="system" onclick="setTheme('system')">System</button>

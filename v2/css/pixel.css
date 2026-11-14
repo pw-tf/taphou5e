@@ -1,0 +1,245 @@
+/* ==========================================================================
+   Pixel — the one-bit theme for taphou5e v2
+   <html data-theme="pixel"> (paper) | "pixel-dark" (the same tones, flipped)
+
+   Loaded after tokens.css, ember.css and v2.css. It redefines the Ember
+   tokens, so most of the app re-skins without a rule of its own; what follows
+   the tokens is only what a token cannot say: border weight, hard shadows,
+   square corners, HP patterns, the inverted chrome and the dither ground.
+
+   Four tones and no hue. Anything Ember tells apart by colour is told apart
+   here by fill pattern, inversion or its label:
+     HP high / mid / low  -> solid / checker / sparse stripes (+ the readout)
+     temp HP              -> horizontal stripes
+     selected, active     -> inverted (ink ground, paper type)
+     damage vs heal       -> inverted minus, outlined plus
+   ========================================================================== */
+
+/* ---------- Raw tones. --pz is the dither tone: a step off the ground, so
+   tertiary text set straight on the page still clears 4.5:1 over it. ------- */
+[data-theme="pixel"] {
+  color-scheme: light;
+  --pa: #dfe2d0; --pb: #1c1e19; --pc: #4a4f42; --pd: #a7ad97; --pz: #c0c5b0;
+  --logo-filter: none;
+}
+[data-theme="pixel-dark"] {
+  color-scheme: dark;
+  --pa: #1c1e19; --pb: #dfe2d0; --pc: #a7ad97; --pd: #4a4f42; --pz: #2e3129;
+  --logo-filter: brightness(0) invert(1);
+}
+
+/* ---------- Roles. The nav chrome and anything selected swap paper and ink;
+   something selected INSIDE the chrome swaps back, so it still stands out.
+   The lists below are the only place either set is named. ---------- */
+[data-theme^="pixel"] {
+  --px-paper: var(--pa); --px-ink: var(--pb); --px-mid: var(--pc); --px-tint: var(--pd);
+}
+[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu),
+[data-theme^="pixel"] :is(
+  .segmented > .is-active, .seg button.is-on, .condition-tag.active,
+  .method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .chip-row .chip.is-on,
+  .srd-list .list-row.is-selected, .choose-row:has(input:checked),
+  .hp-btn.damage, .toast-error, .error-banner, .tag-warning, .lk-row.is-on) {
+  --px-paper: var(--pb); --px-ink: var(--pa); --px-mid: var(--pd); --px-tint: var(--pc);
+}
+[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) :is(
+  .segmented > .is-active, .tab-btn.active, .sidebar-nav a.is-active, .side-menu-item.is-active,
+  .tabs > .is-active, .icon-btn.is-current, .hp-btn.damage) {
+  --px-paper: var(--pa); --px-ink: var(--pb); --px-mid: var(--pc); --px-tint: var(--pd);
+}
+/* `color` is inherited as a computed value, so the chrome has to ask for the
+   re-read token itself or it keeps the page's ink. */
+[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) { color: var(--text-primary); }
+[data-theme="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) { --logo-filter: brightness(0) invert(1); }
+[data-theme="pixel-dark"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) { --logo-filter: none; }
+
+/* ---------- Ember tokens, re-read wherever the roles changed ---------- */
+[data-theme^="pixel"],
+[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu),
+[data-theme^="pixel"] :is(
+  .segmented > .is-active, .seg button.is-on, .condition-tag.active,
+  .method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .chip-row .chip.is-on,
+  .srd-list .list-row.is-selected, .choose-row:has(input:checked),
+  .hp-btn.damage, .toast-error, .error-banner, .tag-warning, .lk-row.is-on,
+  .tab-btn.active, .sidebar-nav a.is-active, .side-menu-item.is-active,
+  .tabs > .is-active, .icon-btn.is-current) {
+  --bg-primary: var(--px-paper);  --bg-secondary: var(--px-paper); --bg-tertiary: var(--px-paper);
+  --bg-elevated: var(--px-paper); --bg-hover: var(--px-tint);      --bg-sunken: var(--px-paper);
+
+  --border-subtle: var(--px-mid); --border-default: var(--px-ink); --border-strong: var(--px-ink);
+
+  --text-primary: var(--px-ink); --text-secondary: var(--px-ink);
+  --text-tertiary: var(--px-mid); --text-muted: var(--px-mid);
+
+  --accent-primary: var(--px-ink); --accent-primary-hover: var(--px-mid);
+  --accent-on: var(--px-paper);    --accent-soft: var(--px-paper);
+  --accent-soft-border: var(--px-ink); --accent-secondary: var(--px-ink);
+
+  --success: var(--px-ink); --success-bg: transparent;
+  --warning: var(--px-ink); --warning-bg: var(--px-paper);
+  --danger: var(--px-ink);  --danger-bg: transparent; --danger-hover: var(--px-mid);
+
+  --hp-high: var(--px-ink); --hp-mid: var(--px-ink); --hp-low: var(--px-ink);
+  --hp-temp: var(--px-mid); --hp-temp-text: var(--px-mid);
+
+  --heal-ink: var(--px-ink); --heal-border: var(--px-ink); --heal-bg: var(--px-paper);
+  --harm-ink: var(--px-ink); --harm-border: var(--px-ink); --harm-bg: var(--px-paper);
+
+  --shadow-sm: 2px 2px 0 var(--px-ink);
+  --shadow-md: 3px 3px 0 var(--px-ink);
+  --shadow-lg: 4px 4px 0 var(--px-ink);
+
+  --chart-1: var(--px-ink); --chart-2: var(--px-mid); --chart-3: var(--px-tint);
+  --chart-track: var(--px-tint);
+}
+
+/* ---------- Type, shape and bar sizes: once, at the root ---------- */
+[data-theme^="pixel"] {
+  --font-display: 'Pixelify Sans', 'DotGothic16', system-ui, sans-serif;
+  --font-mono: 'Pixelify Sans', 'DotGothic16', ui-monospace, monospace;
+  --font-sans: 'DotGothic16', 'Pixelify Sans', ui-monospace, monospace;
+  --font-body: 'DotGothic16', 'Pixelify Sans', ui-monospace, monospace;
+
+  /* Bitmap faces read smaller than Inter at the same size; the small steps
+     come up so labels stay clear. */
+  --fs-9: 11px; --fs-10: 12px; --fs-11: 12px; --fs-12: 13px; --fs-13: 14px;
+
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0; --radius-xl: 0; --radius-full: 0;
+
+  /* The bar now has a 2px frame, so it is taller by that much each side. */
+  --hp-bar-h: 16px; --hp-bar-h-row: 18px; --hp-bar-h-inline: 13px;
+
+  /* DotGothic16 has one weight: a synthesised bold smears a bitmap face. */
+  font-synthesis: none;
+}
+
+/* ---------- Square, 2px, no exceptions. Border STYLE is untouched, so
+   anything borderless stays borderless. ---------- */
+[data-theme^="pixel"] *,
+[data-theme^="pixel"] *::before,
+[data-theme^="pixel"] *::after { border-radius: 0 !important; border-width: 2px !important; }
+
+/* ---------- Dither ground. theme.js draws one tile (the homeapp effect:
+   value noise through an 8x8 Bayer matrix) and hands it over as --px-dither;
+   each tile pixel is shown 3x3. Without the script the ground is plain. ---- */
+[data-theme^="pixel"] body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--bg-primary) var(--px-dither, none) 0 0 / 768px 768px;
+  image-rendering: pixelated;
+}
+[data-theme^="pixel"] .login-container { background: transparent; }
+/* One-bit dimming: a checker instead of a translucent wash. */
+[data-theme^="pixel"] :is(.modal-host, .side-menu-overlay, .modal > .modal-backdrop) {
+  background: repeating-conic-gradient(var(--px-ink) 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+}
+
+/* ---------- Pixel face on names, titles and controls ---------- */
+[data-theme^="pixel"] :is(h1, h2, h3, h4, .btn, .segmented > *, .seg button, .tab-btn, .sidebar-nav a,
+  .side-menu-item, .sheet-nav .tabs > *, .card-name, .init-name, .list-row .name, .dm-row .name,
+  .summary-card .title, .hub-tile .title, .campaign-tabs button, .condition-tag, .tag, .card-menu-item .label,
+  .explainer-title, .fab-item, .choose-row .name, .pick-row .name, .subclass-row .name, .method-tile .title,
+  .levelup-banner .title, .ability-box .label, .save-chip, .chip-row .chip, .wizard-steps li, .form-group label,
+  .hp-btn, .trait-name, .status-pill, .role-pill, .nav-soon, .hidden-pill, .charge, .prep-toggle, .slot-chip,
+  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle) {
+  font-family: var(--font-display);
+}
+[data-theme^="pixel"] :is(.switch-line a, .login-footer a, .hint a, .prose a) { text-decoration: underline; }
+
+/* ---------- Icons: the 8x8 drawings, at a whole number of pixels per cell
+   (2px, or 3px for the large ones) so every cell lands on the grid. Anything
+   still drawn with strokes gets square caps and hard edges. ---------- */
+[data-theme^="pixel"] .ico-g { display: none; }
+[data-theme^="pixel"] .ico-px { display: inline; }
+/* !important: Ember sizes a few icons from their container (.tab-btn svg,
+   .hub-tile .title svg) at 15px and 19px, which no whole cell size fits. */
+[data-theme^="pixel"] .ico { width: 16px !important; height: 16px !important; shape-rendering: crispEdges; }
+[data-theme^="pixel"] .ico.ico-lg { width: 24px !important; height: 24px !important; }
+[data-theme^="pixel"] svg:not(.ico) { stroke-linecap: square; stroke-linejoin: miter; shape-rendering: crispEdges; }
+
+/* ---------- Surfaces: a hard drop shadow instead of a soft one ---------- */
+[data-theme^="pixel"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row, .init-row,
+  .dm-row, .ability-box, .login-card, .empty-state, .srd-detail .statblock, .levelup-banner, .an-card) {
+  box-shadow: 3px 3px 0 var(--px-ink);
+}
+[data-theme^="pixel"] :is(.modal, .modal > .modal-content, .explainer, .toast, .fab-menu, .fab) { box-shadow: 4px 4px 0 var(--px-ink); }
+[data-theme^="pixel"] .modal:has(> .modal-backdrop) { box-shadow: none; }
+[data-theme^="pixel"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row):hover { background: var(--bg-hover); }
+
+/* The turn marker is a heavier frame; party and colour marks keep their ring. */
+[data-theme^="pixel"] .init-row.is-party { box-shadow: 0 0 0 2px var(--hp-temp), 5px 5px 0 var(--px-ink); }
+[data-theme^="pixel"] .init-row.has-color { box-shadow: 0 0 0 2px var(--row-color), 5px 5px 0 var(--px-ink); }
+[data-theme^="pixel"] .init-row.is-active { box-shadow: 0 0 0 3px var(--px-ink), 7px 7px 0 var(--px-ink); }
+[data-theme^="pixel"] .colour-block .init-row.has-color { box-shadow: 3px 3px 0 var(--px-ink); }
+
+/* ---------- Buttons ---------- */
+[data-theme^="pixel"] .btn { background: var(--bg-primary); box-shadow: 2px 2px 0 var(--px-ink); }
+[data-theme^="pixel"] .btn:hover { background: var(--bg-hover); }
+[data-theme^="pixel"] .btn-accent { background: var(--accent-primary); }
+[data-theme^="pixel"] .btn-accent:hover { background: var(--accent-primary-hover); }
+[data-theme^="pixel"] .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+[data-theme^="pixel"] .btn-quiet { border-color: var(--border-default); }
+[data-theme^="pixel"] .hp-btn { background: var(--bg-primary); color: var(--text-primary); border-color: var(--border-strong); }
+
+/* ---------- Things that are selected: ink ground, paper type ---------- */
+[data-theme^="pixel"] :is(
+  .segmented > .is-active, .seg button.is-on, .condition-tag.active,
+  .method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .chip-row .chip.is-on,
+  .srd-list .list-row.is-selected, .choose-row:has(input:checked), .lk-row.is-on,
+  .tab-btn.active, .sidebar-nav a.is-active, .side-menu-item.is-active,
+  .sheet-nav .tabs > .is-active, .rail .icon-btn.is-current,
+  .toast-error, .error-banner, .tag-warning) {
+  background: var(--bg-primary); color: var(--text-primary); border-color: var(--border-default);
+}
+[data-theme^="pixel"] .campaign-tabs button.is-active { border-bottom-width: 4px !important; }
+
+/* ---------- Section rule: title-bar stripes ---------- */
+[data-theme^="pixel"] .rule {
+  height: 10px;
+  background: repeating-linear-gradient(to bottom, var(--px-ink) 0 2px, transparent 2px 4px);
+}
+[data-theme^="pixel"] .side-menu-divider { height: 2px; }
+
+/* ---------- Chips and small boxes get the frame Ember leaves off ---------- */
+[data-theme^="pixel"] :is(.chip, .check-row, .review-grid > div, .statblock .abilities > div, .seg, .outcome) {
+  border: 2px solid var(--border-subtle);
+}
+[data-theme^="pixel"] .avatar {
+  background: repeating-conic-gradient(var(--px-tint) 0 25%, var(--px-paper) 0 50%) 0 0 / 4px 4px;
+  text-shadow: 1px 0 var(--px-paper), -1px 0 var(--px-paper), 0 1px var(--px-paper), 0 -1px var(--px-paper);
+}
+
+/* ---------- HP: state by pattern. The colour stays on the fill (it is the
+   token), and a mask cuts the pattern out of it. ---------- */
+[data-theme^="pixel"] .hp-bar { background: var(--bg-primary); border: 2px solid var(--border-strong); }
+[data-theme^="pixel"] .hp-bar > .fill.mid {
+  -webkit-mask: repeating-conic-gradient(#000 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+          mask: repeating-conic-gradient(#000 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+}
+[data-theme^="pixel"] .hp-bar > .fill.low {
+  -webkit-mask: repeating-linear-gradient(to right, #000 0 2px, transparent 2px 6px);
+          mask: repeating-linear-gradient(to right, #000 0 2px, transparent 2px 6px);
+}
+[data-theme^="pixel"] .hp-bar > .fill.temp {
+  -webkit-mask: repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px);
+          mask: repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px);
+}
+[data-theme^="pixel"] .death-dot.filled { background: var(--text-primary); border-color: var(--text-primary); }
+[data-theme^="pixel"] .death-dot.failure.filled {
+  background: repeating-conic-gradient(var(--px-ink) 0 25%, var(--px-paper) 0 50%) 0 0 / 4px 4px;
+}
+
+/* ---------- Hold-down popups and menus ---------- */
+[data-theme^="pixel"] .explainer { color: var(--text-primary); }
+[data-theme^="pixel"] .explainer-arrow { border-width: 0 2px 2px 0 !important; bottom: -6px; }
+[data-theme^="pixel"] .explainer.is-below .explainer-arrow { border-width: 2px 0 0 2px !important; bottom: auto; top: -6px; }
+[data-theme^="pixel"] .card-menu-item:hover,
+[data-theme^="pixel"] .fab-item:hover { background: var(--bg-hover); }
+[data-theme^="pixel"] .fab-item + .fab-item { box-shadow: inset 0 2px 0 var(--border-subtle); }
+
+/* ---------- Inputs ---------- */
+[data-theme^="pixel"] :is(input, select, textarea):focus { border-color: var(--px-ink); box-shadow: 2px 2px 0 var(--px-ink); }
+[data-theme^="pixel"] :is(.remember-row input, .choose-row input) { accent-color: var(--px-ink); box-shadow: none; }
+[data-theme^="pixel"] ::placeholder { color: var(--text-tertiary); opacity: 1; }
+
+/* ---------- Analytics ---------- */
+[data-theme^="pixel"] .an-bar-track { border: 2px solid var(--px-ink); background: var(--px-paper); height: 14px; }

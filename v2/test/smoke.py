@@ -315,9 +315,17 @@ FIXTURES = {
          "body": "The toll keeper is already dead."}],
 }
 
+# The suite was written against Ember, and asserts Ember's measurements (bar
+# radius, soft shadows, the light and dark palettes). A fresh device now gets
+# the Pixel theme, so the stub pins every context to "follow the system" --
+# what a fresh device used to do -- unless a test has chosen a theme itself.
+# The Pixel section builds its contexts from STUB_FRESH, which leaves this out.
+THEME_PIN = """  try { if (!localStorage.getItem('taphou5e-theme')) localStorage.setItem('taphou5e-theme', 'system'); } catch (e) {}
+"""
+
 STUB = """
 (() => {
-  const FIXTURES = __FIXTURES__;
+__THEME_PIN__  const FIXTURES = __FIXTURES__;
   window.__capturedHeaders = null;
   // Writes survive a navigation. Import redirects to the new encounter on
   // success, so an in-memory list would be wiped before the test could read
@@ -726,6 +734,8 @@ def stub_with(**overrides):
     return STUB_SRC.replace("__FIXTURES__", json.dumps(data))
 
 
+STUB_FRESH = STUB.replace("__THEME_PIN__", "").replace("__FIXTURES__", json.dumps(FIXTURES))
+STUB = STUB.replace("__THEME_PIN__", THEME_PIN)
 STUB_SRC = STUB
 STUB = STUB.replace("__FIXTURES__", json.dumps(FIXTURES))
 
@@ -1319,6 +1329,127 @@ async def main():
 
         await page.click('.sidebar-foot [data-theme-option="dark"]')
         await page.wait_for_timeout(250)
+
+        # ---------- 3b. Pixel theme ----------
+        # A device that has never chosen gets Pixel, with its dither ground.
+        pctx = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await pctx.add_init_script(STUB_FRESH)
+        px = await pctx.new_page()
+        watch(px, "pixel")
+        await px.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel"
+        assert (await px.locator('.theme-seg .is-active').inner_text()).strip() == "Pixel"
+        tile = await px.evaluate("document.documentElement.style.getPropertyValue('--px-dither')")
+        assert tile.startswith('url("data:image/png'), tile[:40]
+        assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-pixel')")
+        ok("a device with no saved theme opens in Pixel, with the dither tile drawn and cached")
+
+        await px.fill("#world-name", "Thornfell Reach")
+        await fill_pin(px, "join", "1379")
+        await px.click("#join-form .btn-submit")
+        await px.wait_for_selector(".party-roster", timeout=10000)
+        look = await px.evaluate("""() => {
+            const cs = (sel, p) => getComputedStyle(document.querySelector(sel))[p];
+            return {
+                body: cs('body', 'backgroundColor'), ground: getComputedStyle(document.body, '::before').backgroundImage,
+                radius: cs('.character-card', 'borderTopLeftRadius'), border: cs('.character-card', 'borderTopWidth'),
+                shadow: cs('.character-card', 'boxShadow'), bar: cs('.hp-bar', 'borderTopWidth'),
+                sidebar: cs('.sidebar', 'backgroundColor'), navInk: cs('.sidebar-nav a:not(.is-active)', 'color'),
+                active: cs('.sidebar-nav a.is-active', 'backgroundColor'),
+                masks: [...document.querySelectorAll('.hp-bar > .fill')].map(f =>
+                    [f.className.replace('fill', '').trim(), getComputedStyle(f).maskImage || getComputedStyle(f).webkitMaskImage]),
+            };
+        }""")
+        assert look["body"] == "rgb(223, 226, 208)" and "data:image/png" in look["ground"], look
+        assert look["radius"] == "0px" and look["border"] == "2px" and look["bar"] == "2px", look
+        assert "3px 3px 0px" in look["shadow"], look
+        assert look["sidebar"] == "rgb(28, 30, 25)" and look["navInk"] == "rgb(223, 226, 208)", look
+        assert look["active"] == "rgb(223, 226, 208)", look
+        ok("Pixel: paper ground over the dither, square 2px frames with hard shadows, inverted sidebar")
+        by_state = {}
+        for state, mask in look["masks"]:
+            by_state.setdefault(state, mask)
+        assert by_state["high"] == "none", by_state
+        assert "conic" in by_state["mid"] and "linear" in by_state["low"] and "linear" in by_state["temp"], by_state
+        assert by_state["low"] != by_state["temp"], by_state
+        ok("Pixel: HP state is a fill pattern -- solid, checker, stripes -- and temp HP its own")
+
+        # Every icon carries both drawings; the theme shows one of them.
+        icons = await px.evaluate("""() => [...document.querySelectorAll('svg.ico')].map(s => ({
+            name: s.getAttribute('class'), px: !!s.querySelector('.ico-px path'),
+            line: getComputedStyle(s.querySelector('.ico-g')).display,
+            pixel: s.querySelector('.ico-px') && getComputedStyle(s.querySelector('.ico-px')).display,
+            w: s.getBoundingClientRect().width }))""")
+        assert len(icons) >= 10 and all(i["px"] and i["line"] == "none" and i["pixel"] != "none" for i in icons), icons
+        assert all(i["w"] in (0, 16, 24) for i in icons), icons     # 0: in the closed mobile menu
+        keep = await px.evaluate("document.querySelector('.sidebar-nav a.is-active .ico-px path').getAttribute('d')")
+        assert keep.startswith("M1 2h1v1h1V2"), keep
+        ok(f"Pixel: all {len(icons)} icons show their 8x8 drawing at 2 or 3 px a cell; Overview is the keep")
+
+        await px.click('.sidebar-foot [data-theme-option="pixel-dark"]')
+        assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel-dark"
+        dark = await px.evaluate("""() => [getComputedStyle(document.body).backgroundColor,
+            getComputedStyle(document.querySelector('.sidebar')).backgroundColor,
+            getComputedStyle(document.querySelector('.card-name')).color,
+            document.querySelector('meta[name="theme-color"]').content]""")
+        assert dark == ["rgb(28, 30, 25)", "rgb(223, 226, 208)", "rgb(223, 226, 208)", "#1c1e19"], dark
+        ok("Pixel dark flips the same tones: ink ground, paper sidebar, browser chrome follows")
+
+        # "System" used to mean "no saved key"; now no key means Pixel, so the
+        # choice has to be stored and still has to remove the attribute.
+        await px.click('.sidebar-foot [data-theme-option="system"]')
+        assert await px.evaluate("document.documentElement.hasAttribute('data-theme')") is False
+        assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "system"
+        assert await px.evaluate("document.documentElement.style.getPropertyValue('--px-dither')") == ""
+        await px.reload(wait_until="domcontentloaded")
+        await px.wait_for_selector(".party-roster", timeout=10000)
+        assert await px.evaluate("document.documentElement.hasAttribute('data-theme')") is False
+        assert (await px.locator('.sidebar-foot .theme-seg .is-active').inner_text()).strip() == "System"
+        shown = await px.evaluate("""() => [...document.querySelectorAll('svg.ico')].map(s =>
+            [getComputedStyle(s.querySelector('.ico-g')).display, getComputedStyle(s.querySelector('.ico-px')).display])""")
+        assert shown and all(line != "none" and pixel == "none" for line, pixel in shown), shown
+        ok("System is remembered as a choice and still follows the OS; the dither is dropped with it")
+        ok("outside Pixel the line icons show and the 8x8 drawings are hidden")
+        await pctx.close()
+
+        # Bitmap type is wider and every frame is a pixel thicker, so the
+        # pages most likely to overflow a phone are checked in Pixel too.
+        mctx = await browser.new_context(viewport={"width": 390, "height": 844})
+        await mctx.add_init_script(STUB_FRESH)
+        pm = await mctx.new_page()
+        watch(pm, "pixel-mobile")
+        await pm.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await pm.fill("#world-name", "Thornfell Reach")
+        await fill_pin(pm, "join", "1379")
+        await pm.click("#join-form .btn-submit")
+        await pm.wait_for_selector(".party-roster", timeout=10000)
+        for path, ready in (("index.html", ".party-roster"), ("characters.html", ".character-card"),
+                            ("character-sheet.html?id=c2", ".sheet-combat"), ("monster-tracker.html", ".list-row"),
+                            ("compendium.html", ".list-row"), ("dm-panel.html", ".dm-row"),
+                            ("character-new.html", ".wizard")):
+            await pm.goto(f"{BASE}/v2/{path}", wait_until="domcontentloaded")
+            await pm.wait_for_selector(ready, timeout=10000)
+            assert await pm.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel"
+            over = await pm.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+            assert over <= 0, (path, over)
+        ok("Pixel at 390px: hub, roster, sheet, tracker, compendium, DM panel and wizard do not scroll sideways")
+        await mctx.close()
+
+        # Owlbear's panels follow its light or dark mode with the pixel pair,
+        # unless this device chose an Ember theme in the app.
+        octx = await obr_context(browser, STUB_FRESH)
+        op = await octx.new_page()
+        await obr_seed(op, "GM")
+        await op.goto(f"{BASE}/owlbear/panel.html", wait_until="domcontentloaded")
+        await until(op, "document.documentElement.getAttribute('data-theme') === 'pixel-dark'")
+        await op.evaluate("localStorage.setItem('__obr_theme', JSON.stringify('LIGHT'))")
+        await op.reload(wait_until="domcontentloaded")
+        await until(op, "document.documentElement.getAttribute('data-theme') === 'pixel'")
+        await op.evaluate("localStorage.setItem('taphou5e-theme', 'dark')")
+        await op.reload(wait_until="domcontentloaded")
+        await until(op, "document.documentElement.getAttribute('data-theme') === 'light'")
+        ok("Owlbear panels use Pixel or Pixel dark to match Owlbear, and Ember if the device chose Ember")
+        await octx.close()
 
         # ---------- 4. Pending destinations are inert ----------
         pending = await page.locator(".hub-tile.is-pending").count()

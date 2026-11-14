@@ -1069,10 +1069,7 @@
                         <div class="sheet-id">
                             ${EMBED ? '' : `
                             <a class="icon-btn" href="characters.html" aria-label="Back to roster">
-                                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-                                </svg>
+                                ${icon('back', 19)}
                             </a>`}
                             <h1>${escapeHtml(c.name)}</h1>
                             <span class="level-badge mono">LV ${c.level || 1}</span>

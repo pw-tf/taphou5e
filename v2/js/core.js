@@ -373,15 +373,55 @@ const ICONS = {
     // Three people side by side: a member of the party.
     party:      '<circle cx="12" cy="8" r="3"/><path d="M7 20v-1a5 5 0 0 1 10 0v1"/><circle cx="4.5" cy="10.5" r="2"/><path d="M1 19v-.5a3.5 3.5 0 0 1 3.5-3.5"/><circle cx="19.5" cy="10.5" r="2"/><path d="M23 19v-.5a3.5 3.5 0 0 0-3.5-3.5"/>',
     chevrons:   '<polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>',
+    plus:       '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    back:       '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
     bug:        '<path d="M8 2 9.5 4.5"/><path d="M16 2 14.5 4.5"/><path d="M9 20a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3a5 5 0 0 1-5 5z"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5.5 7-1.7-1.3"/><path d="m18.5 7 1.7-1.3"/><path d="m5.5 19-1.7 1.3"/><path d="m18.5 19 1.7 1.3"/>'
 };
 
+// The Pixel themes draw every icon on an 8x8 grid instead: filled squares, no
+// strokes. Each is one path of whole-cell rectangles (even-odd, so a shape can
+// have holes). Both drawings ship in the same <svg> and the theme picks one
+// (v2.css hides .ico-px, pixel.css swaps them), so switching theme needs no
+// re-render. The pixel set has no hover animation yet.
+const PIXEL_ICONS = {
+    home:     'M1 2h1v1h1V2h2v1h1V2h1v5H5V5H3v2H1z',
+    overview: 'M1 5h2v2H1zM3 3h2v4H3zM5 1h2v6H5z',
+    user:     'M3 1h2v2H3zM2 4h4v1h1v2H1V5h1z',
+    crown:    'M0 2h1v2h2V1h2v3h2V2h1v5H0z',
+    monster:  'M2 1h4v1h1v3H6v2H5V6H4v1H3V6H2V5H1V2h1zM2 3h1v1H2zM5 3h1v1H5z',
+    book:     'M1 1h4v1h1v1h1v4H1zM2 3h3v1H2zM2 5h4v1H2z',
+    search:   'M2 1h3v1h1v3H5v1H2V5H1V2h1zM2 2v3h3V2zM5 5h1v1h1v1H6V6H5z',
+    menu:     'M1 2h6v1H1zM1 4h6v1H1zM1 6h6v1H1z',
+    logout:   'M1 1h3v1H2v4h2v1H1zM3 3h2V2h1v1h1v2H6v1H5V5H3z',
+    swap:     'M1 2h4V1h1v1h1v1H6v1H5V3H1zM7 5H3V4H2v1H1v1h1v1h1V6h4z',
+    map:      'M1 1h6v6H1zM2 2h4v1H2zM2 4h2v1H2zM5 4h1v2H5z',
+    sword:    'M6 1h1v1H6zM5 2h1v1H5zM4 3h1v1H4zM3 4h1v1H3zM1 3h1v1H1zM2 4h1v1H2zM3 5h1v1H3zM4 6h1v1H4zM1 6h1v1H1z',
+    star:     'M3 0h2v2h3v2H7v1H6v2H5V6H3v1H2V5H1V4H0V2h3z',
+    bag:      'M2 1h4v2h1v4H1V3h1zM3 2v1h2V2z',
+    heart:    'M1 1h2v1h2V1h2v1h1v2H7v1H6v1H5v1H3V6H2V5H1V4H0V2h1z',
+    coffee:   'M1 3h5v1h1v2H6v1H1zM2 1h1v1H2zM4 1h1v1H4z',
+    chevron:  'M1 2h1v2H1zM2 3h1v2H2zM3 4h2v2H3zM5 3h1v2H5zM6 2h1v2H6z',
+    party:    'M3 1h2v2H3zM2 4h4v3H2zM0 3h1v1H0zM0 5h1v2H0zM7 3h1v1H7zM7 5h1v2H7z',
+    chevrons: 'M3 1h1v2H3zM2 2h1v2H2zM1 3h1v2H1zM2 4h1v2H2zM3 5h1v2H3zM6 1h1v2H6zM5 2h1v2H5zM4 3h1v2H4zM5 4h1v2H5zM6 5h1v2H6z',
+    bug:      'M2 2h4v5H2zM1 0h1v1H1zM6 0h1v1H6zM2 1h1v1H2zM5 1h1v1H5zM0 3h1v1H0zM7 3h1v1H7zM1 4h1v1H1zM6 4h1v1H6zM0 6h1v1H0zM7 6h1v1H7z',
+    plus:     'M3 1h2v2h2v2H5v2H3V5H1V3h2z',
+    back:     'M1 3h1v2H1zM2 2h1v4H2zM3 1h1v6H3zM4 3h3v2H4z'
+};
+
+// A name that is one drawing in Ember and its own in Pixel. The nav's Overview
+// is the bars in Ember -- the same icon as the sheet's Stats tab -- and a keep
+// in Pixel, so it is asked for as 'home' and falls back to 'overview' here.
+const ICON_ALIAS = { home: 'overview' };
+
 function icon(name, size) {
     const s = size || 16;
+    const line = ICON_ALIAS[name] || name;
+    const px = PIXEL_ICONS[name] || PIXEL_ICONS[line];
     // .ico-<name> and the inner <g> are hooks for the hover animations in
     // v2.css; the <g> carries whole-icon motion so it never fights a
     // transform a page puts on the <svg> itself (e.g. the collapse flip).
-    return `<svg class="ico ico-${name}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g">${ICONS[name] || ''}</g></svg>`;
+    // .ico-lg tells Pixel which of its two sizes to use: 8 cells at 2px or 3px.
+    return `<svg class="ico ico-${line}${s >= 20 ? ' ico-lg' : ''}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g">${ICONS[line] || ''}</g>${px ? `<g class="ico-px" transform="scale(3)" fill="currentColor" stroke="none" fill-rule="evenodd"><path d="${px}"/></g>` : ''}</svg>`;
 }
 
 // ========================================
@@ -392,7 +432,7 @@ function icon(name, size) {
 // disabled row rather than a link, so the shell never points at a 404 and the
 // nav still shows the shape of the finished app.
 const NAV = [
-    { id: 'overview',   label: 'Overview',   href: 'index.html',           icon: 'overview' },
+    { id: 'overview',   label: 'Overview',   href: 'index.html',           icon: 'home' },
     { id: 'characters', label: 'Characters', href: 'characters.html',      icon: 'user' },
     { id: 'campaigns',  label: 'Campaigns',  href: 'campaigns.html',       icon: 'map' },
     { id: 'encounters', label: 'Encounters', href: 'monster-tracker.html', icon: 'monster' },
@@ -548,7 +588,9 @@ function renderSidebar(activeId, counts) {
             <nav class="sidebar-nav">${navItems(activeId, counts)}</nav>
             <div class="sidebar-foot">
                 <button class="side-menu-item" id="sb-collapse" type="button" aria-expanded="true">${icon('chevrons', 16)}<span class="nav-label">Collapse</span></button>
-                <div class="segmented" style="font-size:var(--fs-10)">
+                <div class="segmented theme-seg" style="font-size:var(--fs-10)">
+                    <button data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
+                    <button data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
                     <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
                     <button data-theme-option="light" onclick="setTheme('light')">Light</button>
                     <button data-theme-option="system" onclick="setTheme('system')">System</button>
@@ -602,7 +644,9 @@ function renderSideMenu(activeId) {
                 </nav>
                 <div class="theme-switch">
                     <span class="eyebrow">Appearance</span>
-                    <div class="segmented">
+                    <div class="segmented theme-seg">
+                        <button data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
+                        <button data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
                         <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
                         <button data-theme-option="light" onclick="setTheme('light')">Light</button>
                         <button data-theme-option="system" onclick="setTheme('system')">System</button>
@@ -709,8 +753,7 @@ function renderActions(actions) {
                 ).join('')}
             </div>
             <button class="fab" id="fab-toggle" aria-expanded="false" aria-label="Actions">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                ${icon('plus', 22)}
             </button>
         </div>`;
 

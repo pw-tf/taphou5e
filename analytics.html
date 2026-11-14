@@ -8,11 +8,12 @@
 <link rel="icon" type="image/png" href="taphou5e.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,400..700&family=Playfair+Display:wght@400..900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Pixelify+Sans:wght@400..700&family=DotGothic16&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="v2/css/tokens.css">
 <link rel="stylesheet" href="v2/css/ember.css">
 <link rel="stylesheet" href="v2/css/v2.css">
 <link rel="stylesheet" href="v2/css/analytics.css">
+<link rel="stylesheet" href="v2/css/pixel.css">
 <script src="v2/js/theme.js"></script>
 </head>
 <body>
@@ -52,9 +53,11 @@
         <nav class="sidebar-nav" id="side-nav"></nav>
         <div class="sidebar-foot">
             <div class="theme-switch">
-                <div class="segmented">
-                    <button type="button" data-theme-option="light" onclick="setTheme('light')">Light</button>
+                <div class="segmented theme-seg">
+                    <button type="button" data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
+                    <button type="button" data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
                     <button type="button" data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
+                    <button type="button" data-theme-option="light" onclick="setTheme('light')">Light</button>
                     <button type="button" data-theme-option="system" onclick="setTheme('system')">System</button>
                 </div>
             </div>
@@ -70,10 +73,10 @@
                 <div class="header-sub" id="m-generated">—</div>
             </div>
             <button class="icon-btn" id="m-refresh" title="Refresh" aria-label="Refresh">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></g><g class="ico-px" transform="scale(3)" fill="currentColor" stroke="none" fill-rule="evenodd"><path d="M2 1h3v1H2zM1 2h1v4H1zM2 6h4v1H2zM6 4h1v2H6zM5 2h1V1h1v1h1v1H7v1H6V3H5z"/></g></svg>
             </button>
             <button class="icon-btn" id="m-signout" title="Sign out" aria-label="Sign out">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <svg class="ico" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></g><g class="ico-px" transform="scale(3)" fill="currentColor" stroke="none" fill-rule="evenodd"><path d="M1 1h3v1H2v4h2v1H1zM3 3h2V2h1v1h1v2H6v1H5V5H3z"/></g></svg>
             </button>
         </header>
 
