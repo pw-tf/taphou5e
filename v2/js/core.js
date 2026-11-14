@@ -551,8 +551,7 @@ function openFeedback() {
     });
 }
 
-// The desktop sidebar folds down to the same icon rail the character sheet
-// uses. The choice belongs to the device rather than the page: every page
+// The desktop sidebar folds down to an icon rail. The choice belongs to the device rather than the page: every page
 // rebuilds the shell, and each one reads it back here.
 const SIDEBAR_KEY = 'taphou5e-sidebar';
 
@@ -654,26 +653,6 @@ function renderSideMenu(activeId) {
                 </div>
             </div>
         </div>`;
-}
-
-// The icon-only rail the character sheet uses above the breakpoint. Built from
-// NAV like the sidebar and drawer: a hand-written copy here once went on
-// calling Encounters and Compendium unbuilt long after both shipped, and never
-// learned about Campaigns or the DM panel.
-function renderRail(activeId) {
-    const items = visibleNav().map(item => {
-        if (item.pending) {
-            return `<span class="icon-btn is-pending" title="${escapeHtml(item.label)} — not built yet">${icon(item.icon, 16)}</span>`;
-        }
-        return `<a class="icon-btn${item.id === activeId ? ' is-current' : ''}" href="${item.href}"
-                   title="${escapeHtml(item.label)}" aria-label="${escapeHtml(item.label)}">${icon(item.icon, 16)}</a>`;
-    }).join('');
-
-    return `
-        <aside class="rail">
-            <div class="rail-brand">T5</div>
-            ${items}
-        </aside>`;
 }
 
 function wireSideMenu() {

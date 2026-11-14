@@ -315,11 +315,11 @@ FIXTURES = {
          "body": "The toll keeper is already dead."}],
 }
 
-# The suite was written against Ember, and asserts Ember's measurements (bar
-# radius, soft shadows, the light and dark palettes). A fresh device now gets
-# the Pixel theme, so the stub pins every context to "follow the system" --
-# what a fresh device used to do -- unless a test has chosen a theme itself.
-# The Pixel section builds its contexts from STUB_FRESH, which leaves this out.
+# The suite was written when a fresh device followed the system theme, and
+# some checks lean on that. A fresh device now gets Dark, so the stub pins
+# every context to "follow the system" unless a test has chosen a theme
+# itself. The theme section builds its contexts from STUB_FRESH, which leaves
+# this out, to see what a real fresh device gets.
 THEME_PIN = """  try { if (!localStorage.getItem('taphou5e-theme')) localStorage.setItem('taphou5e-theme', 'system'); } catch (e) {}
 """
 
@@ -1330,19 +1330,34 @@ async def main():
         await page.click('.sidebar-foot [data-theme-option="dark"]')
         await page.wait_for_timeout(250)
 
-        # ---------- 3b. Pixel theme ----------
-        # A device that has never chosen gets Pixel, with its dither ground.
+        # ---------- 3b. Default theme, and the Pixel themes ----------
+        # A device that has never chosen gets Dark, and draws no dither.
+        fctx = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await fctx.add_init_script(STUB_FRESH)
+        fresh = await fctx.new_page()
+        watch(fresh, "fresh")
+        await fresh.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        assert await fresh.evaluate("document.documentElement.getAttribute('data-theme')") == "dark"
+        assert (await fresh.locator('.theme-seg .is-active').inner_text()).strip() == "Dark"
+        assert await fresh.evaluate("localStorage.getItem('taphou5e-theme')") is None, "the default is not saved"
+        assert await fresh.evaluate("document.documentElement.style.getPropertyValue('--px-dither')") == ""
+        ok("a device with no saved theme opens in Dark, without saving it or drawing a dither tile")
+        await fctx.close()
+
+        # Pixel, chosen: the dither ground is drawn and cached.
         pctx = await browser.new_context(viewport={"width": 1280, "height": 900})
         await pctx.add_init_script(STUB_FRESH)
         px = await pctx.new_page()
         watch(px, "pixel")
         await px.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await px.click('.theme-seg [data-theme-option="pixel"]')
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel"
+        assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "pixel"
         assert (await px.locator('.theme-seg .is-active').inner_text()).strip() == "Pixel"
         tile = await px.evaluate("document.documentElement.style.getPropertyValue('--px-dither')")
         assert tile.startswith('url("data:image/png'), tile[:40]
         assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-pixel')")
-        ok("a device with no saved theme opens in Pixel, with the dither tile drawn and cached")
+        ok("choosing Pixel applies it and saves it, with the dither tile drawn and cached")
 
         await px.fill("#world-name", "Thornfell Reach")
         await fill_pin(px, "join", "1379")
@@ -1416,6 +1431,7 @@ async def main():
         # pages most likely to overflow a phone are checked in Pixel too.
         mctx = await browser.new_context(viewport={"width": 390, "height": 844})
         await mctx.add_init_script(STUB_FRESH)
+        await mctx.add_init_script("localStorage.setItem('taphou5e-theme', 'pixel')")
         pm = await mctx.new_page()
         watch(pm, "pixel-mobile")
         await pm.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
@@ -1433,22 +1449,32 @@ async def main():
             over = await pm.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
             assert over <= 0, (path, over)
         ok("Pixel at 390px: hub, roster, sheet, tracker, compendium, DM panel and wizard do not scroll sideways")
+        await pm.set_viewport_size({"width": 1280, "height": 900})
+        await pm.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
+        await pm.wait_for_selector(".sheet-nav .tabs", timeout=10000)
+        nav = await pm.evaluate("""() => {
+            const cs = sel => getComputedStyle(document.querySelector(sel));
+            return [cs('.sheet-nav').backgroundColor, cs('.sheet-nav .nav-name').color,
+                    cs('.sheet-nav .tabs > div:not(.is-active)').color];
+        }""")
+        assert nav == ["rgb(28, 30, 25)", "rgb(223, 226, 208)", "rgb(223, 226, 208)"], nav
+        ok("Pixel: the sheet's tab column is inverted like the sidebar, its name and tabs readable")
         await mctx.close()
 
-        # Owlbear's panels follow its light or dark mode with the pixel pair,
-        # unless this device chose an Ember theme in the app.
+        # Owlbear's panels follow its light or dark mode with Ember's pair,
+        # unless this device chose a Pixel theme in the app.
         octx = await obr_context(browser, STUB_FRESH)
         op = await octx.new_page()
         await obr_seed(op, "GM")
         await op.goto(f"{BASE}/owlbear/panel.html", wait_until="domcontentloaded")
-        await until(op, "document.documentElement.getAttribute('data-theme') === 'pixel-dark'")
+        await until(op, "document.documentElement.getAttribute('data-theme') === 'dark'")
         await op.evaluate("localStorage.setItem('__obr_theme', JSON.stringify('LIGHT'))")
         await op.reload(wait_until="domcontentloaded")
-        await until(op, "document.documentElement.getAttribute('data-theme') === 'pixel'")
-        await op.evaluate("localStorage.setItem('taphou5e-theme', 'dark')")
-        await op.reload(wait_until="domcontentloaded")
         await until(op, "document.documentElement.getAttribute('data-theme') === 'light'")
-        ok("Owlbear panels use Pixel or Pixel dark to match Owlbear, and Ember if the device chose Ember")
+        await op.evaluate("localStorage.setItem('taphou5e-theme', 'pixel-dark')")
+        await op.reload(wait_until="domcontentloaded")
+        await until(op, "document.documentElement.getAttribute('data-theme') === 'pixel'")
+        ok("Owlbear panels use Dark or Light to match Owlbear, and the Pixel pair if the device chose Pixel")
         await octx.close()
 
         # ---------- 4. Pending destinations are inert ----------
@@ -1459,7 +1485,7 @@ async def main():
         ok("every hub tile and nav item links to a real page")
 
         # ---------- 4a. Collapsing the sidebar ----------
-        # It folds to the sheet's icon rail, and the choice follows the device
+        # It folds to an icon rail, and the choice follows the device
         # to every page, since each page rebuilds the shell from scratch.
         await page.click("#sb-collapse")
         await page.wait_for_timeout(350)
@@ -1780,15 +1806,25 @@ async def main():
         ok("sheet on desktop: tab rail replaces the bottom tabs")
         await page.screenshot(path="/tmp/shot-08-sheet-desktop.png", full_page=True)
 
-        # The icon rail is built from the same NAV as the sidebar. A hand-written
-        # copy once called Encounters and Compendium unbuilt long after both
-        # shipped, and had no Campaigns or DM panel at all.
-        assert await page.locator(".rail .is-pending").count() == 0, "nothing on the rail is unbuilt"
-        rail_links = await page.eval_on_selector_all(".rail a.icon-btn", "els => els.map(e => e.getAttribute('href'))")
-        assert rail_links == ["index.html", "characters.html", "campaigns.html",
-                              "monster-tracker.html", "compendium.html", "dm-panel.html"], rail_links
-        assert await page.locator('.rail a.is-current[href="characters.html"]').count() == 1
-        ok("sheet's icon rail links every page the sidebar does, DM panel included for a DM")
+        # The sheet has the same sidebar as every other page -- it once had an
+        # icon rail of its own, with no labels and no way to expand it.
+        assert await page.locator(".rail").count() == 0, "the sheet's old icon rail is gone"
+        assert await page.locator(".sidebar").is_visible()
+        assert await page.locator(".sidebar .is-pending").count() == 0, "nothing in the sidebar is unbuilt"
+        links = await page.eval_on_selector_all(".sidebar-nav a", "els => els.map(e => e.getAttribute('href'))")
+        assert links == ["index.html", "characters.html", "campaigns.html",
+                         "monster-tracker.html", "compendium.html", "dm-panel.html"], links
+        assert await page.locator('.sidebar-nav a.is-active[href="characters.html"]').count() == 1
+        assert await page.locator(".sidebar #sb-collapse, .sidebar .theme-seg, .sidebar #sb-logout").count() == 3
+        await page.click("#sb-collapse")
+        await page.wait_for_timeout(350)
+        assert await page.evaluate("document.querySelector('.sidebar').getBoundingClientRect().width") == 64
+        assert await page.evaluate("localStorage.getItem('taphou5e-sidebar')") == "collapsed"
+        assert await page.locator(".sheet-nav").is_visible(), "the tab rail stays beside a collapsed sidebar"
+        await page.click("#sb-collapse")
+        await page.wait_for_timeout(350)
+        assert await page.locator(".sidebar.is-collapsed").count() == 0
+        ok("the sheet has the shared sidebar: every page, Characters active, collapse and theme switch included")
 
         # ---------- 17. Campaigns list ----------
         await page.set_viewport_size({"width": 1280, "height": 900})
@@ -1912,12 +1948,13 @@ async def main():
 
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.goto(f"{BASE}/v2/character-sheet.html?id=c1", wait_until="domcontentloaded")
-        await page.wait_for_selector(".rail", timeout=10000)
-        assert await page.locator(".rail .is-pending").count() == 0
-        rail_links = await page.eval_on_selector_all(".rail a.icon-btn", "els => els.map(e => e.getAttribute('href'))")
-        assert rail_links == ["index.html", "characters.html", "campaigns.html",
-                              "monster-tracker.html", "compendium.html"], rail_links
-        ok("a player's sheet rail reaches encounters and the compendium, and not the DM panel")
+        await page.wait_for_selector(".sidebar .role-pill", timeout=10000)
+        assert (await page.locator(".sidebar .role-pill").inner_text()).strip() == "PLAYER"
+        assert await page.locator(".sidebar .is-pending").count() == 0
+        links = await page.eval_on_selector_all(".sidebar-nav a", "els => els.map(e => e.getAttribute('href'))")
+        assert links == ["index.html", "characters.html", "campaigns.html",
+                         "monster-tracker.html", "compendium.html"], links
+        ok("a player's sheet sidebar reaches encounters and the compendium, and not the DM panel")
 
         # ---------- 23. Compendium ----------
         # Back to the DM session.
@@ -5325,13 +5362,13 @@ async def main():
         await obr_seed(sh, "PLAYER", session={**OBR_DM, "role": "player", "dmToken": "tok_" + "s" * 60})
         await sh.goto(f"{BASE}/v2/character-sheet.html?id=c2&embed=1", wait_until="domcontentloaded")
         await sh.wait_for_selector(".sheet-header h1", timeout=8000)
-        assert await sh.locator(".rail").count() == 0
+        assert await sh.locator(".sidebar").count() == 0
         assert await sh.locator("#menu-btn").count() == 0 and await sh.locator("#side-menu-overlay").count() == 0
         assert await sh.locator('a[href="characters.html"]').count() == 0
         await until(sh, "typeof window.closeEmbed === 'function'")
         await sh.click("#embed-close")
         assert await sh.evaluate("window.__obr.closed") == ["com.taphou5e.owlbear/sheet"]
-        ok("embedded, the sheet has no rail, menu or back link, and its close button closes the modal")
+        ok("embedded, the sheet has no sidebar, menu or back link, and its close button closes the modal")
 
         await sh.evaluate("localStorage.removeItem('dnd-session')")
         await sh.goto(f"{BASE}/v2/character-sheet.html?id=c2&embed=1", wait_until="domcontentloaded")

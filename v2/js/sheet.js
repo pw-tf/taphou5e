@@ -1038,12 +1038,13 @@
         const subclass = c.subclass ? ` ${c.subclass}` : '';
         const meta = `Lv ${c.level || 1} ${c.class || ''}${subclass} · ${c.player_name || ''}`;
 
-        // Layout follows the handoff: above 900px the icon rail and the tab rail
-        // are siblings of .app-main, so the sticky combat header sits beside
-        // them rather than stretching over the whole viewport.
+        // Above 900px the sidebar and the tab rail are siblings of .app-main, so
+        // the sticky combat header sits beside them rather than stretching over
+        // the whole viewport. The sidebar is the one every other page has --
+        // collapse included, and in the state the device last left it.
         document.body.innerHTML = `
             <div class="app-shell${EMBED ? ' is-embed' : ''}">
-                ${EMBED ? '' : renderRail('characters')}
+                ${EMBED ? '' : renderSidebar('characters')}
 
                 <nav class="sheet-nav">
                     <div>

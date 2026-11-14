@@ -1,13 +1,13 @@
 /* Theme switch — sets data-theme on <html> and remembers the choice.
    Touches only its own localStorage keys.
 
-   Modes: 'pixel' | 'pixel-dark' | 'dark' | 'light' | 'system'.
-   Pixel is what a device gets until someone picks otherwise. 'system' is now
-   stored as a choice of its own (it used to be "no key"), and still works by
+   Modes: 'dark' | 'light' | 'system' | 'pixel' | 'pixel-dark'.
+   Dark is what a device gets until someone picks otherwise. 'system' is
+   stored as a choice of its own (it used to be "no key"), and works by
    REMOVING the attribute so tokens.css follows prefers-color-scheme. */
 (function () {
   var KEY = 'taphou5e-theme';
-  var DEFAULT = 'pixel';
+  var DEFAULT = 'dark';
   var MODES = { pixel: 1, 'pixel-dark': 1, dark: 1, light: 1, system: 1 };
   // Browser chrome colour (<meta name="theme-color">) per theme.
   var CHROME = { pixel: '#dfe2d0', 'pixel-dark': '#1c1e19', dark: '#15110e', light: '#f5efe3' };

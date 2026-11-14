@@ -36,7 +36,7 @@ at it directly — edit `CHROME` at the top of the file, or run
   same bubble on hover
 - Light and dark themes, including re-marking the control after the shell
   rebuilds `document.body`
-- The Pixel themes: the default on a fresh device, the dither tile, square
+- Dark as the default on a fresh device; the Pixel themes: the dither tile, square
   2px frames and hard shadows, HP state as fill patterns, Pixel dark, System
   as a stored choice, no sideways scroll at 390px, and Owlbear following it
 - 390px: no horizontal scroll, 2-up roster, drawer open/Escape-close
@@ -47,10 +47,11 @@ at it directly — edit `CHROME` at the top of the file, or run
   appearing at 0 HP, condition toggles preserving existing conditions, long rest
   restoring HP and resetting slots, and the detail pane
 - That rest buttons appear exactly once per viewport (rail above 900px, body below)
-- The desktop sidebar collapsing to the icon rail and back, with the choice
+- The desktop sidebar collapsing to an icon rail and back, with the choice
   carried to the next page
-- The sheet's icon rail linking every page the sidebar does, for a DM and for a
-  player, with nothing on it marked unbuilt
+- The sheet having the same sidebar as every other page (collapse and theme
+  switch included), linking every page for a DM and for a player, with
+  nothing on it marked unbuilt
 - Campaigns: the list and its counts, the seven-tab detail, nested areas, beat
   checks with their DC and secret marker
 - Party membership: the picker excluding characters already in the campaign,
@@ -133,7 +134,7 @@ at it directly — edit `CHROME` at the top of the file, or run
   - link by name never reusing a combatant already on the map;
   - the panel refusing the player PIN for a GM, and falling back to it on a
     database without `world_share_player_session`;
-  - the sheet in embed mode: no rail, menu or back link, a close button that
+  - the sheet in embed mode: no sidebar, menu or back link, a close button that
     closes the modal, and a missing session waiting rather than redirecting;
   - the tracker reloading on an encounter signal
 

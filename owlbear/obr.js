@@ -281,18 +281,18 @@ export async function applyHP(view, delta) {
 
 // Follow Owlbear's light or dark mode rather than taphou5e's own setting:
 // these pages sit inside Owlbear's chrome. WHICH pair of themes follows it is
-// taphou5e's: the pixel pair, unless this device chose Ember (dark, light or
-// system) in the app. Inside Owlbear's frame the browser may keep storage
-// apart from the app's own, in which case the choice is not visible here and
-// the pixel pair -- the app's default -- is used.
+// taphou5e's: Ember, unless this device chose a Pixel theme in the app. Inside
+// Owlbear's frame the browser may keep storage apart from the app's own, in
+// which case the choice is not visible here and Ember -- the app's default --
+// is used.
 export async function followTheme() {
     let saved = null;
     try { saved = localStorage.getItem('taphou5e-theme'); } catch (e) {}
-    const ember = saved === 'dark' || saved === 'light' || saved === 'system';
+    const pixel = saved === 'pixel' || saved === 'pixel-dark';
     const apply = theme => {
         const light = theme.mode === 'LIGHT';
         document.documentElement.setAttribute(
-            'data-theme', ember ? (light ? 'light' : 'dark') : (light ? 'pixel' : 'pixel-dark'));
+            'data-theme', pixel ? (light ? 'pixel' : 'pixel-dark') : (light ? 'light' : 'dark'));
     };
     apply(await OBR.theme.getTheme());
     OBR.theme.onChange(apply);

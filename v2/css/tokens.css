@@ -39,7 +39,7 @@
   --header-height-desktop: 60px;  /* topbar above the breakpoint */
   --tab-bar-height: 64px;         /* mobile bottom tabs */
   --sidebar-width: 240px;         /* labelled desktop sidebar */
-  --rail-width: 64px;             /* icon-only rail (tracker, sheet) */
+  --rail-width: 64px;             /* the sidebar, collapsed */
   --sheet-nav-width: 212px;       /* tab rail on the desktop sheet */
   --pane-width: 400px;            /* right-hand detail pane */
   --content-max: 1360px;          /* content cap; the old 600px cap is gone */

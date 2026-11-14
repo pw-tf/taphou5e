@@ -291,10 +291,7 @@ textarea:focus-visible,
   }
 }
 
-/* Icon rail + tab rail (desktop only; ember.css sizes .rail and .sheet-nav) */
-.rail-brand { font-family: var(--font-display); font-size: var(--fs-15); font-weight: 700; color: var(--accent-primary); }
-.rail .icon-btn.is-current { background: var(--bg-hover); color: var(--accent-primary); }
-.rail .icon-btn.is-pending { opacity: .4; cursor: default; pointer-events: none; }
+/* Tab rail (desktop only; ember.css sizes .sheet-nav) */
 .sheet-nav .nav-name { font-family: var(--font-display); font-size: var(--fs-17); font-weight: 700; line-height: 1.2; }
 .sheet-nav .nav-meta { font-size: var(--fs-11); color: var(--text-tertiary); margin-top: 3px; }
 .sheet-nav .nav-rests { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-6); }
@@ -1073,7 +1070,7 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 .login-main .segmented.theme-seg { max-width: 320px; }
 
 /* ---------- Collapsed sidebar ----------
-   Folds to the width of the character sheet's icon rail. Only the labels go;
+   Folds to an icon rail (--rail-width). Only the labels go;
    every destination and every foot action stays one click away. The theme
    switch has no icon form, so it waits for the sidebar to be opened again. */
 .sidebar { transition: width var(--transition-normal); }
@@ -1242,7 +1239,7 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
    Page transitions
    v2 is one HTML file per page. Cross-document view transitions let the
    browser cross-fade between them instead of flashing a blank reload: the
-   sidebar, rail and mobile header hold still and only the content moves.
+   sidebar and mobile header hold still and only the content moves.
    Supported in Chrome/Edge 126+ and Safari 18.2+; other browsers just load
    the page as before. Both pages must opt in, so every v2 page gets this
    through v2.css.
@@ -1251,13 +1248,11 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 @view-transition { navigation: auto; }
 
 .sidebar      { view-transition-name: sidebar; }
-.rail         { view-transition-name: rail; }
 .header       { view-transition-name: header; }
 #main-content { view-transition-name: page; }
 
 ::view-transition-group(root),
 ::view-transition-group(sidebar),
-::view-transition-group(rail),
 ::view-transition-group(header) { animation-duration: 200ms; }
 
 ::view-transition-old(page) { animation: vt-page-out 140ms ease-in both; }

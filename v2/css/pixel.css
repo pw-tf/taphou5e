@@ -34,7 +34,7 @@
 [data-theme^="pixel"] {
   --px-paper: var(--pa); --px-ink: var(--pb); --px-mid: var(--pc); --px-tint: var(--pd);
 }
-[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu),
+[data-theme^="pixel"] :is(.sidebar, .sheet-nav, .tab-bar, .side-menu),
 [data-theme^="pixel"] :is(
   .segmented > .is-active, .seg button.is-on, .condition-tag.active,
   .method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .chip-row .chip.is-on,
@@ -42,27 +42,29 @@
   .hp-btn.damage, .toast-error, .error-banner, .tag-warning, .lk-row.is-on) {
   --px-paper: var(--pb); --px-ink: var(--pa); --px-mid: var(--pd); --px-tint: var(--pc);
 }
-[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) :is(
+[data-theme^="pixel"] :is(.sidebar, .sheet-nav, .tab-bar, .side-menu) :is(
   .segmented > .is-active, .tab-btn.active, .sidebar-nav a.is-active, .side-menu-item.is-active,
-  .tabs > .is-active, .icon-btn.is-current, .hp-btn.damage) {
+  .tabs > .is-active, .hp-btn.damage) {
   --px-paper: var(--pa); --px-ink: var(--pb); --px-mid: var(--pc); --px-tint: var(--pd);
 }
 /* `color` is inherited as a computed value, so the chrome has to ask for the
    re-read token itself or it keeps the page's ink. */
-[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) { color: var(--text-primary); }
-[data-theme="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) { --logo-filter: brightness(0) invert(1); }
-[data-theme="pixel-dark"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu) { --logo-filter: none; }
+/* Ember leaves .sheet-nav transparent, so the inverted ground is painted here
+   too, or its paper-coloured type sits on the paper page and vanishes. */
+[data-theme^="pixel"] :is(.sidebar, .sheet-nav, .tab-bar, .side-menu) { color: var(--text-primary); background-color: var(--bg-primary); }
+[data-theme="pixel"] :is(.sidebar, .sheet-nav, .tab-bar, .side-menu) { --logo-filter: brightness(0) invert(1); }
+[data-theme="pixel-dark"] :is(.sidebar, .sheet-nav, .tab-bar, .side-menu) { --logo-filter: none; }
 
 /* ---------- Ember tokens, re-read wherever the roles changed ---------- */
 [data-theme^="pixel"],
-[data-theme^="pixel"] :is(.sidebar, .rail, .sheet-nav, .tab-bar, .side-menu),
+[data-theme^="pixel"] :is(.sidebar, .sheet-nav, .tab-bar, .side-menu),
 [data-theme^="pixel"] :is(
   .segmented > .is-active, .seg button.is-on, .condition-tag.active,
   .method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .chip-row .chip.is-on,
   .srd-list .list-row.is-selected, .choose-row:has(input:checked),
   .hp-btn.damage, .toast-error, .error-banner, .tag-warning, .lk-row.is-on,
   .tab-btn.active, .sidebar-nav a.is-active, .side-menu-item.is-active,
-  .tabs > .is-active, .icon-btn.is-current) {
+  .tabs > .is-active) {
   --bg-primary: var(--px-paper);  --bg-secondary: var(--px-paper); --bg-tertiary: var(--px-paper);
   --bg-elevated: var(--px-paper); --bg-hover: var(--px-tint);      --bg-sunken: var(--px-paper);
 
@@ -186,7 +188,7 @@
   .method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .chip-row .chip.is-on,
   .srd-list .list-row.is-selected, .choose-row:has(input:checked), .lk-row.is-on,
   .tab-btn.active, .sidebar-nav a.is-active, .side-menu-item.is-active,
-  .sheet-nav .tabs > .is-active, .rail .icon-btn.is-current,
+  .sheet-nav .tabs > .is-active,
   .toast-error, .error-banner, .tag-warning) {
   background: var(--bg-primary); color: var(--text-primary); border-color: var(--border-default);
 }
