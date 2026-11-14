@@ -493,6 +493,23 @@ textarea:focus-visible,
 @media (min-width: 768px) and (max-width: 1099px) {
   .info-pane { width: 300px; }
 }
+/* A party member's sheet: the slot keeps the space in the layout, and the
+   dock (tracker.js) lies over it with the embedded sheet. The sheet is laid
+   out for a phone, so the slot is a phone's width at every size. */
+@media (min-width: 768px) {
+  .info-pane.sheet-slot {
+    width: 390px; height: calc(100vh - var(--space-lg) * 2); max-height: none;
+    padding: 0; visibility: hidden;
+  }
+}
+.sheet-dock {
+  position: fixed; z-index: 50; overflow: hidden;
+  background: var(--bg-primary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+}
+.sheet-dock[hidden] { display: none; }
+.sheet-dock .sheet-frame { display: block; width: 100%; height: 100%; }
+
 /* With the stat block open the rows are narrower: who, the HP controls and
    Down / Remove share the first line, and the HP bar takes the whole second. */
 @media (min-width: 768px) {

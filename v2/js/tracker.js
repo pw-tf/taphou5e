@@ -866,7 +866,8 @@
     window.showInfo = async id => {
         const row = combatants.find(r => r.id === id);
         if (!row) return;
-        if (row.character_id) { openSheetPopup(row.character_id, row.display_name); return; }
+        if (row.character_id && !WIDE.matches) { openSheetPopup(row.character_id, row.display_name); return; }
+        if (row.character_id) { info = info === id ? null : id; draw(); return; }
         if (WIDE.matches) {
             info = info === id ? null : id;
             draw();
@@ -884,6 +885,10 @@
     function infoPane() {
         const row = info && combatants.find(r => r.id === info);
         if (!row || !WIDE.matches) return '';
+        // A party member's sheet: this only holds the space. The sheet itself
+        // is the dock below, laid over it, because this panel is rebuilt on
+        // every redraw and an iframe rebuilt is an iframe reloaded.
+        if (row.character_id) return '<aside class="info-pane sheet-slot" aria-hidden="true"></aside>';
         const m = monsterOf(row);
         const cached = statCache[m ? m.id : `row-${row.id}`];
         const stats = cached ? Object.assign({}, cached, {
@@ -897,8 +902,86 @@
             </aside>`;
     }
 
-    // A party member's 'i' opens their real sheet, embedded, in a popup. The
-    // sheet saves as it always does; the tracker re-reads them on close.
+    // ---- A party member's sheet beside the list (tablet and up) ----
+    // The real sheet, embedded. renderShell() rebuilds <body> on every draw,
+    // and moving or rebuilding an iframe reloads it -- the sheet would lose
+    // its tab, scroll and any half-typed number each time a hit point changed
+    // anywhere. So it lives outside <body>, on <html>, fixed over the empty
+    // slot infoPane() leaves in the layout, and follows that slot about.
+    let dock = null;     // { el, characterId }
+
+    function syncDock() {
+        const row = info && combatants.find(r => r.id === info);
+        if (!row || !row.character_id || !$('.sheet-slot')) { closeDock(); return; }
+        if (!dock || dock.characterId !== row.character_id) {
+            closeDock();
+            const el = document.createElement('div');
+            el.className = 'sheet-dock';
+            el.setAttribute('role', 'region');
+            el.setAttribute('aria-label', `Character sheet: ${row.display_name}`);
+            el.innerHTML = `<iframe class="sheet-frame" title="Character sheet: ${escapeHtml(row.display_name)}"
+                src="character-sheet.html?id=${encodeURIComponent(row.character_id)}&embed=app"></iframe>`;
+            document.documentElement.appendChild(el);
+            dock = { el, characterId: row.character_id };
+        }
+        placeDock();
+    }
+
+    // Over the slot, and never past the bottom of the window: the slot is
+    // as tall as the window, but sits lower until the page scrolls it up.
+    // It also stops short of the + button, which would cover the sheet's
+    // last tabs.
+    function placeDock() {
+        if (!dock) return;
+        const slot = $('.sheet-slot');
+        if (!slot) { dock.el.hidden = true; return; }
+        const r = slot.getBoundingClientRect();
+        const fab = $('.fab');
+        const fabTop = fab && fab.offsetParent !== null ? fab.getBoundingClientRect().top : null;
+        const bottomGap = fabTop !== null ? window.innerHeight - fabTop + 8 : 16;
+        Object.assign(dock.el.style, {
+            top: `${r.top}px`, left: `${r.left}px`, width: `${r.width}px`,
+            height: `${Math.max(320, Math.min(r.height, window.innerHeight - r.top - bottomGap))}px`
+        });
+        dock.el.hidden = false;
+    }
+
+    function closeDock() {
+        if (!dock) return;
+        const characterId = dock.characterId;
+        dock.el.remove();
+        dock = null;
+        refreshCharacter(characterId);
+    }
+
+    // What the sheet changed while it was open (live updates usually beat
+    // this to it).
+    async function refreshCharacter(characterId) {
+        const { data } = await db.from('characters')
+            .select('id, name, class, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
+            .eq('id', characterId);
+        (data || []).forEach(ch => { characters[ch.id] = ch; });
+        if (enc) draw();
+    }
+
+    let placing = false;
+    const placeSoon = () => {
+        if (!dock || placing) return;
+        placing = true;
+        requestAnimationFrame(() => { placing = false; placeDock(); });
+    };
+    document.addEventListener('scroll', placeSoon, { passive: true, capture: true });
+    window.addEventListener('resize', placeSoon);
+    // Across the breakpoint the panel and the popup trade places; whatever
+    // was open closes rather than jumping from one to the other.
+    WIDE.addEventListener('change', () => { if (info) { info = null; draw(); } });
+    // The embedded sheet's own close button.
+    window.addEventListener('message', e => {
+        if (dock && e.origin === window.location.origin && e.data && e.data.type === 'taphou5e-close-sheet') closeInfo();
+    });
+
+    // On a phone, a party member's 'i' opens their sheet in a popup instead.
+    // The sheet saves as it always does; the tracker re-reads them on close.
     function openSheetPopup(characterId, name) {
         closeModal();
         document.body.insertAdjacentHTML('beforeend', `
@@ -915,11 +998,7 @@
             closeModal();
             window.removeEventListener('message', onMessage);
             document.removeEventListener('keydown', onKey);
-            const { data } = await db.from('characters')
-                .select('id, name, class, armor_class, current_hit_points, hit_point_maximum, temporary_hit_points')
-                .eq('id', characterId);
-            (data || []).forEach(ch => { characters[ch.id] = ch; });
-            draw();
+            refreshCharacter(characterId);
         };
         const onMessage = e => {
             if (e.origin === window.location.origin && e.data && e.data.type === 'taphou5e-close-sheet') close();
@@ -1437,6 +1516,7 @@
 
         if (enc) { wireCardMenus('#main-content', '.init-row', combatantMenu); fillMissingTypes(); }
         else wireCardMenus('#main-content', '.list-row', encounterMenu);
+        syncDock();
     }
 
     // Everything the inline buttons do, plus the things that had no room on

@@ -66,7 +66,8 @@ at it directly — edit `CHROME` at the top of the file, or run
 - The tracker: initiative ordering, rolling only the blanks, starting an
   encounter (its ACTIVE pill pulsing, here and on the overview), class and
   creature-type icons on rows and cards, the 'i' stat block (side panel wide,
-  popup on a phone, DM-only for monsters) and party sheets in a popup, the
+  popup on a phone, DM-only for monsters) and party sheets the same way (the
+  docked sheet surviving redraws and scrolling with its slot), the
   turn marked by a dotted ring, the
   turn order skipping downed combatants and wrapping the round,
   conditions persisting, and damage clamping at zero

@@ -2259,16 +2259,50 @@ async def main():
         ok("on a wide screen a monster's 'i' opens its stat block in a side panel, which closes")
 
         await sythra.locator(".init-info").click()
-        frame_el = page.locator(".modal-sheet iframe.sheet-frame")
-        await frame_el.wait_for(timeout=5000)
-        assert "embed=app" in await frame_el.get_attribute("src")
-        frame = page.frame_locator(".modal-sheet iframe.sheet-frame")
+        dock_frame = page.locator(".sheet-dock iframe.sheet-frame")
+        await dock_frame.wait_for(timeout=5000)
+        assert "embed=app" in await dock_frame.get_attribute("src")
+        assert await page.locator(".modal-host").count() == 0, "on a wide screen the sheet is beside the list, not a popup"
+        frame = page.frame_locator(".sheet-dock iframe.sheet-frame")
         await frame.locator(".sheet-header h1").wait_for(timeout=10000)
         assert "Sythra" in await frame.locator(".sheet-header h1").inner_text()
         assert await frame.locator(".sidebar").count() == 0, "the embedded sheet has no navigation"
+        fit = await page.evaluate("""() => {
+            const a = document.querySelector('.sheet-slot').getBoundingClientRect();
+            const b = document.querySelector('.sheet-dock').getBoundingClientRect();
+            return [Math.round(a.left - b.left), Math.round(a.top - b.top), Math.round(a.width - b.width), b.bottom <= innerHeight];
+        }""")
+        assert fit == [0, 0, 0, True], fit
+        clear = await page.evaluate("""() => {
+            const fab = document.querySelector('.fab');
+            if (!fab || fab.offsetParent === null) return true;
+            return document.querySelector('.sheet-dock').getBoundingClientRect().bottom <= fab.getBoundingClientRect().top;
+        }""")
+        assert clear, "the + button covers the bottom of the docked sheet"
+        ok("on a wide screen a party member's 'i' opens their real sheet in the side panel, clear of the + button")
+
+        # The tracker redraws whenever anything changes; the sheet must not
+        # reload with it, or it loses its tab and anything half typed.
+        content = await (await dock_frame.element_handle()).content_frame()
+        await content.evaluate("window.__stillHere = true")
+        await gargoyle.locator(".hp-btn.damage").click()
+        await page.wait_for_timeout(400)
+        content = await (await page.locator(".sheet-dock iframe").element_handle()).content_frame()
+        assert await content.evaluate("window.__stillHere === true"), "the docked sheet reloaded on a redraw"
+        await page.mouse.wheel(0, 600)
+        await page.wait_for_timeout(300)
+        fit = await page.evaluate("""() => {
+            const a = document.querySelector('.sheet-slot').getBoundingClientRect();
+            const b = document.querySelector('.sheet-dock').getBoundingClientRect();
+            return [Math.round(a.left - b.left), Math.round(a.top - b.top)];
+        }""")
+        assert fit == [0, 0], fit
+        ok("the docked sheet survives the tracker redrawing, and stays in place as the page scrolls")
+
         await frame.locator("#embed-close").click()
-        await page.wait_for_selector(".modal-sheet", state="detached", timeout=5000)
-        ok("a party member's 'i' opens their real sheet in a popup, and its close button closes it")
+        await page.wait_for_selector(".sheet-dock", state="detached", timeout=5000)
+        assert await page.locator(".sheet-slot").count() == 0
+        ok("the sheet's own close button closes the side panel")
 
         await page.set_viewport_size({"width": 390, "height": 844})
         await page.wait_for_timeout(300)
@@ -2279,9 +2313,18 @@ async def main():
         assert await page.locator(".info-pane").count() == 0
         await page.keyboard.press("Escape")
         await page.wait_for_selector(".modal-host", state="detached", timeout=3000)
+        ok("on a phone the stat block is a popup instead, with a homebrew monster's own text")
+
+        await page.locator('.init-row:has-text("Sythra") .init-info').click()
+        await page.locator(".modal-sheet iframe.sheet-frame").wait_for(timeout=5000)
+        assert await page.locator(".sheet-dock").count() == 0
+        pframe = page.frame_locator(".modal-sheet iframe.sheet-frame")
+        await pframe.locator(".sheet-header h1").wait_for(timeout=10000)
+        await pframe.locator("#embed-close").click()
+        await page.wait_for_selector(".modal-sheet", state="detached", timeout=5000)
         await page.set_viewport_size({"width": 1280, "height": 900})
         await page.wait_for_timeout(300)
-        ok("on a phone the stat block is a popup instead, with a homebrew monster's own text")
+        ok("on a phone a party member's sheet opens in a popup instead, and closes")
 
         # ---------- 30. Conditions ----------
         await page.locator('.init-row:has-text("Sythra") .init-name').click()
