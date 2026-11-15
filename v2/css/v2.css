@@ -321,6 +321,20 @@ textarea:focus-visible,
   border-bottom: 1px solid var(--border-subtle);
 }
 .modal-head h2 { flex: 1; font-family: var(--font-display); font-size: var(--fs-19); font-weight: 700; }
+
+/* Closing a popup or panel: a framed button, not a faint glyph. The same
+   on every popup (#modal-close), the side panels (.pane-close), the
+   compendium's detail (.srd-close) and the embedded sheet (#embed-close). */
+:is(#modal-close, .pane-close, .srd-close, #embed-close) {
+  flex: none; width: 40px; height: 40px;
+  background: var(--bg-tertiary); color: var(--text-primary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  font-size: 26px; font-weight: 400; line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+:is(#modal-close, .pane-close, .srd-close, #embed-close):hover {
+  background: var(--bg-hover); color: var(--text-primary); border-color: var(--text-secondary);
+}
 .modal-body { padding: var(--space-md); display: flex; flex-direction: column; gap: var(--space-14); }
 .modal-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-6); }
 .modal-actions .btn { padding: 10px 18px; }
@@ -497,7 +511,7 @@ textarea:focus-visible,
     padding: var(--space-18) var(--space-20);
   }
   /* The same close as the embedded sheet's header (#embed-close). */
-  .info-pane .pane-close { position: absolute; top: var(--space-12); right: var(--space-12); font-size: 22px; line-height: 1; }
+  .info-pane .pane-close { position: absolute; top: var(--space-12); right: var(--space-12); }
   /* A party member's sheet: this slot keeps the space in the layout, and
      the dock (tracker.js) lies over it with the embedded sheet. */
   .info-pane.sheet-slot { padding: 0; visibility: hidden; }
@@ -571,9 +585,15 @@ a.list-row, a.list-row:hover,
      still worked. Only the button and the open menu take touches. */
   pointer-events: none;
 }
+/* 56px; a tenth smaller on a phone, where it covers more of the screen. */
+:root { --fab-size: 56px; }
+@media (max-width: 767px) {
+  :root { --fab-size: 50px; }
+  .fab .ico { width: 20px; height: 20px; }
+}
 .fab {
   pointer-events: auto;
-  width: 56px; height: 56px; border-radius: var(--radius-full);
+  width: var(--fab-size); height: var(--fab-size); border-radius: var(--radius-full);
   background: var(--accent-primary); border: none; color: var(--accent-on);
   box-shadow: var(--shadow-lg); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -625,8 +645,8 @@ a.list-row, a.list-row:hover,
    of it, and anything scrolled into view (a focused field, a jump to a row)
    stops above it rather than under it. */
 @media (max-width: 899px) {
-  html:has(.fab-wrap) { scroll-padding-bottom: calc(56px + var(--space-md) * 2); }
-  body:has(.fab-wrap) .main-content { padding-bottom: calc(56px + var(--space-md) * 2); }
+  html:has(.fab-wrap) { scroll-padding-bottom: calc(var(--fab-size) + var(--space-md) * 2); }
+  body:has(.fab-wrap) .main-content { padding-bottom: calc(var(--fab-size) + var(--space-md) * 2); }
 }
 
 @media (min-width: 900px) {
@@ -1223,7 +1243,6 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
   background: var(--bg-primary); color: var(--text-secondary);
 }
 .embed-waiting p { margin: 0; }
-#embed-close { font-size: 22px; line-height: 1; }
 
 /* ==========================================================================
    Icon hover motion

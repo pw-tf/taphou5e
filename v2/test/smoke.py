@@ -2346,6 +2346,7 @@ async def main():
             await (gargoyle if who == "monster" else sythra).locator(".init-info").click()   # toggles it shut
             await page.wait_for_timeout(200)
         assert boxes["monster"] == boxes["sheet"], boxes
+        assert await page.evaluate("Math.round(document.querySelector('.fab').getBoundingClientRect().width)") == 56
         ok("a monster's stat block and a party member's sheet sit in identical panels")
 
         await page.set_viewport_size({"width": 390, "height": 844})
@@ -2354,6 +2355,14 @@ async def main():
         await page.locator("#panel-body .statblock").wait_for(timeout=5000)
         popup = await page.locator("#panel-body").inner_text()
         assert "Engulf. A creature it hits is pulled under." in popup and "ooze" in popup, popup
+        close = await page.evaluate("""() => {
+            const b = document.querySelector('#modal-close').getBoundingClientRect(), cs = getComputedStyle(document.querySelector('#modal-close'));
+            return [Math.round(b.width), Math.round(b.height), cs.backgroundColor !== 'rgba(0, 0, 0, 0)', cs.borderTopStyle, parseFloat(cs.fontSize)];
+        }""")
+        assert close[:4] == [40, 40, True, "solid"] and close[4] >= 26, close
+        fab = await page.evaluate("Math.round(document.querySelector('.fab').getBoundingClientRect().width)")
+        assert fab == 50, fab
+        ok("on a phone the popup's close is a framed 40px button, and the + is a tenth smaller (50px)")
         assert await page.locator(".info-pane").count() == 0
         await page.keyboard.press("Escape")
         await page.wait_for_selector(".modal-host", state="detached", timeout=3000)
