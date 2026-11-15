@@ -142,7 +142,7 @@
   .explainer-title, .fab-item, .choose-row .name, .pick-row .name, .subclass-row .name, .method-tile .title,
   .levelup-banner .title, .ability-box .label, .save-chip, .chip-row .chip, .wizard-steps li, .form-group label,
   .hp-btn, .trait-name, .status-pill, .role-pill, .nav-soon, .hidden-pill, .charge, .prep-toggle, .slot-chip,
-  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .theme-tile-name, .theme-btn) {
+  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .theme-tile-name, .theme-btn, .turn-badge) {
   font-family: var(--font-display);
 }
 [data-theme^="pixel"] :is(.switch-line a, .login-footer a, .hint a, .prose a) { text-decoration: underline; }

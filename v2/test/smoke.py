@@ -1583,6 +1583,24 @@ async def main():
             assert grounds[3] == ("turn-pulse" if theme == "system" else "turn-blink"), (theme, grounds)
         ok("the current turn is its dotted ring only, no tint, and the ring pulses: a fade in Ember, a blink in Pixel and EGA")
 
+        # And it is said in words: a "Your turn" badge beside that one name.
+        assert await npg.locator(".turn-badge").count() == 0          # not before the fight starts
+        await npg.evaluate("startEncounter()")
+        await npg.wait_for_selector(".init-row.is-active .turn-badge", timeout=5000)
+        for theme in ("system", "pixel", "ega"):
+            await npg.evaluate(f"setTheme('{theme}')")
+            await npg.wait_for_timeout(300)
+            badge = await npg.evaluate("""() => {
+                const all = document.querySelectorAll('.turn-badge');
+                const b = document.querySelector('.init-row.is-active .init-name-line .turn-badge');
+                const cs = getComputedStyle(b), root = getComputedStyle(b.closest('.init-row'));
+                return [all.length, b.textContent.trim(), cs.backgroundColor, root.getPropertyValue('--accent-primary').trim(),
+                        cs.animationName, b.previousElementSibling && b.previousElementSibling.className];
+            }""")
+            assert badge[0] == 1 and badge[1] == "Your turn" and badge[4] == "none", (theme, badge)
+            assert "init-info" in (badge[5] or ""), (theme, badge)          # right after the i
+        ok("one 'Your turn' badge, beside the i of whoever's turn it is, still, in Ember, Pixel and EGA")
+
         # One Theme button, a popup of six previewed tiles.
         await npg.goto(f"{BASE}/v2/index.html", wait_until="domcontentloaded")
         await npg.wait_for_selector(".party-roster", timeout=10000)

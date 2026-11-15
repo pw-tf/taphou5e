@@ -1079,6 +1079,7 @@
                                         title="${isParty ? 'Character sheet' : 'Stat block'}">
                                     ${icon('info', 16)}
                                 </button>` : ''}
+                            ${isActive && enc.status === 'active' ? '<span class="turn-badge">Your turn</span>' : ''}
                         </div>
                         <div class="init-sub">
                             ${isDM && enc.status !== 'completed'

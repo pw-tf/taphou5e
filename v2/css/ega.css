@@ -145,7 +145,7 @@
    --font-display, plus the labels named here). Names, numbers and
    controls: VT323. ---------- */
 [data-theme="ega"] :is(.eyebrow, .tag, .role-pill, .status-pill, .nav-soon, .hidden-pill, .level-badge,
-  .nav-count.is-live, .ability-box .label, .save-chip .label, .wizard-steps li .n) {
+  .nav-count.is-live, .ability-box .label, .save-chip .label, .wizard-steps li .n, .turn-badge) {
   font-family: var(--font-display); letter-spacing: .06em; text-transform: uppercase;
 }
 [data-theme="ega"] :is(.btn, .segmented > *, .seg button, .tab-btn, .sidebar-nav a, .side-menu-item,
