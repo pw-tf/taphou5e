@@ -133,6 +133,7 @@
         if ((await db.from('encounters').update(updates).eq('id', enc.id)).error) {
             toast('Could not start the encounter.', 'error');
         }
+        refreshNavTotals();
     };
 
     window.endEncounter = async () => {
@@ -144,6 +145,7 @@
         if ((await db.from('encounters').update(updates).eq('id', enc.id)).error) {
             toast('Could not end the encounter.', 'error');
         }
+        refreshNavTotals();
     };
 
     window.setInitiative = async (id, value) => {
@@ -1522,7 +1524,8 @@
             active: 'encounters',
             title: enc ? enc.name : 'Encounters',
             sub: session.gameWorldName || '',
-            counts: enc ? undefined : { encounters: encounters.length },
+            counts: enc ? undefined
+                : { encounters: encounters.length, encountersLive: encounters.some(e => e.status === 'active') },
             actions: trackerActions()
         });
         $('#main-content').innerHTML = enc ? trackerView() : listView();

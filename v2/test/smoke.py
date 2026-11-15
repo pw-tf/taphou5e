@@ -1529,6 +1529,50 @@ async def main():
             assert over <= 0, (path, over)
         await ectx.close()
         ok("EGA at 390px: hub, sheet, encounter, compendium, DM panel and wizard do not scroll sideways")
+
+        # The sidebar's counts are the same on every page, not just the page
+        # that loaded them, and a running encounter shows ACTIVE instead.
+        nctx = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await nctx.add_init_script(STUB)
+        npg = await nctx.new_page()
+        watch(npg, "nav-totals")
+        await npg.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await npg.fill("#world-name", "Thornfell Reach")
+        await fill_pin(npg, "join", "1379")
+        await npg.click("#join-form .btn-submit")
+        await npg.wait_for_selector(".party-roster", timeout=10000)
+        badges_js = """() => Object.fromEntries([...document.querySelectorAll('.sidebar-nav a[data-nav]')].map(a =>
+            [a.dataset.nav, (a.querySelector('.nav-count, .status-pill') || {}).textContent || null]))"""
+        for path, ready in (("index.html", ".party-roster"), ("character-sheet.html?id=c2", ".sheet-combat"),
+                            ("compendium.html", ".list-row"), ("dm-panel.html", ".dm-row"),
+                            ("monster-tracker.html?id=e1", ".init-row"), ("monster-tracker.html", ".list-row")):
+            await npg.goto(f"{BASE}/v2/{path}", wait_until="domcontentloaded")
+            await npg.wait_for_selector(ready, timeout=10000)
+            await until(npg, "!!document.querySelector('.sidebar-nav a[data-nav=\"encounters\"] .status-pill')")
+            badges = await npg.evaluate(badges_js)
+            assert badges["characters"] == "4" and badges["campaigns"] == "1", (path, badges)
+            assert badges["encounters"] == "active", (path, badges)
+        ok("every page's sidebar counts characters and campaigns, and shows ACTIVE for a running encounter")
+
+        # Whose turn it is: the dotted ring alone, no tinted ground.
+        await npg.goto(f"{BASE}/v2/monster-tracker.html?id=e1", wait_until="domcontentloaded")
+        await npg.wait_for_selector(".init-row", timeout=10000)
+        for theme in ("system", "pixel", "ega"):
+            await npg.evaluate(f"setTheme('{theme}')")
+            await npg.wait_for_timeout(400)
+            grounds = await npg.evaluate("""() => {
+                const rows = [...document.querySelectorAll('.init-row:not(.is-dead)')];
+                rows[0].style.transition = 'none';
+                const before = getComputedStyle(rows[0]).backgroundColor;
+                rows[0].classList.add('is-active');
+                const after = getComputedStyle(rows[0]).backgroundColor;
+                const ring = getComputedStyle(rows[0]).outlineStyle;
+                rows[0].classList.remove('is-active');
+                return [before, after, ring];
+            }""")
+            assert grounds[0] == grounds[1] and grounds[2] == "dotted", (theme, grounds)
+        ok("the current turn is marked by its dotted ring only, with no background tint, in every theme")
+        await nctx.close()
         await pm.set_viewport_size({"width": 1280, "height": 900})
         await pm.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
         await pm.wait_for_selector(".sheet-nav .tabs", timeout=10000)

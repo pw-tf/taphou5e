@@ -38,6 +38,8 @@ textarea:focus-visible,
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1px 5px;
 }
 .nav-count { margin-left: auto; font-size: var(--fs-11); color: var(--text-tertiary); }
+/* A running encounter: the list's ACTIVE pill, in place of the count. */
+.sidebar-nav .status-pill { margin-left: auto; padding: 1px 6px; }
 .nav-count.is-live {
   color: var(--accent-on); background: var(--accent-primary);
   border-radius: var(--radius-sm); padding: 1px 5px; font-size: var(--fs-10);
@@ -1185,6 +1187,7 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 .sidebar.is-collapsed .world-row,
 .sidebar.is-collapsed .nav-label,
 .sidebar.is-collapsed .nav-count,
+.sidebar.is-collapsed .sidebar-nav .status-pill,
 .sidebar.is-collapsed .nav-soon,
 .sidebar.is-collapsed .sidebar-foot .segmented { display: none; }
 .sidebar.is-collapsed .sidebar-brand { padding-left: 0; padding-right: 0; }

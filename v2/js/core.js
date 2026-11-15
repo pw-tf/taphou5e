@@ -596,17 +596,82 @@ function visibleNav() {
     return NAV.filter(item => !item.dmOnly || isDM);
 }
 
+// ========================================
+// Sidebar totals
+//
+// Every page shows the same counts beside Characters, Campaigns and
+// Encounters, and a running encounter's ACTIVE pill in place of its count.
+// A page used to pass only the count it had loaded for itself, so a number
+// showed on that page and nowhere else. Now the totals are fetched once per
+// page load (refreshNavTotals) and kept for the tab in sessionStorage, so the
+// sidebar has them from its first paint. A page that has just loaded one of
+// them itself still passes it in `counts`, and that fresher value wins.
+// ========================================
+
+const NAV_TOTALS_KEY = 'taphou5e-nav-totals';
+let navTotals = null;
+
+function getNavTotals() {
+    if (navTotals) return navTotals;
+    const world = session && session.gameWorldId;
+    navTotals = { world };
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(NAV_TOTALS_KEY) || 'null');
+        if (saved && saved.world === world) navTotals = saved;
+    } catch (e) { /* no storage: fetched below */ }
+    return navTotals;
+}
+
+function setNavTotals(values) {
+    const totals = getNavTotals();
+    Object.keys(values).forEach(key => {
+        if (values[key] !== undefined && values[key] !== null) totals[key] = values[key];
+    });
+    try { sessionStorage.setItem(NAV_TOTALS_KEY, JSON.stringify(totals)); } catch (e) {}
+}
+
+function navBadge(id) {
+    const totals = getNavTotals();
+    if (id === 'encounters' && totals.encountersLive) return '<span class="status-pill is-active">active</span>';
+    const count = totals[id];
+    return count === undefined || count === null ? '' : `<span class="mono nav-count">${escapeHtml(count)}</span>`;
+}
+
+// Fetches the totals and redraws just the badges. Called by renderShell
+// once per page load, and by any page after it changes one of them.
+async function refreshNavTotals() {
+    if (!session || !session.gameWorldId) return;
+    const worldId = session.gameWorldId;
+    const [characters, campaigns, encounters] = await Promise.all([
+        db.from('characters').select('id').eq('game_world_id', worldId),
+        db.from('campaigns').select('id').eq('game_world_id', worldId),
+        db.from('encounters').select('id, status').eq('game_world_id', worldId)
+    ]);
+    const values = {};
+    if (!characters.error && characters.data) values.characters = characters.data.length;
+    if (!campaigns.error && campaigns.data) values.campaigns = campaigns.data.length;
+    if (!encounters.error && encounters.data) {
+        values.encounters = encounters.data.length;
+        values.encountersLive = encounters.data.some(e => e.status === 'active');
+    }
+    setNavTotals(values);
+    $$('.sidebar-nav a[data-nav]').forEach(a => {
+        const old = a.querySelector(':scope > .nav-count, :scope > .status-pill');
+        const html = navBadge(a.getAttribute('data-nav'));
+        if (old) old.remove();
+        if (html) a.insertAdjacentHTML('beforeend', html);
+    });
+}
+
 function navItems(activeId, counts) {
+    if (counts) setNavTotals(counts);
     return visibleNav().map(item => {
-        const count = counts && counts[item.id];
-        const badge = count === undefined || count === null
-            ? ''
-            : `<span class="mono nav-count">${escapeHtml(count)}</span>`;
+        const badge = navBadge(item.id);
 
         if (item.pending) {
             return `<a class="is-pending" aria-disabled="true" title="Not built yet">${icon(item.icon)}<span class="nav-label">${escapeHtml(item.label)}</span>${badge || '<span class="nav-soon">soon</span>'}</a>`;
         }
-        return `<a href="${item.href}" class="${item.id === activeId ? 'is-active' : ''}" data-label="${escapeHtml(item.label)}">${icon(item.icon)}<span class="nav-label">${escapeHtml(item.label)}</span>${badge}</a>`;
+        return `<a href="${item.href}" class="${item.id === activeId ? 'is-active' : ''}" data-nav="${item.id}" data-label="${escapeHtml(item.label)}">${icon(item.icon)}<span class="nav-label">${escapeHtml(item.label)}</span>${badge}</a>`;
     }).join('');
 }
 
@@ -910,6 +975,8 @@ function wireFab() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 }
 
+let navTotalsFetched = false;
+
 // Builds the whole chrome for a page: sidebar, mobile header, drawer, topbar.
 function renderShell(options) {
     const { active, title, sub, topbarExtra, counts, actions } = options;
@@ -934,6 +1001,8 @@ function renderShell(options) {
     wireSideMenu();
     wireFab();
     if (typeof window.markThemeButtons === 'function') window.markThemeButtons();
+    // renderShell runs on every redraw; the totals need fetching once a page.
+    if (!navTotalsFetched) { navTotalsFetched = true; refreshNavTotals(); }
     return $('#main-content');
 }
 

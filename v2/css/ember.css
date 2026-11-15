@@ -300,7 +300,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 }
 /* Whose turn it is: a dotted ring drawn over the border, so it reads as
    different in kind from the solid party and colour outlines (v2.css). */
-.init-row.is-active { background: var(--accent-soft); outline: 2px dotted var(--accent-primary); outline-offset: -2px; }
+.init-row.is-active { outline: 2px dotted var(--accent-primary); outline-offset: -2px; }
 /* The party is outlined all the way round, the way an assigned colour is:
    the second pixel is a shadow, so nothing inside the row moves. */
 .init-row.is-party { border-color: var(--hp-temp); box-shadow: 0 0 0 1px var(--hp-temp); }
