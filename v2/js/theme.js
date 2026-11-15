@@ -250,22 +250,35 @@
     else root.style.removeProperty('--px-dither');
   }
 
-  /* ----- the same ground, moving (optional) -------------------------------
-     What the homeapp background does: the two noise layers slide at
-     different speeds, so the cloud shapes drift and slowly change, and the
-     field is re-quantised every frame. That cannot be done with the still
-     tile, so it is a canvas -- low-res (one canvas pixel is three CSS px,
-     more on very wide screens), fixed behind the page, hung on <html>
-     because v2 rebuilds <body>. At rest it draws exactly the still tile, so
-     switching it on does not jump. Off unless someone turns it on in the
-     Theme popup; never runs for a device that asks for reduced motion, or
-     inside an embedded sheet. */
+  /* ----- the same ground, alive (optional) --------------------------------
+     Clouds that form and dissolve where they are. Nothing slides and nothing
+     repeats: the field is three layers of value noise on a lattice laid over
+     the window (big slow shapes, then finer, quicker detail), and every
+     lattice point wanders between random values on its own clock. The field
+     is re-quantised through the same Bayer matrix every frame. It is a
+     canvas -- low-res (one canvas pixel is three CSS px, more on very wide
+     screens), fixed behind the page, hung on <html> because v2 rebuilds
+     <body>. Time is the wall clock, so the sky carries on from page to page.
+     Off unless someone turns it on in the Theme popup; never runs for a
+     device that asks for reduced motion, or inside an embedded sheet. */
   var MOTION_KEY = 'taphou5e-dither-motion';
-  // 30 a second: every second frame of a 60Hz screen, so frames land evenly
-  // (24 does not divide 60 and alternated short and long frames).
-  var FPS = 30, SPEED_X = 1.2, SPEED_Y = 0.36;      // canvas px a second
+  // 30 a second: every second frame of a 60Hz screen, so frames land evenly.
+  var FPS = 30;
+  // cell: lattice spacing in canvas px; period: seconds, on average, for a
+  // point to move from one random value to the next.
+  var OCTAVES = [{ cell: 64, amp: 1, period: 9 }, { cell: 32, amp: 0.5, period: 6 }, { cell: 16, amp: 0.25, period: 4 }];
+  var AMP_TOTAL = 1.75, EPOCH = 1794700000;
   var STILL = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   var anim = null;
+
+  // integer hash of four numbers, 0..1
+  function hash4(a, b, c, d) {
+    var n = (Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(c, 362437) + Math.imul(d, 1274126177)) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    n = Math.imul(n ^ (n >>> 15), 2246822519);
+    n ^= n >>> 16;
+    return (n >>> 0) / 4294967296;
+  }
 
   function motionWanted() {
     try { return localStorage.getItem(MOTION_KEY) === '1'; } catch (e) { return false; }
@@ -290,10 +303,9 @@
     cv.style.cssText = 'position:fixed;left:0;top:0;z-index:-1;pointer-events:none;image-rendering:pixelated';
     var ctx = cv.getContext('2d');
     if (!ctx) return;
-    var n = noiseLayers(), n1 = n[0], n2 = n[1], M = TILE - 1;
     var tones = spec.tones, levels = tones.length - 1, ink = [];
     for (var k = 0; k < tones.length; k++) ink.push((255 << 24) | (tones[k][2] << 16) | (tones[k][1] << 8) | tones[k][0]);
-    var a = { mode: mode, cv: cv, raf: 0, last: 0, o1x: 0, o1y: 0, o2x: 41, o2y: 97, w: 0, h: 0, img: null, px: null };
+    var a = { mode: mode, cv: cv, raf: 0, last: 0, w: 0, h: 0, img: null, px: null, field: null, oct: [] };
 
     a.size = function () {
       var scale = Math.max(3, Math.ceil(window.innerWidth / 640));
@@ -303,28 +315,56 @@
       cv.style.width = w * scale + 'px'; cv.style.height = h * scale + 'px';
       a.img = ctx.createImageData(w, h);
       a.px = new Uint32Array(a.img.data.buffer);
+      a.field = new Float32Array(w * h);
+      // Per layer: the lattice, each point's own rate and offset, and for
+      // every column the lattice index and eased weight (the same each frame).
+      a.oct = [];
+      for (var o = 0; o < OCTAVES.length; o++) {
+        var cell = OCTAVES[o].cell, gw = Math.ceil(w / cell) + 2, gh = Math.ceil(h / cell) + 2;
+        var L = { cell: cell, amp: OCTAVES[o].amp, gw: gw, gh: gh, grid: new Float32Array(gw * gh),
+          rate: new Float32Array(gw * gh), off: new Float32Array(gw * gh), ix: new Uint16Array(w), fx: new Float32Array(w) };
+        for (var iy = 0, g = 0; iy < gh; iy++) for (var ix = 0; ix < gw; ix++, g++) {
+          L.rate[g] = (0.6 + 0.8 * hash4(ix, iy, o, -1)) / OCTAVES[o].period;
+          L.off[g] = hash4(ix, iy, o, -2) * 16;
+        }
+        for (var x = 0; x < w; x++) {
+          var gx = x / cell, f = gx - Math.floor(gx);
+          L.ix[x] = Math.floor(gx); L.fx[x] = f * f * (3 - 2 * f);
+        }
+        a.oct.push(L);
+      }
       draw();
     };
 
     function draw() {
-      var w = a.w, h = a.h, px = a.px, gain = spec.gain / 2, bias = spec.bias, cap = spec.cap;
-      // Each layer is read at its exact, fractional position (bilinear), not
-      // the nearest whole pixel. Stepping a whole pixel at a time moved the
-      // entire field in 3px jumps a couple of times a second; this way the
-      // field changes a little every frame and the edges creep.
-      var f1x = Math.floor(a.o1x), f1y = Math.floor(a.o1y), f2x = Math.floor(a.o2x), f2y = Math.floor(a.o2y);
-      var t1x = a.o1x - f1x, t1y = a.o1y - f1y, t2x = a.o2x - f2x, t2y = a.o2y - f2y;
-      var ax = f1x & M, ay = f1y & M, bx = f2x & M, by = f2y & M;
-      var p00 = (1 - t1x) * (1 - t1y), p10 = t1x * (1 - t1y), p01 = (1 - t1x) * t1y, p11 = t1x * t1y;
-      var q00 = (1 - t2x) * (1 - t2y), q10 = t2x * (1 - t2y), q01 = (1 - t2x) * t2y, q11 = t2x * t2y;
-      for (var y = 0, i = 0; y < h; y++) {
-        var r1 = ((y + ay) & M) * TILE, r1b = ((y + ay + 1) & M) * TILE;
-        var r2 = ((y + by) & M) * TILE, r2b = ((y + by + 1) & M) * TILE, row = (y & 7) << 3;
-        for (var x = 0; x < w; x++, i++) {
-          var c1 = (x + ax) & M, c1b = (c1 + 1) & M, c2 = (x + bx) & M, c2b = (c2 + 1) & M;
-          var v = bias + gain * (
-            n1[r1 + c1] * p00 + n1[r1 + c1b] * p10 + n1[r1b + c1] * p01 + n1[r1b + c1b] * p11 +
-            n2[r2 + c2] * q00 + n2[r2 + c2b] * q10 + n2[r2b + c2] * q01 + n2[r2b + c2b] * q11);
+      var w = a.w, h = a.h, px = a.px, field = a.field, bias = spec.bias, cap = spec.cap, gain = spec.gain / AMP_TOTAL;
+      var t = Date.now() / 1000 - EPOCH, x, y, i;
+      field.fill(0);
+      for (var o = 0; o < a.oct.length; o++) {
+        var L = a.oct[o], grid = L.grid, gw = L.gw, amp = L.amp, lx = L.ix, lf = L.fx;
+        // each point eases from its last random value to its next one
+        for (var iy = 0, g = 0; iy < L.gh; iy++) for (var ix = 0; ix < gw; ix++, g++) {
+          var tt = t * L.rate[g] + L.off[g], kk = Math.floor(tt), f = tt - kk;
+          var e = f * f * f * (f * (f * 6 - 15) + 10);
+          var v0 = hash4(ix, iy, o, kk), v1 = hash4(ix, iy, o, kk + 1);
+          grid[g] = v0 + (v1 - v0) * e;
+        }
+        for (y = 0, i = 0; y < h; y++) {
+          var gy = y / L.cell, y0 = Math.floor(gy), fy = gy - y0;
+          fy = fy * fy * (3 - 2 * fy);
+          var r0 = y0 * gw, r1 = r0 + gw;
+          for (x = 0; x < w; x++, i++) {
+            var c = lx[x], fx = lf[x];
+            var top = grid[r0 + c] + (grid[r0 + c + 1] - grid[r0 + c]) * fx;
+            var bot = grid[r1 + c] + (grid[r1 + c + 1] - grid[r1 + c]) * fx;
+            field[i] += amp * (top + (bot - top) * fy);
+          }
+        }
+      }
+      for (y = 0, i = 0; y < h; y++) {
+        var row = (y & 7) << 3;
+        for (x = 0; x < w; x++, i++) {
+          var v = bias + gain * field[i];
           v = v < 0 ? 0 : v > cap ? cap : v;
           var s = v * levels, l = s | 0;
           px[i] = ink[s - l > (BAYER[row | (x & 7)] + 0.5) / 64 ? l + 1 : l];
@@ -336,10 +376,7 @@
     function frame(now) {
       a.raf = requestAnimationFrame(frame);
       if (now - a.last < 1000 / FPS - 2) return;
-      var dt = a.last ? Math.min((now - a.last) / 1000, 0.1) : 0;
       a.last = now;
-      a.o1x -= SPEED_X * dt; a.o1y -= SPEED_Y * dt;                   // the two layers slide
-      a.o2x -= SPEED_X * 0.55 * dt; a.o2y += SPEED_Y * 1.7 * dt;      // apart, so shapes evolve
       draw();
     }
 
@@ -369,7 +406,7 @@
     sw.disabled = STILL.matches;
     row.querySelector('[data-motion-hint]').textContent = STILL.matches
       ? 'Off: this device asks for reduced motion.'
-      : 'The dithered background drifts slowly.';
+      : 'Clouds in the background slowly form and fade.';
   }
 
   apply(current());
