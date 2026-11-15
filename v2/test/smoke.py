@@ -1048,6 +1048,14 @@ MENU_SHAPE_JS = """() => {
 }"""
 
 
+async def pick_theme(page, mode, scope=""):
+    """Choose a theme the way a person does: the Theme button, a tile, Escape."""
+    await page.click((scope + " [data-theme-button]").strip())
+    await page.click(f'[data-theme-picker] [data-theme-option="{mode}"]')
+    await page.keyboard.press("Escape")
+    await page.wait_for_selector("[data-theme-picker]", state="detached")
+
+
 async def wizard_back_to(page, selector):
     """Step back through the wizard until `selector` is on screen.
 
@@ -1343,18 +1351,18 @@ async def main():
         await page.screenshot(path="/tmp/shot-02-hub-dark.png", full_page=True)
 
         # ---------- 3. Theme ----------
-        await page.click('.sidebar-foot [data-theme-option="light"]')
+        await pick_theme(page, "light", ".sidebar-foot")
         await page.wait_for_timeout(350)
         assert await page.evaluate("document.documentElement.getAttribute('data-theme')") == "light"
         bg = await page.evaluate("getComputedStyle(document.body).backgroundColor")
         await page.screenshot(path="/tmp/shot-03-hub-light.png", full_page=True)
         ok(f"light theme applies (body background {bg})")
 
-        active = await page.locator('.sidebar-foot .segmented .is-active').inner_text()
+        active = await page.locator('.sidebar-foot [data-theme-name]').inner_text()
         assert active.strip() == "Light", active
-        ok("theme segmented control marks the active option after the shell rebuild")
+        ok("the Theme button names the current theme after the shell rebuild")
 
-        await page.click('.sidebar-foot [data-theme-option="dark"]')
+        await pick_theme(page, "dark", ".sidebar-foot")
         await page.wait_for_timeout(250)
 
         # ---------- 3b. Default theme, and the Pixel themes ----------
@@ -1365,7 +1373,7 @@ async def main():
         watch(fresh, "fresh")
         await fresh.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
         assert await fresh.evaluate("document.documentElement.getAttribute('data-theme')") == "dark"
-        assert (await fresh.locator('.theme-seg .is-active').inner_text()).strip() == "Dark"
+        assert (await fresh.locator('[data-theme-name]').first.inner_text()).strip() == "Dark"
         assert await fresh.evaluate("localStorage.getItem('taphou5e-theme')") is None, "the default is not saved"
         assert await fresh.evaluate("document.documentElement.style.getPropertyValue('--px-dither')") == ""
         ok("a device with no saved theme opens in Dark, without saving it or drawing a dither tile")
@@ -1377,10 +1385,10 @@ async def main():
         px = await pctx.new_page()
         watch(px, "pixel")
         await px.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
-        await px.click('.theme-seg [data-theme-option="pixel"]')
+        await pick_theme(px, "pixel")
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel"
         assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "pixel"
-        assert (await px.locator('.theme-seg .is-active').inner_text()).strip() == "Pixel"
+        assert (await px.locator('[data-theme-name]').first.inner_text()).strip() == "Pixel"
         tile = await px.evaluate("document.documentElement.style.getPropertyValue('--px-dither')")
         assert tile.startswith('url("data:image/png'), tile[:40]
         assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-pixel')")
@@ -1428,7 +1436,7 @@ async def main():
         assert keep.startswith("M1 2h1v1h1V2"), keep
         ok(f"Pixel: all {len(icons)} icons show their 8x8 drawing at 2 or 3 px a cell; Overview is the keep")
 
-        await px.click('.sidebar-foot [data-theme-option="pixel-dark"]')
+        await pick_theme(px, "pixel-dark", ".sidebar-foot")
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel-dark"
         dark = await px.evaluate("""() => [getComputedStyle(document.body).backgroundColor,
             getComputedStyle(document.querySelector('.sidebar')).backgroundColor,
@@ -1439,10 +1447,10 @@ async def main():
 
         # EGA: its own button, a four-level blue dither, framed and studded
         # cards, a yellow accent, Ember's HP colours and the 8x8 icons.
-        await px.click('.sidebar-foot [data-theme-option="ega"]')
+        await pick_theme(px, "ega", ".sidebar-foot")
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "ega"
         assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "ega"
-        assert (await px.locator('.sidebar-foot .theme-seg .is-active').inner_text()).strip() == "EGA"
+        assert (await px.locator('.sidebar-foot [data-theme-name]').inner_text()).strip() == "EGA"
         assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-ega')")
         await px.wait_for_timeout(400)      # let Ember's colour transitions finish
         ega = await px.evaluate("""() => {
@@ -1472,14 +1480,14 @@ async def main():
 
         # "System" used to mean "no saved key"; now no key means Pixel, so the
         # choice has to be stored and still has to remove the attribute.
-        await px.click('.sidebar-foot [data-theme-option="system"]')
+        await pick_theme(px, "system", ".sidebar-foot")
         assert await px.evaluate("document.documentElement.hasAttribute('data-theme')") is False
         assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "system"
         assert await px.evaluate("document.documentElement.style.getPropertyValue('--px-dither')") == ""
         await px.reload(wait_until="domcontentloaded")
         await px.wait_for_selector(".party-roster", timeout=10000)
         assert await px.evaluate("document.documentElement.hasAttribute('data-theme')") is False
-        assert (await px.locator('.sidebar-foot .theme-seg .is-active').inner_text()).strip() == "System"
+        assert (await px.locator('.sidebar-foot [data-theme-name]').inner_text()).strip() == "System"
         shown = await px.evaluate("""() => [...document.querySelectorAll('svg.ico')].map(s =>
             [getComputedStyle(s.querySelector('.ico-g')).display, getComputedStyle(s.querySelector('.ico-px')).display])""")
         assert shown and all(line != "none" and pixel == "none" for line, pixel in shown), shown
@@ -1567,11 +1575,66 @@ async def main():
                 rows[0].classList.add('is-active');
                 const after = getComputedStyle(rows[0]).backgroundColor;
                 const ring = getComputedStyle(rows[0]).outlineStyle;
+                const pulse = getComputedStyle(rows[0]).animationName;
                 rows[0].classList.remove('is-active');
-                return [before, after, ring];
+                return [before, after, ring, pulse];
             }""")
             assert grounds[0] == grounds[1] and grounds[2] == "dotted", (theme, grounds)
-        ok("the current turn is marked by its dotted ring only, with no background tint, in every theme")
+            assert grounds[3] == ("turn-pulse" if theme == "system" else "turn-blink"), (theme, grounds)
+        ok("the current turn is its dotted ring only, no tint, and the ring pulses: a fade in Ember, a blink in Pixel and EGA")
+
+        # One Theme button, a popup of six previewed tiles.
+        await npg.goto(f"{BASE}/v2/index.html", wait_until="domcontentloaded")
+        await npg.wait_for_selector(".party-roster", timeout=10000)
+        await npg.evaluate("setTheme('dark')")
+        btn = npg.locator(".sidebar-foot [data-theme-button]")
+        assert (await btn.inner_text()).strip() == "Theme: Dark"
+        assert await npg.locator(".sidebar-foot .theme-btn svg.ico-palette .ico-px").count() == 1
+        await btn.click()
+        await npg.wait_for_selector("[data-theme-picker] [role=dialog][aria-modal=true]")
+        tiles = await npg.evaluate("""() => [...document.querySelectorAll('[data-theme-picker] .theme-tile')].map(t =>
+            [t.dataset.themeOption, t.getAttribute('aria-checked'), !!t.querySelector('.theme-swatch'), t === document.activeElement])""")
+        assert [t[0] for t in tiles] == ["pixel", "pixel-dark", "ega", "dark", "light", "system"], tiles
+        assert all(t[2] for t in tiles) and [t[0] for t in tiles if t[1] == "true"] == ["dark"], tiles
+        assert [t[0] for t in tiles if t[3]] == ["dark"], tiles            # focus starts on the current one
+        await npg.click('[data-theme-picker] [data-theme-option="ega"]')
+        assert await npg.evaluate("document.documentElement.getAttribute('data-theme')") == "ega"
+        assert await npg.locator("[data-theme-picker]").count() == 1, "picking keeps the popup open to compare"
+        assert await npg.get_attribute('[data-theme-picker] [data-theme-option="ega"]', "aria-checked") == "true"
+        assert (await btn.inner_text()).strip() == "Theme: EGA"
+        await npg.click("[data-theme-picker] .pane-close")
+        assert await npg.locator("[data-theme-picker]").count() == 0
+        assert await npg.evaluate("document.activeElement && document.activeElement.id") == "sb-theme"
+        await btn.click()
+        await npg.mouse.click(5, 5)                                     # the backdrop
+        assert await npg.locator("[data-theme-picker]").count() == 0
+        await npg.click("#sb-collapse")
+        assert await npg.get_attribute("#sb-theme", "title") == "Theme: EGA"
+        assert not await npg.locator("#sb-theme .nav-label").is_visible()
+        await npg.click("#sb-collapse")
+        await npg.evaluate("setTheme('system')")
+        ok("one Theme button opens six previewed tiles; picking applies live and the popup stays; close, Escape or backdrop shut it")
+
+        # The floating + turns to x without its box growing, square or round.
+        await npg.set_viewport_size({"width": 390, "height": 844})
+        await npg.goto(f"{BASE}/v2/monster-tracker.html", wait_until="domcontentloaded")
+        await npg.wait_for_selector(".fab", timeout=10000)
+        for theme in ("pixel", "ega", "dark"):
+            await npg.evaluate(f"setTheme('{theme}')")
+            closed = await npg.evaluate("(() => { const r = document.querySelector('.fab').getBoundingClientRect(); return [r.width, r.height, r.bottom]; })()")
+            await npg.click(".fab")
+            await npg.wait_for_timeout(300)
+            box = await npg.evaluate("""() => {
+                const f = document.querySelector('.fab').getBoundingClientRect();
+                const m = document.querySelector('.fab-menu').getBoundingClientRect();
+                return [f.width, f.height, f.bottom, f.top - m.bottom];
+            }""")
+            assert box[:3] == closed, (theme, closed, box)
+            assert box[3] > 0, (theme, box)        # a clear gap between button and menu
+            await npg.click(".fab")
+            await npg.wait_for_timeout(250)
+        await npg.evaluate("setTheme('system')")
+        ok("the + becomes an x without growing: same box open and closed, clear of the menu, in Pixel, EGA and Dark")
         await nctx.close()
         await pm.set_viewport_size({"width": 1280, "height": 900})
         await pm.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
@@ -1943,7 +2006,7 @@ async def main():
         assert links == ["index.html", "characters.html", "campaigns.html",
                          "monster-tracker.html", "compendium.html", "dm-panel.html"], links
         assert await page.locator('.sidebar-nav a.is-active[href="characters.html"]').count() == 1
-        assert await page.locator(".sidebar #sb-collapse, .sidebar .theme-seg, .sidebar #sb-logout").count() == 3
+        assert await page.locator(".sidebar #sb-collapse, .sidebar [data-theme-button], .sidebar #sb-logout").count() == 3
         await page.click("#sb-collapse")
         await page.wait_for_timeout(350)
         assert await page.evaluate("document.querySelector('.sidebar').getBoundingClientRect().width") == 64

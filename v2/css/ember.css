@@ -301,6 +301,19 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 /* Whose turn it is: a dotted ring drawn over the border, so it reads as
    different in kind from the solid party and colour outlines (v2.css). */
 .init-row.is-active { outline: 2px dotted var(--accent-primary); outline-offset: -2px; }
+/* ...and the ring pulses, so whose turn it is reads from across the table.
+   Ember fades it; the Pixel and EGA themes blink it in whole steps. */
+@media (prefers-reduced-motion: no-preference) {
+  .init-row.is-active { animation: turn-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes turn-pulse {
+  0%, 100% { outline-color: var(--accent-primary); }
+  50%      { outline-color: color-mix(in srgb, var(--accent-primary) 15%, transparent); }
+}
+@keyframes turn-blink {
+  0%, 100% { outline-color: var(--accent-primary); }
+  50%      { outline-color: var(--border-subtle); }
+}
 /* The party is outlined all the way round, the way an assigned colour is:
    the second pixel is a shadow, so nothing inside the row moves. */
 .init-row.is-party { border-color: var(--hp-temp); box-shadow: 0 0 0 1px var(--hp-temp); }
@@ -362,8 +375,6 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .side-menu-item-danger { color: var(--danger); }
 .side-menu-divider { height: 1px; background: var(--border-subtle); margin: var(--space-sm) var(--space-12); }
 .theme-switch { padding: var(--space-10) var(--space-12); display: flex; flex-direction: column; gap: var(--space-sm); }
-.theme-switch .segmented { width: 100%; }
-.theme-switch .segmented > * { flex: 1; text-align: center; }
 
 /* ---------- Login ---------- */
 .login-container { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg-primary); }

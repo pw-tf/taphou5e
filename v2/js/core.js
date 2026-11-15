@@ -804,14 +804,7 @@ function renderSidebar(activeId, counts) {
             <nav class="sidebar-nav">${navItems(activeId, counts)}</nav>
             <div class="sidebar-foot">
                 <button class="side-menu-item" id="sb-collapse" type="button" aria-expanded="true">${icon('chevrons', 16)}<span class="nav-label">Collapse</span></button>
-                <div class="segmented theme-seg" style="font-size:var(--fs-10)">
-                    <button data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
-                    <button data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
-                    <button data-theme-option="ega" onclick="setTheme('ega')">EGA</button>
-                    <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
-                    <button data-theme-option="light" onclick="setTheme('light')">Light</button>
-                    <button data-theme-option="system" onclick="setTheme('system')">System</button>
-                </div>
+                <button class="side-menu-item theme-btn" id="sb-theme" type="button" data-theme-button data-label="Theme"></button>
                 <!-- These lived only in the mobile drawer, which is hidden
                      above the breakpoint -- so a desktop had no way out. -->
                 <a class="side-menu-item" id="sb-support" data-label="Support">${icon('heart', 16)}<span class="nav-label">Support</span></a>
@@ -860,15 +853,7 @@ function renderSideMenu(activeId) {
                     <a class="side-menu-item side-menu-item-danger" id="sm-logout">${icon('logout', 18)}Logout</a>
                 </nav>
                 <div class="theme-switch">
-                    <span class="eyebrow">Appearance</span>
-                    <div class="segmented theme-seg">
-                        <button data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
-                        <button data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
-                        <button data-theme-option="ega" onclick="setTheme('ega')">EGA</button>
-                        <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
-                        <button data-theme-option="light" onclick="setTheme('light')">Light</button>
-                        <button data-theme-option="system" onclick="setTheme('system')">System</button>
-                    </div>
+                    <button class="side-menu-item theme-btn" id="sm-theme" type="button" data-theme-button></button>
                 </div>
             </div>
         </div>`;
@@ -904,6 +889,9 @@ function wireSideMenu() {
 
     const open = () => { overlay.classList.add('open'); document.body.style.overflow = 'hidden'; };
     const close = () => { overlay.classList.remove('open'); document.body.style.overflow = ''; };
+    // The theme popup opens over the page, so the drawer gets out of its way.
+    const themeBtn = $('#sm-theme', overlay);
+    if (themeBtn) themeBtn.addEventListener('click', close);
 
     $('#menu-btn')?.addEventListener('click', open);
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });

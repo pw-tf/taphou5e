@@ -34,9 +34,119 @@
   function mark(mode) {
     var nodes = document.querySelectorAll('[data-theme-option]');
     for (var i = 0; i < nodes.length; i++) {
-      nodes[i].classList.toggle('is-active', nodes[i].getAttribute('data-theme-option') === mode);
+      var on = nodes[i].getAttribute('data-theme-option') === mode;
+      nodes[i].classList.toggle('is-active', on);
+      nodes[i].setAttribute('aria-checked', on ? 'true' : 'false');
+    }
+    fillButtons(mode);
+  }
+
+  /* ----- the Theme button and its popup -----------------------------------
+     One button wherever the theme can be changed -- the sidebar foot, the
+     phone drawer, the login page, analytics -- written as
+     <button data-theme-button>. It is filled in here (a palette icon and
+     "Theme: <current>") so every page draws it the same, and opens a popup
+     of tiles, each with a small swatch of that theme's ground, panel and
+     accent. Picking a tile applies it at once and leaves the popup open, so
+     themes can be compared; Escape, the close button or the backdrop shut
+     it. Lives here, not in core.js, because login and analytics have no
+     core.js of their own. */
+  var THEMES = [
+    { mode: 'pixel',      name: 'Pixel',      sw: ['#dfe2d0', '#dfe2d0', '#1c1e19', '#1c1e19'] },
+    { mode: 'pixel-dark', name: 'Pixel dark', sw: ['#1c1e19', '#1c1e19', '#dfe2d0', '#dfe2d0'] },
+    { mode: 'ega',        name: 'EGA',        sw: ['#07070f', '#10102c', '#ffe14d', '#aaaaaa'] },
+    { mode: 'dark',       name: 'Dark',       sw: ['#15110e', '#1a1512', '#e2703a', '#342b23'] },
+    { mode: 'light',      name: 'Light',      sw: ['#f5efe3', '#fffaf1', '#c85a27', '#e0d4c0'] },
+    { mode: 'system',     name: 'System',     sw: null }        // half Dark, half Light
+  ];
+  var NAMES = {};
+  for (var t = 0; t < THEMES.length; t++) NAMES[THEMES[t].mode] = THEMES[t].name;
+
+  // The same two drawings every v2 icon carries (core.js icon()): a line
+  // palette for Ember, an 8x8 one the Pixel and EGA themes swap in.
+  var PALETTE = '<svg class="ico ico-palette" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g">'
+    + '<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13'
+    + 'a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/>'
+    + '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/></g>'
+    + '<g class="ico-px" transform="scale(3)" fill="currentColor" stroke="none" fill-rule="evenodd">'
+    + '<path d="M2 0h4v1h1v1h1v3H6v1H5v2H2V7H1V6H0V2h1V1h1zM2 2h1v1H2zM5 2h1v1H5zM2 4h1v1H2z"/></g></svg>';
+
+  function fillButtons(mode) {
+    var label = 'Theme: ' + (NAMES[mode] || NAMES[DEFAULT]);
+    var nodes = document.querySelectorAll('[data-theme-button]');
+    for (var i = 0; i < nodes.length; i++) {
+      var b = nodes[i];
+      if (!b.querySelector('[data-theme-name]')) {
+        b.innerHTML = PALETTE + '<span class="nav-label">Theme: <span data-theme-name></span></span>';
+        b.setAttribute('aria-haspopup', 'dialog');
+      }
+      b.querySelector('[data-theme-name]').textContent = NAMES[mode] || NAMES[DEFAULT];
+      b.setAttribute('data-label', label);
+      if (b.hasAttribute('title')) b.title = label;   // the collapsed sidebar names rows by title
     }
   }
+
+  function swatch(theme) {
+    if (!theme.sw) return '<span class="theme-swatch is-split" aria-hidden="true">'
+      + swatch(THEMES[3]).replace('class="theme-swatch"', 'class="theme-swatch half"')
+      + swatch(THEMES[4]).replace('class="theme-swatch"', 'class="theme-swatch half"') + '</span>';
+    var c = theme.sw;
+    return '<span class="theme-swatch" aria-hidden="true" style="--sw-ground:' + c[0] + ';--sw-panel:' + c[1]
+      + ';--sw-accent:' + c[2] + ';--sw-line:' + c[3] + '"><i class="sw-panel"><i class="sw-bar"></i><i class="sw-line"></i></i></span>';
+  }
+
+  var lastTrigger = null;
+
+  function closePicker() {
+    var host = document.querySelector('[data-theme-picker]');
+    if (!host) return;
+    host.remove();
+    document.removeEventListener('keydown', onKey, true);
+    if (lastTrigger && document.contains(lastTrigger)) lastTrigger.focus();
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); closePicker(); }
+  }
+
+  window.openThemePicker = function (trigger) {
+    closePicker();
+    lastTrigger = trigger || document.activeElement;
+    // From the phone drawer, which closes behind the popup: hand focus back
+    // to the menu button, not to a row that is now off-screen.
+    if (lastTrigger && lastTrigger.closest && lastTrigger.closest('.side-menu-overlay')) {
+      lastTrigger = document.getElementById('menu-btn') || lastTrigger;
+    }
+    var tiles = '';
+    for (var i = 0; i < THEMES.length; i++) {
+      tiles += '<button type="button" class="theme-tile" role="radio" data-theme-option="' + THEMES[i].mode + '">'
+        + swatch(THEMES[i]) + '<span class="theme-tile-name">' + THEMES[i].name + '</span></button>';
+    }
+    var host = document.createElement('div');
+    host.className = 'modal-host theme-picker-host';
+    host.setAttribute('data-theme-picker', '');
+    host.innerHTML = '<div class="modal theme-picker" role="dialog" aria-modal="true" aria-labelledby="theme-picker-title">'
+      + '<div class="modal-head"><h2 id="theme-picker-title">Theme</h2>'
+      + '<button type="button" class="pane-close" aria-label="Close">\u00d7</button></div>'
+      + '<div class="modal-body"><div class="theme-grid" role="radiogroup" aria-labelledby="theme-picker-title">'
+      + tiles + '</div></div></div>';
+    host.addEventListener('click', function (e) {
+      var tile = e.target.closest('[data-theme-option]');
+      if (tile) { window.setTheme(tile.getAttribute('data-theme-option')); return; }
+      if (e.target === host || e.target.closest('.pane-close')) closePicker();
+    });
+    document.body.appendChild(host);
+    document.addEventListener('keydown', onKey, true);
+    mark(current());
+    var on = host.querySelector('.theme-tile.is-active') || host.querySelector('.theme-tile');
+    if (on) on.focus();
+  };
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-theme-button]');
+    if (b) window.openThemePicker(b);
+  });
 
   /* ----- dither ground (pixel and EGA themes) ---------------------------
      A still frame of the homeapp background: two layers of tileable value

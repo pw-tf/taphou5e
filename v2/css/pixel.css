@@ -142,7 +142,7 @@
   .explainer-title, .fab-item, .choose-row .name, .pick-row .name, .subclass-row .name, .method-tile .title,
   .levelup-banner .title, .ability-box .label, .save-chip, .chip-row .chip, .wizard-steps li, .form-group label,
   .hp-btn, .trait-name, .status-pill, .role-pill, .nav-soon, .hidden-pill, .charge, .prep-toggle, .slot-chip,
-  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle) {
+  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .theme-tile-name, .theme-btn) {
   font-family: var(--font-display);
 }
 [data-theme^="pixel"] :is(.switch-line a, .login-footer a, .hint a, .prose a) { text-decoration: underline; }
@@ -173,6 +173,9 @@
 [data-theme^="pixel"] .init-row.is-party { box-shadow: 0 0 0 2px var(--hp-temp), 5px 5px 0 var(--px-ink); }
 [data-theme^="pixel"] .init-row.has-color { box-shadow: 0 0 0 2px var(--row-color), 5px 5px 0 var(--px-ink); }
 [data-theme^="pixel"] .init-row.is-active { outline: 3px dotted var(--px-ink); outline-offset: -3px; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme^="pixel"] .init-row.is-active { animation: turn-blink 1.2s steps(1, end) infinite; }
+}
 [data-theme^="pixel"] .colour-block .init-row.has-color { box-shadow: 3px 3px 0 var(--px-ink); }
 
 /* The running-encounter pill pulses in whole steps: its ring is there, then

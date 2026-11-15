@@ -602,7 +602,11 @@ a.list-row, a.list-row:hover,
   transition: transform var(--transition-fast), background var(--transition-fast);
 }
 .fab:hover { background: var(--accent-primary-hover); }
-.fab-wrap.open .fab { transform: rotate(45deg); }
+/* The + turns into an x by turning the icon, not the button: Pixel and EGA
+   square the button off, and a square turned 45 degrees is 41% wider corner
+   to corner -- it reached into the open menu and toward the screen edge. */
+.fab .ico { transition: transform var(--transition-fast); }
+.fab-wrap.open .fab .ico { transform: rotate(45deg); }
 
 /* One panel, not a stack of pills. Each pill sized itself to its own label,
    so ten actions read as ten unrelated bubbles of ten different widths. */
@@ -1169,13 +1173,45 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 .sidebar-foot .side-menu-item-danger { color: var(--danger); }
 .sidebar-foot button.side-menu-item { background: none; border: 0; font-family: inherit; }
 
-/* ---------- Theme switch ----------
-   Six options do not fit one row of a 240px sidebar, so the switch is two:
-   the retro three (Pixel, Pixel dark, EGA) above, Ember's three below.
-   Columns size to their longest label ("Pixel dark") and share what is left. */
-.segmented.theme-seg { display: grid; grid-template-columns: repeat(3, auto); width: 100%; }
-.segmented.theme-seg > * { padding-left: 2px; padding-right: 2px; text-align: center; white-space: nowrap; }
-.login-main .segmented.theme-seg { max-width: 320px; }
+/* ---------- Theme button and popup ----------
+   One button ("Theme: EGA") wherever the theme can be changed; theme.js
+   fills it and opens the popup. In the collapsed sidebar it is just its
+   icon, like every other row. */
+.theme-btn { cursor: pointer; }
+.theme-switch .theme-btn { width: 100%; }
+button.theme-btn.side-menu-item { background: none; border: 0; font-family: inherit; text-align: left; color: var(--text-secondary); }
+.theme-btn [data-theme-name] { color: var(--text-primary); }
+.btn.theme-btn { gap: var(--space-sm); }
+
+.theme-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-10); }
+@media (max-width: 420px) { .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* The side panels pin .pane-close to their corner; in this popup it sits in the head. */
+.theme-picker .pane-close { position: static; }
+.theme-tile {
+  display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-sm);
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  border: 1px solid var(--border-default); border-radius: var(--radius-md);
+  font: inherit; font-size: var(--fs-13); text-align: left; cursor: pointer;
+}
+.theme-tile:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.theme-tile.is-active { border-color: var(--accent-primary); box-shadow: 0 0 0 1px var(--accent-primary); color: var(--text-primary); }
+.theme-tile-name { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-weight: 600; }
+.theme-tile.is-active .theme-tile-name::after { content: '\2713'; color: var(--accent-primary); }
+/* The swatch is drawn in the theme it stands for, whatever theme is on. */
+.theme-swatch {
+  position: relative; display: block; height: 56px; overflow: hidden;
+  background: var(--sw-ground); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+}
+.theme-swatch .sw-panel {
+  position: absolute; inset: 10px 10px 10px 10px; background: var(--sw-panel);
+  border: 2px solid var(--sw-line);
+}
+.theme-swatch .sw-bar { position: absolute; left: 6px; top: 6px; width: 40%; height: 6px; background: var(--sw-accent); }
+.theme-swatch .sw-line { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 3px; background: var(--sw-line); }
+.theme-swatch.is-split { display: grid; grid-template-columns: 1fr 1fr; border: 0; }
+.theme-swatch.half { height: 100%; border: 0; border-radius: 0; }
+.theme-swatch.half .sw-panel { inset: 10px 4px 10px 10px; }
+.theme-swatch.half + .theme-swatch.half .sw-panel { inset: 10px 10px 10px 4px; }
 
 /* ---------- Collapsed sidebar ----------
    Folds to an icon rail (--rail-width). Only the labels go;
@@ -1190,6 +1226,7 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 .sidebar.is-collapsed .sidebar-nav .status-pill,
 .sidebar.is-collapsed .nav-soon,
 .sidebar.is-collapsed .sidebar-foot .segmented { display: none; }
+.sidebar.is-collapsed .sidebar-foot .theme-btn { justify-content: center; }
 .sidebar.is-collapsed .sidebar-brand { padding-left: 0; padding-right: 0; }
 .sidebar.is-collapsed .sidebar-brand .brand { justify-content: center; }
 .sidebar.is-collapsed .sidebar-nav a { justify-content: center; padding-left: 0; padding-right: 0; }
