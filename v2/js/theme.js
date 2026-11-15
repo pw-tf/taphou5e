@@ -23,6 +23,7 @@
     if (mode === 'system') root.removeAttribute('data-theme');
     else root.setAttribute('data-theme', mode);
     dither(mode);
+    syncMotion(mode);
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
       var shown = mode !== 'system' ? mode
@@ -39,6 +40,7 @@
       nodes[i].setAttribute('aria-checked', on ? 'true' : 'false');
     }
     fillButtons(mode);
+    markMotion(mode);
   }
 
   /* ----- the Theme button and its popup -----------------------------------
@@ -130,8 +132,16 @@
       + '<div class="modal-head"><h2 id="theme-picker-title">Theme</h2>'
       + '<button type="button" class="pane-close" aria-label="Close">\u00d7</button></div>'
       + '<div class="modal-body"><div class="theme-grid" role="radiogroup" aria-labelledby="theme-picker-title">'
-      + tiles + '</div></div></div>';
+      + tiles + '</div>'
+      + '<div class="theme-motion" data-theme-motion hidden><div class="theme-motion-text">'
+      + '<div class="theme-motion-name" id="theme-motion-name">Animate background</div>'
+      + '<div class="theme-motion-hint" data-motion-hint></div></div>'
+      + '<button type="button" class="theme-motion-switch" role="switch" aria-checked="false" data-motion-toggle'
+      + ' aria-labelledby="theme-motion-name"><i></i></button></div>'
+      + '</div></div>';
     host.addEventListener('click', function (e) {
+      var sw = e.target.closest('[data-motion-toggle]');
+      if (sw) { window.setDitherMotion(sw.getAttribute('aria-checked') !== 'true'); return; }
       var tile = e.target.closest('[data-theme-option]');
       if (tile) { window.setTheme(tile.getAttribute('data-theme-option')); return; }
       if (e.target === host || e.target.closest('.pane-close')) closePicker();
@@ -168,8 +178,10 @@
   var BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
     3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
 
-  function drawTile(spec) {
-    var tones = spec.tones, levels = tones.length - 1;
+  // The two noise layers, made once per page and only when something draws.
+  var layers = null;
+  function noiseLayers() {
+    if (layers) return layers;
     var seed = 20261114;
     function rnd() {
       seed = (seed + 0x6D2B79F5) | 0;
@@ -199,10 +211,17 @@
       for (i = 0; i < out.length; i++) out[i] = (out[i] - lo) / (hi - lo);
       return out;
     }
+    var n1 = noise(3);
+    layers = [n1, noise(5)];
+    return layers;
+  }
+
+  function drawTile(spec) {
+    var tones = spec.tones, levels = tones.length - 1;
     var cv = document.createElement('canvas');
     cv.width = cv.height = TILE;
     var ctx = cv.getContext('2d'), img = ctx.createImageData(TILE, TILE), d = img.data;
-    var n1 = noise(3), n2 = noise(5), M = TILE - 1;
+    var n = noiseLayers(), n1 = n[0], n2 = n[1], M = TILE - 1;
     for (var y = 0, i = 0, p = 0; y < TILE; y++) {
       var r2 = ((y + 97) & M) * TILE, row = (y & 7) << 3;
       for (var x = 0; x < TILE; x++, i++, p += 4) {
@@ -229,6 +248,114 @@
     }
     if (url) root.style.setProperty('--px-dither', 'url("' + url + '")');
     else root.style.removeProperty('--px-dither');
+  }
+
+  /* ----- the same ground, moving (optional) -------------------------------
+     What the homeapp background does: the two noise layers slide at
+     different speeds, so the cloud shapes drift and slowly change, and the
+     field is re-quantised every frame. That cannot be done with the still
+     tile, so it is a canvas -- low-res (one canvas pixel is three CSS px,
+     more on very wide screens), fixed behind the page, hung on <html>
+     because v2 rebuilds <body>. At rest it draws exactly the still tile, so
+     switching it on does not jump. Off unless someone turns it on in the
+     Theme popup; never runs for a device that asks for reduced motion, or
+     inside an embedded sheet. */
+  var MOTION_KEY = 'taphou5e-dither-motion';
+  var FPS = 24, SPEED_X = 1.2, SPEED_Y = 0.36;      // canvas px a second
+  var STILL = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  var anim = null;
+
+  function motionWanted() {
+    try { return localStorage.getItem(MOTION_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function stopMotion() {
+    if (!anim) return;
+    cancelAnimationFrame(anim.raf);
+    window.removeEventListener('resize', anim.size);
+    anim.cv.remove();
+    anim = null;
+  }
+
+  function syncMotion(mode) {
+    var spec = DITHERS[mode];
+    if (!spec || !motionWanted() || STILL.matches || window.self !== window.top) { stopMotion(); return; }
+    if (anim && anim.mode === mode) return;
+    stopMotion();
+    var cv = document.createElement('canvas');
+    cv.setAttribute('data-dither', '');
+    cv.setAttribute('aria-hidden', 'true');
+    cv.style.cssText = 'position:fixed;left:0;top:0;z-index:-1;pointer-events:none;image-rendering:pixelated';
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    var n = noiseLayers(), n1 = n[0], n2 = n[1], M = TILE - 1;
+    var tones = spec.tones, levels = tones.length - 1, ink = [];
+    for (var k = 0; k < tones.length; k++) ink.push((255 << 24) | (tones[k][2] << 16) | (tones[k][1] << 8) | tones[k][0]);
+    var a = { mode: mode, cv: cv, raf: 0, last: 0, o1x: 0, o1y: 0, o2x: 41, o2y: 97, w: 0, h: 0, img: null, px: null };
+
+    a.size = function () {
+      var scale = Math.max(3, Math.ceil(window.innerWidth / 640));
+      var w = Math.ceil(window.innerWidth / scale), h = Math.ceil(window.innerHeight / scale);
+      if (w === a.w && h === a.h) return;
+      a.w = cv.width = w; a.h = cv.height = h;
+      cv.style.width = w * scale + 'px'; cv.style.height = h * scale + 'px';
+      a.img = ctx.createImageData(w, h);
+      a.px = new Uint32Array(a.img.data.buffer);
+      draw();
+    };
+
+    function draw() {
+      var w = a.w, h = a.h, px = a.px, gain = spec.gain / 2, bias = spec.bias, cap = spec.cap;
+      var ax = Math.floor(a.o1x) & M, ay = Math.floor(a.o1y) & M, bx = Math.floor(a.o2x) & M, by = Math.floor(a.o2y) & M;
+      for (var y = 0, i = 0; y < h; y++) {
+        var r1 = ((y + ay) & M) * TILE, r2 = ((y + by) & M) * TILE, row = (y & 7) << 3;
+        for (var x = 0; x < w; x++, i++) {
+          var v = bias + gain * (n1[r1 + ((x + ax) & M)] + n2[r2 + ((x + bx) & M)]);
+          v = v < 0 ? 0 : v > cap ? cap : v;
+          var s = v * levels, l = s | 0;
+          px[i] = ink[s - l > (BAYER[row | (x & 7)] + 0.5) / 64 ? l + 1 : l];
+        }
+      }
+      ctx.putImageData(a.img, 0, 0);
+    }
+
+    function frame(now) {
+      a.raf = requestAnimationFrame(frame);
+      if (now - a.last < 1000 / FPS - 2) return;
+      var dt = a.last ? Math.min((now - a.last) / 1000, 0.1) : 0;
+      a.last = now;
+      a.o1x -= SPEED_X * dt; a.o1y -= SPEED_Y * dt;                   // the two layers slide
+      a.o2x -= SPEED_X * 0.55 * dt; a.o2y += SPEED_Y * 1.7 * dt;      // apart, so shapes evolve
+      draw();
+    }
+
+    anim = a;
+    document.documentElement.appendChild(cv);
+    a.size();
+    window.addEventListener('resize', a.size);
+    a.raf = requestAnimationFrame(frame);
+  }
+
+  window.setDitherMotion = function (on) {
+    try { if (on) localStorage.setItem(MOTION_KEY, '1'); else localStorage.removeItem(MOTION_KEY); } catch (e) {}
+    syncMotion(current());
+    mark(current());
+  };
+  if (STILL.addEventListener) STILL.addEventListener('change', function () { syncMotion(current()); mark(current()); });
+
+  // The popup's "Animate background" row: there only for the themes that
+  // have a dither ground, and switched off (with the reason) for a device
+  // that asks for reduced motion.
+  function markMotion(mode) {
+    var row = document.querySelector('[data-theme-motion]');
+    if (!row) return;
+    row.hidden = !DITHERS[mode];
+    var sw = row.querySelector('[data-motion-toggle]'), on = motionWanted() && !STILL.matches;
+    sw.setAttribute('aria-checked', on ? 'true' : 'false');
+    sw.disabled = STILL.matches;
+    row.querySelector('[data-motion-hint]').textContent = STILL.matches
+      ? 'Off: this device asks for reduced motion.'
+      : 'The dithered background drifts slowly.';
   }
 
   apply(current());

@@ -1620,6 +1620,47 @@ async def main():
         assert await npg.locator("[data-theme-picker]").count() == 1, "picking keeps the popup open to compare"
         assert await npg.get_attribute('[data-theme-picker] [data-theme-option="ega"]', "aria-checked") == "true"
         assert (await btn.inner_text()).strip() == "Theme: EGA"
+
+        # "Animate background": offered for the dither themes, off by default.
+        row = npg.locator("[data-theme-picker] [data-theme-motion]")
+        sw = row.locator("[data-motion-toggle]")
+        assert await row.is_visible() and await sw.get_attribute("aria-checked") == "false"
+        assert await npg.locator("canvas[data-dither]").count() == 0
+        await sw.click()
+        assert await sw.get_attribute("aria-checked") == "true"
+        assert await npg.evaluate("localStorage.getItem('taphou5e-dither-motion')") == "1"
+        shot_js = """() => { const c = document.querySelector('html > canvas[data-dither]');
+            const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let h = 0;
+            for (let i = 0; i < d.length; i += 4) h = (h * 31 + d[i + 2]) | 0;
+            return [h, c.width, c.height, Math.round(c.getBoundingClientRect().width), getComputedStyle(c).zIndex]; }"""
+        first = await npg.evaluate(shot_js)
+        assert first[1] == 427 and first[3] == 1281 and first[4] == "-1", first     # 3 CSS px a pixel, behind the page
+        await npg.wait_for_timeout(2500)
+        later = await npg.evaluate(shot_js)
+        assert later[0] != first[0], "the dither is not moving"
+        ok("Animate background: off by default; switched on, a canvas behind the page drifts the dither")
+
+        await npg.click('[data-theme-picker] [data-theme-option="pixel"]')
+        assert await row.is_visible() and await npg.locator("canvas[data-dither]").count() == 1
+        paper = await npg.evaluate("(() => { const c = document.querySelector('canvas[data-dither]'); return [...c.getContext('2d').getImageData(0, 0, 1, 1).data]; })()")
+        assert paper in ([223, 226, 208, 255], [192, 197, 176, 255]), paper       # redrawn in Pixel's tones
+        await npg.click('[data-theme-picker] [data-theme-option="dark"]')
+        assert await row.is_hidden() and await npg.locator("canvas[data-dither]").count() == 0
+        await npg.click('[data-theme-picker] [data-theme-option="ega"]')
+        assert await npg.locator("canvas[data-dither]").count() == 1, "the choice is remembered across themes"
+        await npg.emulate_media(reduced_motion="reduce")
+        await npg.wait_for_timeout(100)
+        assert await npg.locator("canvas[data-dither]").count() == 0 and await sw.is_disabled()
+        assert "reduced motion" in await row.inner_text()
+        await npg.emulate_media(reduced_motion="no-preference")
+        await npg.wait_for_timeout(100)
+        assert await npg.locator("canvas[data-dither]").count() == 1
+        await sw.click()
+        assert await sw.get_attribute("aria-checked") == "false"
+        assert await npg.locator("canvas[data-dither]").count() == 0
+        assert await npg.evaluate("localStorage.getItem('taphou5e-dither-motion')") is None
+        ok("the animation follows the theme, stops for Ember and for reduced motion, and switches off again")
+
         await npg.click("[data-theme-picker] .pane-close")
         assert await npg.locator("[data-theme-picker]").count() == 0
         assert await npg.evaluate("document.activeElement && document.activeElement.id") == "sb-theme"
