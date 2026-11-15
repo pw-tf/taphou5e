@@ -117,6 +117,8 @@
   background: var(--bg-primary) var(--px-dither, none) 0 0 / 768px 768px;
   image-rendering: pixelated;
 }
+/* The animated ground (a canvas from theme.js) replaces the still tile. */
+[data-theme="ega"][data-dither-live] body::before { display: none; }
 [data-theme="ega"] .login-container { background: transparent; }
 /* Dimming behind popups: a black checker, not a translucent wash. */
 [data-theme="ega"] :is(.modal-host, .side-menu-overlay, .modal > .modal-backdrop) {

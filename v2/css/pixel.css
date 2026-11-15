@@ -129,6 +129,8 @@
   background: var(--bg-primary) var(--px-dither, none) 0 0 / 768px 768px;
   image-rendering: pixelated;
 }
+/* The animated ground (a canvas from theme.js) replaces the still tile. */
+[data-theme^="pixel"][data-dither-live] body::before { display: none; }
 [data-theme^="pixel"] .login-container { background: transparent; }
 /* One-bit dimming: a checker instead of a translucent wash. */
 [data-theme^="pixel"] :is(.modal-host, .side-menu-overlay, .modal > .modal-backdrop) {

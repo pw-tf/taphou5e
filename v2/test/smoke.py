@@ -1670,6 +1670,20 @@ async def main():
         await npg.emulate_media(reduced_motion="no-preference")
         await npg.wait_for_timeout(100)
         assert await npg.locator("canvas[data-dither]").count() == 1
+        # After a page load the canvas is made in <head>, ahead of <body>: the
+        # still tile must step aside or it paints over the moving one.
+        await npg.keyboard.press("Escape")
+        await npg.reload()
+        await npg.wait_for_timeout(300)
+        assert await npg.locator("canvas[data-dither]").count() == 1
+        assert await npg.evaluate("getComputedStyle(document.body, '::before').display") == "none", "the still tile covers the animation"
+        vp = npg.viewport_size        # bottom right: open ground, clear of the sidebar and the cards
+        clip = {"x": vp["width"] - 380, "y": vp["height"] - 200, "width": 300, "height": 120}
+        seen = await npg.screenshot(clip=clip)
+        await npg.wait_for_timeout(2500)
+        assert await npg.screenshot(clip=clip) != seen, "after a page load the animated ground is not visible"
+        ok("Animate background: still visibly moving after a page load, with the still tile out of its way")
+        await npg.click("#sb-theme")
         await sw.click()
         assert await sw.get_attribute("aria-checked") == "false"
         assert await npg.locator("canvas[data-dither]").count() == 0

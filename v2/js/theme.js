@@ -259,6 +259,7 @@
      canvas -- low-res (one canvas pixel is three CSS px, more on very wide
      screens), fixed behind the page, hung on <html> because v2 rebuilds
      <body>. Time is the wall clock, so the sky carries on from page to page.
+     While it runs, <html data-dither-live> hides the still tile.
      Off unless someone turns it on in the Theme popup; never runs for a
      device that asks for reduced motion, or inside an embedded sheet. */
   var MOTION_KEY = 'taphou5e-dither-motion';
@@ -289,6 +290,7 @@
     cancelAnimationFrame(anim.raf);
     window.removeEventListener('resize', anim.size);
     anim.cv.remove();
+    root.removeAttribute('data-dither-live');
     anim = null;
   }
 
@@ -381,7 +383,12 @@
     }
 
     anim = a;
-    document.documentElement.appendChild(cv);
+    // theme.js runs in <head>, so on a page load the canvas lands BEFORE
+    // <body> and the still tile (body::before, same z-index) would paint over
+    // it -- the animation ran but could not be seen. data-dither-live tells
+    // pixel.css / ega.css to drop the still tile while the canvas is up.
+    root.appendChild(cv);
+    root.setAttribute('data-dither-live', '');
     a.size();
     window.addEventListener('resize', a.size);
     a.raf = requestAnimationFrame(frame);
@@ -392,6 +399,10 @@
     syncMotion(current());
     mark(current());
   };
+  // The theme or the switch changed in another tab: follow it here.
+  window.addEventListener('storage', function (e) {
+    if (e.key === KEY || e.key === MOTION_KEY || e.key === null) { apply(current()); mark(current()); }
+  });
   if (STILL.addEventListener) STILL.addEventListener('change', function () { syncMotion(current()); mark(current()); });
 
   // The popup's "Animate background" row: there only for the themes that
