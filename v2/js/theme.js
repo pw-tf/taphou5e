@@ -261,7 +261,9 @@
      Theme popup; never runs for a device that asks for reduced motion, or
      inside an embedded sheet. */
   var MOTION_KEY = 'taphou5e-dither-motion';
-  var FPS = 24, SPEED_X = 1.2, SPEED_Y = 0.36;      // canvas px a second
+  // 30 a second: every second frame of a 60Hz screen, so frames land evenly
+  // (24 does not divide 60 and alternated short and long frames).
+  var FPS = 30, SPEED_X = 1.2, SPEED_Y = 0.36;      // canvas px a second
   var STILL = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   var anim = null;
 
@@ -306,11 +308,23 @@
 
     function draw() {
       var w = a.w, h = a.h, px = a.px, gain = spec.gain / 2, bias = spec.bias, cap = spec.cap;
-      var ax = Math.floor(a.o1x) & M, ay = Math.floor(a.o1y) & M, bx = Math.floor(a.o2x) & M, by = Math.floor(a.o2y) & M;
+      // Each layer is read at its exact, fractional position (bilinear), not
+      // the nearest whole pixel. Stepping a whole pixel at a time moved the
+      // entire field in 3px jumps a couple of times a second; this way the
+      // field changes a little every frame and the edges creep.
+      var f1x = Math.floor(a.o1x), f1y = Math.floor(a.o1y), f2x = Math.floor(a.o2x), f2y = Math.floor(a.o2y);
+      var t1x = a.o1x - f1x, t1y = a.o1y - f1y, t2x = a.o2x - f2x, t2y = a.o2y - f2y;
+      var ax = f1x & M, ay = f1y & M, bx = f2x & M, by = f2y & M;
+      var p00 = (1 - t1x) * (1 - t1y), p10 = t1x * (1 - t1y), p01 = (1 - t1x) * t1y, p11 = t1x * t1y;
+      var q00 = (1 - t2x) * (1 - t2y), q10 = t2x * (1 - t2y), q01 = (1 - t2x) * t2y, q11 = t2x * t2y;
       for (var y = 0, i = 0; y < h; y++) {
-        var r1 = ((y + ay) & M) * TILE, r2 = ((y + by) & M) * TILE, row = (y & 7) << 3;
+        var r1 = ((y + ay) & M) * TILE, r1b = ((y + ay + 1) & M) * TILE;
+        var r2 = ((y + by) & M) * TILE, r2b = ((y + by + 1) & M) * TILE, row = (y & 7) << 3;
         for (var x = 0; x < w; x++, i++) {
-          var v = bias + gain * (n1[r1 + ((x + ax) & M)] + n2[r2 + ((x + bx) & M)]);
+          var c1 = (x + ax) & M, c1b = (c1 + 1) & M, c2 = (x + bx) & M, c2b = (c2 + 1) & M;
+          var v = bias + gain * (
+            n1[r1 + c1] * p00 + n1[r1 + c1b] * p10 + n1[r1b + c1] * p01 + n1[r1b + c1b] * p11 +
+            n2[r2 + c2] * q00 + n2[r2 + c2b] * q10 + n2[r2b + c2] * q01 + n2[r2b + c2b] * q11);
           v = v < 0 ? 0 : v > cap ? cap : v;
           var s = v * levels, l = s | 0;
           px[i] = ink[s - l > (BAYER[row | (x & 7)] + 0.5) / 64 ? l + 1 : l];

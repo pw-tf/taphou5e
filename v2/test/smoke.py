@@ -1638,6 +1638,21 @@ async def main():
         await npg.wait_for_timeout(2500)
         later = await npg.evaluate(shot_js)
         assert later[0] != first[0], "the dither is not moving"
+        # Smooth, not stepped: it once moved in whole-pixel jumps a couple of
+        # times a second. Now nearly every drawn frame differs a little.
+        moved = await npg.evaluate("""() => new Promise(done => {
+            const c = document.querySelector('canvas[data-dither]'), ctx = c.getContext('2d');
+            let prev = null, changed = 0, most = 0, t0 = performance.now();
+            (function tick(now) {
+                const d = ctx.getImageData(0, 0, c.width, c.height).data;
+                if (prev) { let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 2] !== prev[i + 2]) n++;
+                            if (n) { changed++; most = Math.max(most, n / (d.length / 4)); } }
+                prev = d;
+                if (now - t0 < 2000) requestAnimationFrame(tick); else done([changed, most]);
+            })(t0);
+        })""")
+        assert moved[0] >= 30, ("the dither moves in steps, not smoothly", moved)      # 5 before; ~60 at 30fps
+        assert moved[1] < 0.01, ("a frame changed a whole patch at once", moved)
         ok("Animate background: off by default; switched on, a canvas behind the page drifts the dither")
 
         await npg.click('[data-theme-picker] [data-theme-option="pixel"]')
