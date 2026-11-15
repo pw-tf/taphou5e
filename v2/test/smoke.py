@@ -1437,6 +1437,39 @@ async def main():
         assert dark == ["rgb(28, 30, 25)", "rgb(223, 226, 208)", "rgb(223, 226, 208)", "#1c1e19"], dark
         ok("Pixel dark flips the same tones: ink ground, paper sidebar, browser chrome follows")
 
+        # EGA: its own button, a four-level blue dither, framed and studded
+        # cards, a yellow accent, Ember's HP colours and the 8x8 icons.
+        await px.click('.sidebar-foot [data-theme-option="ega"]')
+        assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "ega"
+        assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "ega"
+        assert (await px.locator('.sidebar-foot .theme-seg .is-active').inner_text()).strip() == "EGA"
+        assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-ega')")
+        await px.wait_for_timeout(400)      # let Ember's colour transitions finish
+        ega = await px.evaluate("""() => {
+            const cs = (sel, p, pseudo) => getComputedStyle(document.querySelector(sel), pseudo || null)[p];
+            return {
+                body: cs('body', 'backgroundColor'), ground: cs('body', 'backgroundImage', '::before'),
+                sidebar: cs('.sidebar', 'backgroundColor'), active: cs('.sidebar-nav a.is-active', 'backgroundColor'),
+                card: cs('.character-card', 'backgroundColor'), border: cs('.character-card', 'borderTopColor'),
+                width: cs('.character-card', 'borderTopWidth'), radius: cs('.character-card', 'borderTopLeftRadius'),
+                shadow: cs('.character-card', 'boxShadow'), stud: cs('.character-card', 'backgroundImage', '::before'),
+                high: cs('.hp-bar > .fill.high', 'backgroundColor'), low: cs('.hp-bar > .fill.low', 'backgroundColor'),
+                title: cs('.topbar h1', 'fontFamily'), name: cs('.card-name', 'fontFamily'),
+                chrome: document.querySelector('meta[name="theme-color"]').content,
+                px: getComputedStyle(document.querySelector('svg.ico .ico-px')).display,
+            };
+        }""")
+        assert ega["body"] == "rgb(7, 7, 15)" and "data:image/png" in ega["ground"], ega
+        assert ega["sidebar"] == "rgb(12, 12, 34)" and ega["active"] == "rgb(255, 225, 77)", ega
+        assert ega["card"] == "rgb(16, 16, 44)" and ega["border"] == "rgb(170, 170, 170)", ega
+        assert ega["width"] == "2px" and ega["radius"] == "0px", ega
+        assert "inset" in ega["shadow"] and "3px 3px 0px" in ega["shadow"], ega
+        assert ega["stud"].count("linear-gradient") == 4, ega
+        assert ega["high"] == "rgb(94, 227, 122)" and ega["low"] == "rgb(255, 92, 92)", ega
+        assert "Press Start 2P" in ega["title"] and "VT323" in ega["name"], ega
+        assert ega["chrome"] == "#0c0c22" and ega["px"] != "none", ega
+        ok("EGA: its own switch button, blue dither, studded double frames, yellow accent, coloured HP, pixel icons")
+
         # "System" used to mean "no saved key"; now no key means Pixel, so the
         # choice has to be stored and still has to remove the attribute.
         await px.click('.sidebar-foot [data-theme-option="system"]')
@@ -1476,6 +1509,26 @@ async def main():
             over = await pm.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
             assert over <= 0, (path, over)
         ok("Pixel at 390px: hub, roster, sheet, tracker, compendium, DM panel and wizard do not scroll sideways")
+        ectx = await browser.new_context(viewport={"width": 390, "height": 844})
+        await ectx.add_init_script(STUB_FRESH)
+        await ectx.add_init_script("localStorage.setItem('taphou5e-theme', 'ega')")
+        em = await ectx.new_page()
+        watch(em, "ega-mobile")
+        await em.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        await em.fill("#world-name", "Thornfell Reach")
+        await fill_pin(em, "join", "1379")
+        await em.click("#join-form .btn-submit")
+        await em.wait_for_selector(".party-roster", timeout=10000)
+        for path, ready in (("index.html", ".party-roster"), ("character-sheet.html?id=c2", ".sheet-combat"),
+                            ("monster-tracker.html?id=e1", ".init-row"), ("compendium.html", ".list-row"),
+                            ("dm-panel.html", ".dm-row"), ("character-new.html", ".wizard")):
+            await em.goto(f"{BASE}/v2/{path}", wait_until="domcontentloaded")
+            await em.wait_for_selector(ready, timeout=10000)
+            assert await em.evaluate("document.documentElement.getAttribute('data-theme')") == "ega"
+            over = await em.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+            assert over <= 0, (path, over)
+        await ectx.close()
+        ok("EGA at 390px: hub, sheet, encounter, compendium, DM panel and wizard do not scroll sideways")
         await pm.set_viewport_size({"width": 1280, "height": 900})
         await pm.goto(f"{BASE}/v2/character-sheet.html?id=c2", wait_until="domcontentloaded")
         await pm.wait_for_selector(".sheet-nav .tabs", timeout=10000)
@@ -1502,6 +1555,10 @@ async def main():
         await op.reload(wait_until="domcontentloaded")
         await until(op, "document.documentElement.getAttribute('data-theme') === 'pixel'")
         ok("Owlbear panels use Dark or Light to match Owlbear, and the Pixel pair if the device chose Pixel")
+        await op.evaluate("localStorage.setItem('taphou5e-theme', 'ega')")
+        await op.reload(wait_until="domcontentloaded")
+        await until(op, "document.documentElement.getAttribute('data-theme') === 'ega'")
+        ok("Owlbear panels stay on EGA, which is dark only, even in Owlbear's light mode")
         await octx.close()
 
         # ---------- 4. Pending destinations are inert ----------

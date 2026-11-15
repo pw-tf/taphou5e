@@ -742,6 +742,7 @@ function renderSidebar(activeId, counts) {
                 <div class="segmented theme-seg" style="font-size:var(--fs-10)">
                     <button data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
                     <button data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
+                    <button data-theme-option="ega" onclick="setTheme('ega')">EGA</button>
                     <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
                     <button data-theme-option="light" onclick="setTheme('light')">Light</button>
                     <button data-theme-option="system" onclick="setTheme('system')">System</button>
@@ -798,6 +799,7 @@ function renderSideMenu(activeId) {
                     <div class="segmented theme-seg">
                         <button data-theme-option="pixel" onclick="setTheme('pixel')">Pixel</button>
                         <button data-theme-option="pixel-dark" onclick="setTheme('pixel-dark')">Pixel dark</button>
+                        <button data-theme-option="ega" onclick="setTheme('ega')">EGA</button>
                         <button data-theme-option="dark" onclick="setTheme('dark')">Dark</button>
                         <button data-theme-option="light" onclick="setTheme('light')">Light</button>
                         <button data-theme-option="system" onclick="setTheme('system')">System</button>

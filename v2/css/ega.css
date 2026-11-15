@@ -1,0 +1,320 @@
+/* ==========================================================================
+   EGA — the "EGA Keep" theme for taphou5e v2
+   <html data-theme="ega">. Dark only.
+
+   A 16-colour DOS RPG: near-black ground under a blue dither, double-line
+   grey frames with yellow corner studs, cyan labels and a yellow accent.
+   Press Start 2P for titles and labels, VT323 for names, numbers and
+   controls, IBM Plex Sans for anything long.
+
+   Loaded after tokens.css, ember.css, v2.css and pixel.css. Like pixel.css it
+   redefines the Ember tokens first, so most of the app re-skins without a
+   rule of its own; what follows the tokens is only what a token cannot say.
+   Unlike the one-bit Pixel themes it keeps colour, so HP state, damage and
+   heal stay green / amber / red as in Ember.
+   ========================================================================== */
+
+/* ---------- Palette ---------- */
+[data-theme="ega"] {
+  color-scheme: dark;
+
+  --ega-ground: #07070f;   /* page, under the dither      */
+  --ega-chrome: #0c0c22;   /* sidebar, header, tab bar     */
+  --ega-panel:  #10102c;   /* framed panels, cards, popups */
+  --ega-raise:  #1b1b4a;   /* chips, buttons, stat boxes   */
+  --ega-hover:  #26265e;
+  --ega-sunk:   #05050c;   /* inputs, bar tracks           */
+  --ega-frame:  #aaaaaa;   /* the outer frame line         */
+  --ega-inner:  #555577;   /* the inner frame line, rules  */
+  --ega-stud:   #ffe14d;   /* corner studs                 */
+  --ega-yellow: #ffe14d;
+  --ega-cyan:   #8ff0f0;
+  --ega-magenta:#ff77dd;
+  --ega-blue:   #6aa8ff;
+
+  --bg-primary:   var(--ega-ground);
+  --bg-secondary: var(--ega-panel);
+  --bg-tertiary:  var(--ega-raise);
+  --bg-elevated:  var(--ega-raise);
+  --bg-hover:     var(--ega-hover);
+  --bg-sunken:    var(--ega-sunk);
+
+  --border-subtle:  var(--ega-inner);
+  --border-default: var(--ega-frame);
+  --border-strong:  #d4d4e4;
+
+  --text-primary:   #f4f4f4;
+  --text-secondary: var(--ega-cyan);
+  --text-tertiary:  #a9a9c6;
+  --text-muted:     #9090b0;
+
+  --accent-primary:       var(--ega-yellow);
+  --accent-primary-hover: #fff08a;
+  --accent-on:            #10102c;
+  --accent-soft:          #2a2810;
+  --accent-soft-border:   #8a7a1a;
+  --accent-secondary:     var(--ega-magenta);
+
+  --success:    #5ee37a;  --success-bg: rgba(94, 227, 122, .13);
+  --warning:    #ffc93c;  --warning-bg: rgba(255, 201, 60, .13);
+  --danger:     #ff5c5c;  --danger-bg:  rgba(255, 92, 92, .13);
+  --danger-hover: #ff8a8a;
+
+  --hp-high: #5ee37a;
+  --hp-mid:  #ffc93c;
+  --hp-low:  #ff5c5c;
+  --hp-temp: var(--ega-blue);
+  --hp-temp-text: var(--ega-blue);
+  --hp-notch-color: var(--ega-sunk);
+
+  --heal-ink: #5ee37a;  --heal-border: #2f7a42;  --heal-bg: #0c2414;
+  --harm-ink: #ff8a8a;  --harm-border: #8a2f2f;  --harm-bg: #2a0c10;
+
+  /* Hard, black, no blur. */
+  --shadow-sm: 2px 2px 0 #000;
+  --shadow-md: 3px 3px 0 #000;
+  --shadow-lg: 4px 4px 0 #000;
+
+  --chart-1: var(--ega-yellow); --chart-2: var(--ega-cyan); --chart-3: var(--ega-magenta);
+  --chart-track: var(--ega-sunk);
+
+  --logo-filter: brightness(0) invert(1);
+}
+
+/* ---------- Type, shape and bar sizes ---------- */
+[data-theme="ega"] {
+  --font-display: 'Press Start 2P', 'VT323', ui-monospace, monospace;
+  --font-mono: 'VT323', ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+
+  /* The three faces have very different proportions: at one font-size,
+     Press Start 2P is huge and VT323 is tiny. Matching their x-heights
+     puts every face at the size Ember intended, so no rule below has to
+     resize text. Inherited, so this one line covers the page. */
+  font-size-adjust: .52;
+  font-synthesis: none;   /* both bitmap faces have one weight */
+
+  /* The smallest steps come up a little so 8px-grid labels stay clear. */
+  --fs-9: 10px; --fs-10: 11px; --fs-11: 12px;
+
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0; --radius-xl: 0; --radius-full: 0;
+
+  --hp-bar-h: 16px; --hp-bar-h-row: 18px; --hp-bar-h-inline: 13px;
+}
+
+/* Square, 2px, no exceptions. Border STYLE is untouched, so anything
+   borderless stays borderless. */
+[data-theme="ega"] *,
+[data-theme="ega"] *::before,
+[data-theme="ega"] *::after { border-radius: 0 !important; border-width: 2px !important; }
+
+/* ---------- Dither ground. theme.js draws the tile (the homeapp effect at
+   four blue levels) and hands it over as --px-dither; each tile pixel shows
+   3x3. Without the script the ground is plain. ---------- */
+[data-theme="ega"] body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--bg-primary) var(--px-dither, none) 0 0 / 768px 768px;
+  image-rendering: pixelated;
+}
+[data-theme="ega"] .login-container { background: transparent; }
+/* Dimming behind popups: a black checker, not a translucent wash. */
+[data-theme="ega"] :is(.modal-host, .side-menu-overlay, .modal > .modal-backdrop) {
+  background: repeating-conic-gradient(#000 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+}
+
+/* ---------- Chrome: sidebar, headers, tab bar, drawer ---------- */
+[data-theme="ega"] :is(.sidebar, .header, .topbar, .sheet-header, .sheet-nav, .tab-bar, .side-menu) {
+  background-color: var(--ega-chrome);
+}
+[data-theme="ega"] :is(.sidebar, .sheet-nav) { border-right: 2px solid var(--ega-frame); }
+[data-theme="ega"] :is(.header, .topbar, .sheet-header) { border-bottom: 2px solid var(--ega-frame); }
+[data-theme="ega"] .tab-bar { border-top: 2px solid var(--ega-frame); }
+[data-theme="ega"] :is(.sidebar-brand, .side-menu-header) { border-bottom: 2px solid var(--ega-inner); }
+[data-theme="ega"] .sidebar-foot { border-top: 2px solid var(--ega-inner); }
+[data-theme="ega"] .brand { color: var(--accent-primary); }
+[data-theme="ega"] .brand-word { font-family: var(--font-display); letter-spacing: .04em; }
+[data-theme="ega"] :is(.sidebar-nav a, .side-menu-item, .sheet-nav .tabs > *) { color: var(--text-secondary); }
+[data-theme="ega"] :is(.sidebar-nav a, .side-menu-item, .sheet-nav .tabs > *):hover { background: var(--bg-hover); color: var(--text-primary); }
+[data-theme="ega"] .side-menu-item-danger { color: var(--danger); }
+[data-theme="ega"] .side-menu-divider {
+  height: 2px; background: repeating-linear-gradient(90deg, var(--ega-inner) 0 4px, transparent 4px 8px);
+}
+
+/* ---------- Faces. Titles and small labels: Press Start 2P (through
+   --font-display, plus the labels named here). Names, numbers and
+   controls: VT323. ---------- */
+[data-theme="ega"] :is(.eyebrow, .tag, .role-pill, .status-pill, .nav-soon, .hidden-pill, .level-badge,
+  .nav-count.is-live, .ability-box .label, .save-chip .label, .wizard-steps li .n) {
+  font-family: var(--font-display); letter-spacing: .06em; text-transform: uppercase;
+}
+[data-theme="ega"] :is(.btn, .segmented > *, .seg button, .tab-btn, .sidebar-nav a, .side-menu-item,
+  .sheet-nav .tabs > *, .card-name, .init-name, .list-row .name, .dm-row .name, .summary-card .title,
+  .hub-tile .title, .campaign-tabs button, .condition-tag, .card-menu-item .label, .explainer-title,
+  .fab-item, .choose-row .name, .pick-row .name, .subclass-row .name, .method-tile .title,
+  .levelup-banner .title, .save-chip, .chip-row .chip, .wizard-steps li, .form-group label, .hp-btn,
+  .trait-name, .charge, .prep-toggle, .slot-chip, .score-readout, .stepper, .review-score,
+  .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .chip, .world-name, .nav-count,
+  #modal-close, .pane-close, .srd-close, #embed-close) {
+  font-family: var(--font-mono);
+}
+[data-theme="ega"] .eyebrow { color: var(--text-secondary); }
+[data-theme="ega"] :is(.hub-tile .title, .trait-name, .levelup-banner .title) { color: var(--accent-primary); }
+[data-theme="ega"] :is(.switch-line a, .login-footer a, .hint a, .prose a) { text-decoration: underline; }
+
+/* ---------- Icons: the same 8x8 drawings the Pixel themes use, at a whole
+   number of pixels per cell. Anything still drawn with strokes gets square
+   caps and hard edges. ---------- */
+[data-theme="ega"] .ico-g { display: none; }
+[data-theme="ega"] .ico-px { display: inline; }
+[data-theme="ega"] .ico { width: 16px !important; height: 16px !important; shape-rendering: crispEdges; }
+[data-theme="ega"] .ico.ico-lg { width: 24px !important; height: 24px !important; }
+[data-theme="ega"] svg:not(.ico) { stroke-linecap: square; stroke-linejoin: miter; shape-rendering: crispEdges; }
+
+/* ---------- The frame: a grey outer line, a black gap, a dim inner line
+   and a hard black drop shadow. Cards get yellow studs on the corners. --- */
+[data-theme="ega"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row, .init-row,
+  .dm-row, .ability-box, .login-card, .empty-state, .srd-detail .statblock, .levelup-banner, .an-card,
+  .modal, .modal > .modal-content, .explainer, .toast, .fab-menu, .info-pane, .sheet-dock) {
+  border: 2px solid var(--ega-frame);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px var(--ega-inner), 3px 3px 0 #000;
+}
+[data-theme="ega"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row,
+  .dm-row, .ability-box, .login-card, .empty-state, .srd-detail .statblock, .levelup-banner, .an-card, .init-row) {
+  background-color: var(--ega-panel);
+}
+[data-theme="ega"] .modal:has(> .modal-backdrop) { border: 0; box-shadow: none; }
+[data-theme="ega"] :is(.hub-tile, .summary-card, .campaign-card, .dm-row, .login-card, .empty-state,
+  .levelup-banner, .an-card, .init-row) { position: relative; }
+[data-theme="ega"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .init-row, .dm-row,
+  .login-card, .empty-state, .levelup-banner, .an-card)::before {
+  content: ''; position: absolute; inset: -2px; pointer-events: none;
+  background:
+    linear-gradient(var(--ega-stud), var(--ega-stud)) 0 0 / 6px 6px no-repeat,
+    linear-gradient(var(--ega-stud), var(--ega-stud)) 100% 0 / 6px 6px no-repeat,
+    linear-gradient(var(--ega-stud), var(--ega-stud)) 0 100% / 6px 6px no-repeat,
+    linear-gradient(var(--ega-stud), var(--ega-stud)) 100% 100% / 6px 6px no-repeat;
+}
+[data-theme="ega"] :is(.hub-tile, .character-card, .summary-card, .campaign-card, .list-row, .dm-row):hover {
+  background-color: var(--bg-hover); border-color: var(--border-strong);
+}
+[data-theme="ega"] .character-card.is-flagged { border-color: var(--accent-primary); }
+[data-theme="ega"] .card-flag { box-shadow: 0 0 0 2px #000; }
+
+/* Party and colour marks are a solid ring outside the frame; the turn marker
+   is a dotted yellow one drawn over it. */
+[data-theme="ega"] .init-row.is-party {
+  box-shadow: 0 0 0 2px var(--hp-temp), inset 0 0 0 2px #000, inset 0 0 0 4px var(--ega-inner), 5px 5px 0 #000;
+}
+[data-theme="ega"] .init-row.has-color {
+  box-shadow: 0 0 0 2px var(--row-color), inset 0 0 0 2px #000, inset 0 0 0 4px var(--ega-inner), 5px 5px 0 #000;
+}
+[data-theme="ega"] .colour-block .init-row.has-color {
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px var(--ega-inner), 3px 3px 0 #000;
+}
+[data-theme="ega"] .init-row.is-active { background-color: var(--accent-soft); outline: 3px dotted var(--accent-primary); outline-offset: -3px; }
+[data-theme="ega"] .init-row.is-dead { opacity: .6; background-color: var(--ega-sunk); }
+
+/* The running-encounter pill blinks in whole steps, like a DOS cursor. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="ega"] .status-pill.is-active { animation: ega-pill-blink 1.6s steps(1, end) infinite; }
+}
+@keyframes ega-pill-blink {
+  0%, 100% { background: transparent; color: var(--hp-high); }
+  50%      { background: var(--hp-high); color: #07070f; }
+}
+
+/* ---------- Buttons: raised, with a 2px bevel ---------- */
+[data-theme="ega"] .btn {
+  background: var(--ega-raise); color: var(--text-primary); border-color: var(--ega-frame);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, .6), inset 2px 2px 0 rgba(255, 255, 255, .22);
+  font-weight: 400;
+}
+[data-theme="ega"] .btn:hover { background: var(--ega-hover); }
+[data-theme="ega"] .btn-accent { background: var(--accent-primary); color: var(--accent-on); border-color: var(--accent-primary); }
+[data-theme="ega"] .btn-accent:hover { background: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+[data-theme="ega"] .btn-quiet { color: var(--text-secondary); border-color: var(--ega-inner); }
+[data-theme="ega"] .btn-danger { color: var(--danger); border-color: var(--danger); }
+[data-theme="ega"] .btn-rest.short { color: var(--accent-secondary); border-color: var(--accent-secondary); }
+[data-theme="ega"] .btn-rest.long { color: var(--accent-primary); border-color: var(--accent-primary); }
+[data-theme="ega"] .btn:active { box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .6), inset -2px -2px 0 rgba(255, 255, 255, .22); }
+[data-theme="ega"] .btn-dashed, [data-theme="ega"] .btn[style*="dashed"] { box-shadow: none; }
+[data-theme="ega"] .hp-btn { background: var(--ega-sunk); border: 2px solid currentColor; }
+[data-theme="ega"] .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+[data-theme="ega"] :is(#modal-close, .pane-close, .srd-close, #embed-close) {
+  background: var(--ega-raise); border-color: var(--ega-frame);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, .6), inset 2px 2px 0 rgba(255, 255, 255, .22), 2px 2px 0 #000;
+}
+
+/* ---------- Segmented controls, tabs: the selected one is yellow ---------- */
+[data-theme="ega"] .segmented { background: var(--ega-sunk); border-color: var(--ega-frame); padding: 2px; gap: 2px; }
+[data-theme="ega"] .segmented > * { color: var(--text-secondary); }
+[data-theme="ega"] :is(.segmented > .is-active, .seg button.is-on, .tab-btn.active, .sidebar-nav a.is-active,
+  .side-menu-item.is-active, .sheet-nav .tabs > .is-active, .chip-row .chip.is-on, .method-tile.is-on,
+  .pick-row.is-on, .subclass-row.is-on, .lk-row.is-on, .srd-list .list-row.is-selected, .choose-row:has(input:checked)) {
+  background: var(--accent-primary); color: var(--accent-on); border-color: var(--accent-primary);
+}
+[data-theme="ega"] :is(.sidebar-nav a.is-active, .side-menu-item.is-active, .sheet-nav .tabs > .is-active, .tab-btn.active) :is(.nav-count, .nav-label, svg) { color: var(--accent-on); }
+[data-theme="ega"] :is(.method-tile.is-on, .pick-row.is-on, .subclass-row.is-on, .srd-list .list-row.is-selected, .choose-row:has(input:checked)) * { color: inherit; }
+[data-theme="ega"] .campaign-tabs button.is-active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); border-bottom-width: 4px !important; }
+
+/* ---------- Tags, pills, conditions ---------- */
+[data-theme="ega"] .tag { background: transparent; border: 2px solid currentColor; }
+[data-theme="ega"] .tag-warning { color: var(--accent-secondary); }
+[data-theme="ega"] .tag-accent { color: var(--accent-primary); }
+[data-theme="ega"] .role-pill { border-color: var(--accent-primary); }
+[data-theme="ega"] .condition-tag { background: var(--ega-raise); border-color: var(--ega-inner); color: var(--text-secondary); }
+[data-theme="ega"] .condition-tag.active { background: var(--accent-secondary); border-color: var(--accent-secondary); color: #07070f; }
+[data-theme="ega"] :is(.toast-error, .error-banner) { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+
+/* ---------- Section rule: a dashed line ---------- */
+[data-theme="ega"] .rule { height: 2px; background: repeating-linear-gradient(90deg, var(--ega-inner) 0 4px, transparent 4px 8px); }
+
+/* ---------- Chips and small boxes ---------- */
+[data-theme="ega"] :is(.chip, .check-row, .review-grid > div, .statblock .abilities > div, .statblock .stat-trio > div, .seg, .outcome, .save-chip) {
+  background-color: var(--ega-raise); border: 2px solid var(--ega-inner);
+}
+[data-theme="ega"] .save-chip.is-prof { background-color: var(--accent-soft); border-color: var(--accent-soft-border); }
+[data-theme="ega"] .skill-row { border-bottom: 2px dotted var(--ega-inner); }
+[data-theme="ega"] .skill-row.proficient { background: transparent; }
+[data-theme="ega"] .skill-row:hover { background: var(--bg-hover); }
+[data-theme="ega"] .skill-dot { border-color: var(--text-tertiary); }
+[data-theme="ega"] .avatar {
+  background: repeating-conic-gradient(var(--ega-raise) 0 25%, var(--ega-sunk) 0 50%) 0 0 / 4px 4px;
+  border-color: var(--ega-frame); color: var(--accent-primary);
+  text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000;
+}
+[data-theme="ega"] .world-dot { background: var(--hp-high); }
+
+/* ---------- HP: Ember's colours, in a framed, notched track ---------- */
+[data-theme="ega"] .hp-bar { background: var(--ega-sunk); border: 2px solid var(--ega-frame); }
+[data-theme="ega"] .hp-bar > .fill.temp { background: repeating-conic-gradient(var(--hp-temp) 0 25%, transparent 0 50%) 0 0 / 4px 4px; }
+[data-theme="ega"] .death-dot.filled { background: var(--hp-high); border-color: var(--hp-high); }
+[data-theme="ega"] .death-dot.failure.filled { background: var(--hp-low); border-color: var(--hp-low); }
+
+/* ---------- Hold-down popups and menus ---------- */
+[data-theme="ega"] .explainer { background: var(--ega-panel); color: var(--text-primary); }
+[data-theme="ega"] .explainer-arrow { background: var(--ega-panel); border-color: var(--ega-frame); border-width: 0 2px 2px 0 !important; bottom: -6px; }
+[data-theme="ega"] .explainer.is-below .explainer-arrow { border-width: 2px 0 0 2px !important; bottom: auto; top: -6px; }
+[data-theme="ega"] :is(.card-menu-item, .fab-item):hover { background: var(--bg-hover); }
+[data-theme="ega"] .fab-item + .fab-item { box-shadow: inset 0 2px 0 var(--ega-inner); }
+[data-theme="ega"] .fab { background: var(--accent-primary); color: var(--accent-on); border: 2px solid var(--accent-primary); box-shadow: 3px 3px 0 #000; }
+
+/* ---------- Inputs ---------- */
+[data-theme="ega"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  background-color: var(--ega-sunk); border-color: var(--ega-frame); color: var(--text-primary);
+}
+[data-theme="ega"] :is(input, select, textarea):focus { border-color: var(--accent-primary); box-shadow: 2px 2px 0 #000; outline: none; }
+[data-theme="ega"] :is(input[type="checkbox"], input[type="radio"]) { accent-color: var(--accent-primary); box-shadow: none; }
+[data-theme="ega"] ::placeholder { color: var(--text-tertiary); opacity: 1; }
+[data-theme="ega"] :focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+
+/* ---------- Switches ---------- */
+[data-theme="ega"] .switch { background: var(--ega-sunk); border-color: var(--ega-frame); }
+[data-theme="ega"] .switch.on { background: var(--accent-primary); }
+
+/* ---------- Analytics ---------- */
+[data-theme="ega"] .an-bar-track { border: 2px solid var(--ega-frame); background: var(--ega-sunk); height: 14px; }
+
+/* ---------- Login ---------- */
+[data-theme="ega"] .login-header h1 { color: var(--accent-primary); }

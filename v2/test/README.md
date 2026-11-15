@@ -39,6 +39,9 @@ at it directly — edit `CHROME` at the top of the file, or run
 - Dark as the default on a fresh device; the Pixel themes: the dither tile, square
   2px frames and hard shadows, HP state as fill patterns, Pixel dark, System
   as a stored choice, no sideways scroll at 390px, and Owlbear following it
+- EGA: its own theme button, the four-level blue dither, studded double
+  frames, yellow accent with Ember's HP colours, the bitmap faces, no sideways
+  scroll at 390px, and Owlbear keeping it in light mode
 - 390px: no horizontal scroll, 2-up roster, drawer open/Escape-close
 - 900px+: 4-up roster, sidebar
 - The roster: ordering, the needs-attention count, links into the sheet

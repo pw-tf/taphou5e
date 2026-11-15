@@ -1,16 +1,16 @@
 /* Theme switch — sets data-theme on <html> and remembers the choice.
    Touches only its own localStorage keys.
 
-   Modes: 'dark' | 'light' | 'system' | 'pixel' | 'pixel-dark'.
+   Modes: 'dark' | 'light' | 'system' | 'pixel' | 'pixel-dark' | 'ega'.
    Dark is what a device gets until someone picks otherwise. 'system' is
    stored as a choice of its own (it used to be "no key"), and works by
    REMOVING the attribute so tokens.css follows prefers-color-scheme. */
 (function () {
   var KEY = 'taphou5e-theme';
   var DEFAULT = 'dark';
-  var MODES = { pixel: 1, 'pixel-dark': 1, dark: 1, light: 1, system: 1 };
+  var MODES = { pixel: 1, 'pixel-dark': 1, ega: 1, dark: 1, light: 1, system: 1 };
   // Browser chrome colour (<meta name="theme-color">) per theme.
-  var CHROME = { pixel: '#dfe2d0', 'pixel-dark': '#1c1e19', dark: '#15110e', light: '#f5efe3' };
+  var CHROME = { pixel: '#dfe2d0', 'pixel-dark': '#1c1e19', ega: '#0c0c22', dark: '#15110e', light: '#f5efe3' };
   var root = document.documentElement;
 
   function current() {
@@ -38,22 +38,28 @@
     }
   }
 
-  /* ----- dither ground (pixel themes) -----------------------------------
+  /* ----- dither ground (pixel and EGA themes) ---------------------------
      A still frame of the homeapp background: two layers of tileable value
-     noise, summed and quantised to one bit through an 8x8 Bayer matrix. It
-     is drawn once as a 256px tile, kept as a PNG data URL, and handed to
-     pixel.css as --px-dither, which shows each tile pixel 3x3. Seeded, so
-     the ground is the same on every page and every load. */
+     noise, summed and quantised through an 8x8 Bayer matrix -- to one bit for
+     the Pixel themes, to four blue levels for EGA. It is drawn once as a
+     256px tile, kept as a PNG data URL, and handed to pixel.css / ega.css as
+     --px-dither, which shows each tile pixel 3x3. Seeded, so the ground is
+     the same on every page and every load. */
   var TILE = 256;
   var DITHER_KEY = 'taphou5e-dither-1-';
-  var TONES = {            // [ground, dither tone] — pixel.css --pa / --pz
-    pixel: [[223, 226, 208], [192, 197, 176]],
-    'pixel-dark': [[28, 30, 25], [46, 49, 41]]
+  // tones: ground first, then each dither level (pixel.css --pa / --pz; for
+  // EGA the ground stepped a tenth at a time toward EGA blue #5555ff).
+  // The field is bias + gain/2 * (n1 + n2), clamped to 0..cap.
+  var DITHERS = {
+    pixel: { tones: [[223, 226, 208], [192, 197, 176]], bias: -0.5, gain: 1.25, cap: 0.5 },
+    'pixel-dark': { tones: [[28, 30, 25], [46, 49, 41]], bias: -0.5, gain: 1.25, cap: 0.5 },
+    ega: { tones: [[7, 7, 15], [15, 15, 39], [23, 23, 63], [31, 31, 87]], bias: -0.3, gain: 1.3, cap: 0.8 }
   };
   var BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
     3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
 
-  function drawTile(tones) {
+  function drawTile(spec) {
+    var tones = spec.tones, levels = tones.length - 1;
     var seed = 20261114;
     function rnd() {
       seed = (seed + 0x6D2B79F5) | 0;
@@ -90,10 +96,11 @@
     for (var y = 0, i = 0, p = 0; y < TILE; y++) {
       var r2 = ((y + 97) & M) * TILE, row = (y & 7) << 3;
       for (var x = 0; x < TILE; x++, i++, p += 4) {
-        // a cloud field: mostly clear ground, never more than half covered
-        var v = -0.5 + 0.625 * (n1[i] + n2[r2 + ((x + 41) & M)]);
-        v = v < 0 ? 0 : v > 0.5 ? 0.5 : v;
-        var c = tones[v > (BAYER[row | (x & 7)] + 0.5) / 64 ? 1 : 0];
+        // a cloud field: mostly clear ground, capped so it never fills in
+        var v = spec.bias + spec.gain / 2 * (n1[i] + n2[r2 + ((x + 41) & M)]);
+        v = v < 0 ? 0 : v > spec.cap ? spec.cap : v;
+        var s = v * levels, l = s | 0;
+        var c = tones[s - l > (BAYER[row | (x & 7)] + 0.5) / 64 ? l + 1 : l];
         d[p] = c[0]; d[p + 1] = c[1]; d[p + 2] = c[2]; d[p + 3] = 255;
       }
     }
@@ -102,12 +109,12 @@
   }
 
   function dither(mode) {
-    var tones = TONES[mode];
-    if (!tones) { root.style.removeProperty('--px-dither'); return; }
+    var spec = DITHERS[mode];
+    if (!spec) { root.style.removeProperty('--px-dither'); return; }
     var url = null;
     try { url = localStorage.getItem(DITHER_KEY + mode); } catch (e) {}
     if (!url || url.indexOf('data:image/png') !== 0) {
-      try { url = drawTile(tones); } catch (e) { url = null; }   // no canvas: plain ground
+      try { url = drawTile(spec); } catch (e) { url = null; }   // no canvas: plain ground
       if (url) { try { localStorage.setItem(DITHER_KEY + mode, url); } catch (e) {} }
     }
     if (url) root.style.setProperty('--px-dither', 'url("' + url + '")');

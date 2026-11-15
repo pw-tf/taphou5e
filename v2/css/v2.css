@@ -1168,11 +1168,11 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 .sidebar-foot button.side-menu-item { background: none; border: 0; font-family: inherit; }
 
 /* ---------- Theme switch ----------
-   Five options do not fit one row of a 240px sidebar, so the switch is two:
-   the pixel pair above, Ember's three below. */
-.segmented.theme-seg { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; }
-.segmented.theme-seg > * { grid-column: span 2; padding-left: 2px; padding-right: 2px; text-align: center; white-space: nowrap; }
-.segmented.theme-seg > :nth-child(-n+2) { grid-column: span 3; }
+   Six options do not fit one row of a 240px sidebar, so the switch is two:
+   the retro three (Pixel, Pixel dark, EGA) above, Ember's three below.
+   Columns size to their longest label ("Pixel dark") and share what is left. */
+.segmented.theme-seg { display: grid; grid-template-columns: repeat(3, auto); width: 100%; }
+.segmented.theme-seg > * { padding-left: 2px; padding-right: 2px; text-align: center; white-space: nowrap; }
 .login-main .segmented.theme-seg { max-width: 320px; }
 
 /* ---------- Collapsed sidebar ----------
