@@ -1465,6 +1465,23 @@ async def main():
         assert keep.startswith("M1 2h1v1h1V2"), keep
         ok(f"Pixel: all {len(icons)} icons show their 8x8 drawing at 2 or 3 px a cell; Overview is the keep")
 
+        # Hover icons animate frame by frame: a strip behind an 8x8 window that
+        # slides in hard steps while its link is hovered, and only then.
+        runs = await px.evaluate("""() => [...document.querySelectorAll('.sidebar-nav a .px-run')].map(g => ({
+            n: +getComputedStyle(g).getPropertyValue('--n'), anim: getComputedStyle(g).animationName,
+            win: g.closest('svg.ico-px').getAttribute('viewBox') }))""")
+        assert len(runs) >= 5 and all(r["n"] >= 3 and r["anim"] == "none" and r["win"] == "0 0 8 8" for r in runs), runs
+        link = px.locator('.sidebar-nav a[data-nav="characters"]')
+        await link.hover()
+        hovered = await px.evaluate("""() => { const g = document.querySelector('.sidebar-nav a[data-nav="characters"] .px-run');
+            const cs = getComputedStyle(g); return [cs.animationName, cs.animationTimingFunction, cs.animationIterationCount,
+            getComputedStyle(document.querySelector('.sidebar-nav a[data-nav="campaigns"] .px-run')).animationName,
+            g.closest('svg.ico').getBoundingClientRect().width, getComputedStyle(g.closest('svg.ico-px')).width]; }""")
+        assert hovered[0] == "px-run" and hovered[1].startswith("steps(") and hovered[2] == "1", hovered
+        assert hovered[3] == "none" and hovered[4] == 16 and hovered[5] == "24px", hovered
+        await px.mouse.move(700, 700)
+        ok("Pixel: hovering a nav link plays its icon's frames once, in hard steps; the others stay still")
+
         await pick_theme(px, "pixel-dark", ".sidebar-foot")
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel-dark"
         dark = await px.evaluate("""() => [getComputedStyle(document.body).backgroundColor,

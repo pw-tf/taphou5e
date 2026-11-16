@@ -1313,8 +1313,11 @@ button.theme-btn.side-menu-item { background: none; border: 0; font-family: inhe
    ========================================================================== */
 
 .ico { overflow: visible; }
-/* The 8x8 drawing of the same icon, shown by the Pixel themes (pixel.css). */
+/* The 8x8 drawing of the same icon, shown by the Pixel and EGA themes. An
+   animated one is a nested <svg>: an 8x8 window over a strip of frames. It
+   always fills its icon, whatever a container sets on `svg` (.tab-btn svg). */
 .ico-px { display: none; }
+svg.ico > svg.ico-px { width: 24px !important; height: 24px !important; overflow: hidden; }
 .ico-g, .ico-g > * { transform-box: fill-box; transform-origin: center; }
 .ico-ink { stroke-dasharray: 1; stroke-dashoffset: 1; }
 
@@ -1332,6 +1335,11 @@ button.theme-btn.side-menu-item { background: none; border: 0; font-family: inhe
 .ico-party .ico-g > *             { transform-origin: 50% 100%; }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* Pixel and EGA: the frame strip slides 10 cells a step behind its window,
+     once per hover, then rests on frame 0 again. */
+  :is(a, button):not([aria-disabled="true"]):is(:hover, :focus-visible) .px-run {
+    animation: px-run var(--d) steps(var(--n)) 1;
+  }
   :is(a, button):not([aria-disabled="true"]):is(:hover, :focus-visible) {
     /* Overview / Stats: bars drop and regrow, left to right */
     .ico-overview .ico-g > *              { animation: ico-regrow .7s cubic-bezier(.34, 1.56, .64, 1) both; }
@@ -1376,6 +1384,7 @@ button.theme-btn.side-menu-item { background: none; border: 0; font-family: inhe
   }
 }
 
+@keyframes px-run       { from { transform: translateX(0); } to { transform: translateX(calc(var(--n) * -10px)); } }
 @keyframes ico-regrow   { 0% { transform: none; } 25% { transform: scaleY(.15); } 100% { transform: none; } }
 @keyframes ico-hop      { 0%, 100% { transform: none; } 30% { transform: translateY(-4px); } 55% { transform: translateY(.5px); } 75% { transform: translateY(-1.5px); } }
 @keyframes ico-squash   { 0%, 100% { transform: none; } 50% { transform: scale(1.1, .85); } 70% { transform: scale(.97, 1.04); } }
