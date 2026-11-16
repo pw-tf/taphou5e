@@ -994,6 +994,35 @@ async def click_tab(page, label):
         await page.click(f'.tab-btn:has-text("{label}")')
 
 
+# Cursors, the usual web rule (v2.css "Cursors"): the hand on anything
+# clickable, a caret in fields, not-allowed when switched off, the arrow on
+# everything else. Returns what breaks it on the page as it stands.
+CURSOR_AUDIT_JS = r"""() => {
+  const desc = el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')
+    + (el.classList.length ? '.' + [...el.classList].slice(0, 2).join('.') : '');
+  const shown = el => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+  const TEXT = /^(text|search|email|password|number|tel|url|date|time)$/;
+  const TICK = 'input[type=checkbox], input[type=radio], input[type=range], input[type=file], input[type=color]';
+  const CLICK = 'a[href], button, summary, select, th[data-sort], [onclick], [role=button], [role=link], [role=tab],'
+    + ' [role=switch], [role=radio], [role=checkbox], [role=option], [role=menuitem], ' + TICK;
+  const bad = new Set();
+  for (const el of document.querySelectorAll('body *')) {
+    if (!shown(el) || (el instanceof SVGElement && el.ownerSVGElement)) continue;
+    const cur = getComputedStyle(el).cursor;
+    const off = el.matches(':disabled, [aria-disabled="true"]');
+    const text = (el.matches('input') && TEXT.test(el.type)) || el.matches('textarea');
+    const label = el.closest('label');
+    let want = null;
+    if (text) want = off ? ['not-allowed'] : ['auto', 'text'];
+    else if (el.matches(CLICK) || (el.matches('label') && el.control && el.control.matches(TICK)))
+      want = off ? ['not-allowed'] : ['pointer'];
+    else if (cur === 'pointer' && !el.closest(CLICK) && !(label && label.control)) want = ['not a pointer'];
+    if (want && !want.includes(cur)) bad.add(desc(el) + ': ' + cur + ', want ' + want[0]);
+  }
+  return [...bad];
+}"""
+
 TOUCH_HOLD_JS = """({ x, y, ms }) => new Promise(resolve => {
   const target = document.elementFromPoint(x, y);
   const touch = new Touch({ identifier: 1, target, clientX: x, clientY: y });
@@ -1537,6 +1566,47 @@ async def main():
             assert over <= 0, (path, over)
         await ectx.close()
         ok("EGA at 390px: hub, sheet, encounter, compendium, DM panel and wizard do not scroll sideways")
+
+        # Cursors: the same rule on every page. A character card is a link,
+        # so it shows the hand -- on Characters as on the overview, where a
+        # hold / right-click menu used to swap it for a context-menu cursor.
+        cctx = await browser.new_context(viewport={"width": 1280, "height": 900})
+        await cctx.add_init_script(STUB)
+        cp = await cctx.new_page()
+        watch(cp, "cursors")
+        await cp.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
+        assert await cp.evaluate(CURSOR_AUDIT_JS) == [], await cp.evaluate(CURSOR_AUDIT_JS)
+        await cp.fill("#world-name", "Thornfell Reach")
+        await fill_pin(cp, "join", "1379")
+        await cp.click("#join-form .btn-submit")
+        await cp.wait_for_selector(".party-roster", timeout=10000)
+        for path, ready in (("index.html", ".party-roster"), ("characters.html", ".party-roster"),
+                            ("character-sheet.html?id=c2", ".sheet-combat"), ("monster-tracker.html", ".list-row"),
+                            ("monster-tracker.html?id=e1", ".init-row"), ("compendium.html", ".list-row"),
+                            ("campaigns.html", ".campaign-card"), ("campaign.html?id=cam1", ".campaign-tabs"),
+                            ("dm-panel.html", ".dm-row"), ("character-new.html", ".wizard")):
+            await cp.goto(f"{BASE}/v2/{path}", wait_until="domcontentloaded")
+            await cp.wait_for_selector(ready, timeout=10000)
+            await cp.wait_for_timeout(200)
+            if path.startswith("campaign.html"):
+                for i in range(await cp.locator(".campaign-tabs button").count()):
+                    await cp.locator(".campaign-tabs button").nth(i).click()
+                    await cp.wait_for_timeout(150)
+                    assert await cp.evaluate(CURSOR_AUDIT_JS) == [], (path, i, await cp.evaluate(CURSOR_AUDIT_JS))
+            assert await cp.evaluate(CURSOR_AUDIT_JS) == [], (path, await cp.evaluate(CURSOR_AUDIT_JS))
+            if path.startswith("character-sheet"):
+                assert await cp.evaluate("getComputedStyle(document.querySelector('.ability-box')).cursor") == "auto", \
+                    "a stat that only explains itself on hover keeps the arrow"
+        hover_js = "getComputedStyle(document.querySelector('.party-roster .character-card')).cursor"
+        for path in ("index.html", "characters.html"):
+            await cp.goto(f"{BASE}/v2/{path}", wait_until="domcontentloaded")
+            await cp.wait_for_selector(".party-roster .character-card", timeout=10000)
+            await cp.hover(".party-roster .character-card >> nth=0")
+            assert await cp.evaluate(hover_js) == "pointer", (path, await cp.evaluate(hover_js))
+        await cp.click("#sb-theme")
+        assert await cp.evaluate(CURSOR_AUDIT_JS) == [], ("theme popup", await cp.evaluate(CURSOR_AUDIT_JS))
+        await cctx.close()
+        ok("cursors: the hand on everything clickable and nothing else, a caret in fields, not-allowed when off, on every page")
 
         # The sidebar's counts are the same on every page, not just the page
         # that loaded them, and a running encounter shows ACTIVE instead.
@@ -5249,6 +5319,7 @@ async def main():
         await page8.click("#gate-submit")
         await page8.wait_for_selector("#sec-library", timeout=10000)
         sections = await page8.locator(".an-section").count()
+        assert await page8.evaluate(CURSOR_AUDIT_JS) == [], await page8.evaluate(CURSOR_AUDIT_JS)
         assert sections == 7, sections
         ok(f"signing in renders all {sections} dashboard sections")
 
@@ -5693,6 +5764,7 @@ async def main():
         await pn.goto(f"{BASE}/owlbear/panel.html", wait_until="domcontentloaded")
         await pn.wait_for_selector(".pn-reveal", timeout=8000)
         rows = await pn.locator(".pn-reveal-row").all_inner_texts()
+        assert await pn.evaluate(CURSOR_AUDIT_JS) == [], await pn.evaluate(CURSOR_AUDIT_JS)
         assert len(rows) == 2 and any("Gargoyle 2" in r for r in rows), rows
         assert (await pn.locator("#pn-reveal").inner_text()).strip() == "Reveal 2"
         await pn.locator('[data-reveal="t-g2"]').uncheck()

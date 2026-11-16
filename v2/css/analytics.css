@@ -161,7 +161,7 @@
   letter-spacing: .08em; text-transform: uppercase;
   border-bottom: 1px solid var(--border-default);
 }
-.an-table thead th.sortable { cursor: pointer; user-select: none; }
+.an-table thead th.sortable { user-select: none; }
 .an-table thead th.sortable:hover { color: var(--text-primary); }
 .an-table thead th .arrow { color: var(--accent-primary); margin-left: 4px; }
 .an-table tbody tr + tr td { border-top: 1px solid var(--border-subtle); }
@@ -179,7 +179,7 @@
 .an-pager .controls { display: flex; align-items: center; gap: var(--space-sm); margin-left: auto; }
 .an-pager .page-of { font-size: var(--fs-11); color: var(--text-secondary); }
 .an-pager .btn { font-size: var(--fs-12); padding: 5px 12px; }
-.an-pager .btn:disabled { opacity: .4; cursor: default; }
+.an-pager .btn:disabled { opacity: .4; }
 .an-pager .btn:disabled:hover { background: transparent; }
 
 /* ---------- Hover tooltip ---------- */

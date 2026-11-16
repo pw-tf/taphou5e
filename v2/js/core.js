@@ -807,9 +807,9 @@ function renderSidebar(activeId, counts) {
                 <button class="side-menu-item theme-btn" id="sb-theme" type="button" data-theme-button data-label="Theme"></button>
                 <!-- These lived only in the mobile drawer, which is hidden
                      above the breakpoint -- so a desktop had no way out. -->
-                <a class="side-menu-item" id="sb-support" data-label="Support">${icon('heart', 16)}<span class="nav-label">Support</span></a>
-                <a class="side-menu-item" id="sb-classic" data-label="Switch to classic">${icon('swap', 16)}<span class="nav-label">Switch to classic</span></a>
-                <a class="side-menu-item side-menu-item-danger" id="sb-logout" data-label="Logout">${icon('logout', 16)}<span class="nav-label">Logout</span></a>
+                <button type="button" class="side-menu-item" id="sb-support" data-label="Support">${icon('heart', 16)}<span class="nav-label">Support</span></button>
+                <button type="button" class="side-menu-item" id="sb-classic" data-label="Switch to classic">${icon('swap', 16)}<span class="nav-label">Switch to classic</span></button>
+                <button type="button" class="side-menu-item side-menu-item-danger" id="sb-logout" data-label="Logout">${icon('logout', 16)}<span class="nav-label">Logout</span></button>
             </div>
         </aside>`;
 }
@@ -848,9 +848,9 @@ function renderSideMenu(activeId) {
                 <nav style="padding:var(--space-12) 0;flex:1;overflow:auto">
                     ${items}
                     <div class="side-menu-divider"></div>
-                    <a class="side-menu-item" id="sm-support">${icon('heart', 18)}Support</a>
-                    <a class="side-menu-item" id="sm-classic">${icon('swap', 18)}Switch to classic</a>
-                    <a class="side-menu-item side-menu-item-danger" id="sm-logout">${icon('logout', 18)}Logout</a>
+                    <button type="button" class="side-menu-item" id="sm-support">${icon('heart', 18)}Support</button>
+                    <button type="button" class="side-menu-item" id="sm-classic">${icon('swap', 18)}Switch to classic</button>
+                    <button type="button" class="side-menu-item side-menu-item-danger" id="sm-logout">${icon('logout', 18)}Logout</button>
                 </nav>
                 <div class="theme-switch">
                     <button class="side-menu-item theme-btn" id="sm-theme" type="button" data-theme-button></button>

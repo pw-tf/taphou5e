@@ -29,8 +29,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
   padding: 7px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-md);
   background: transparent; color: var(--text-primary);
-  font-family: var(--font-sans); font-size: var(--fs-13); font-weight: 500;
-  cursor: pointer; transition: all var(--transition-fast);
+  font-family: var(--font-sans); font-size: var(--fs-13); font-weight: 500; transition: all var(--transition-fast);
 }
 .btn:hover { background: var(--bg-hover); }
 .btn-accent { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--accent-on); font-weight: 600; }
@@ -43,13 +42,13 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .icon-btn {
   width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: var(--radius-md);
-  color: var(--text-secondary); cursor: pointer;
+  color: var(--text-secondary);
 }
 .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* Segmented control — Simple|Advanced, Full|Compact, theme, leveling mode */
 .segmented { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-tertiary); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
-.segmented > * { padding: 5px 12px; border: none; background: transparent; border-radius: var(--radius-sm); color: var(--text-tertiary); font: inherit; font-size: var(--fs-12); cursor: pointer; }
+.segmented > * { padding: 5px 12px; border: none; background: transparent; border-radius: var(--radius-sm); color: var(--text-tertiary); font: inherit; font-size: var(--fs-12); }
 .segmented > .is-active { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }
 .segmented.accent > .is-active { background: var(--accent-primary); color: var(--accent-on); }
 
@@ -87,7 +86,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
   min-height: 48px; justify-content: center;
   background: none; border: none; color: var(--text-tertiary);
-  font-size: var(--fs-10); font-weight: 500; cursor: pointer;
+  font-size: var(--fs-10); font-weight: 500;
 }
 .tab-btn.active { color: var(--accent-primary); font-weight: 600; }
 .tab-btn svg { width: 19px; height: 19px; }
@@ -180,7 +179,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   color: var(--text-primary); font-family: var(--font-mono); font-size: var(--fs-13);
 }
 .hp-ctl input:focus { outline: none; border-color: var(--accent-primary); }
-.hp-btn { width: 46px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); font-size: 20px; line-height: 1; cursor: pointer; }
+.hp-btn { width: 46px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); font-size: 20px; line-height: 1; }
 .hp-btn.damage { background: var(--harm-bg); border: 1px solid var(--harm-border); color: var(--harm-ink); }
 .hp-btn.heal   { background: var(--heal-bg); border: 1px solid var(--heal-border); color: var(--heal-ink); }
 
@@ -212,8 +211,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .party-roster { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10); }
 .character-card {
   background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: var(--radius-lg);
-  padding: var(--space-12); display: flex; flex-direction: column; gap: var(--space-10);
-  cursor: pointer; transition: border-color var(--transition-fast), background var(--transition-fast);
+  padding: var(--space-12); display: flex; flex-direction: column; gap: var(--space-10); transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 .character-card:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
 .character-card.is-flagged { border-color: var(--border-strong); }
@@ -260,7 +258,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
   display: flex; align-items: center; gap: var(--space-sm); min-width: 0;
   padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md);
   background: var(--bg-secondary); border: 1px solid var(--border-default);
-  color: var(--text-secondary); font: inherit; cursor: pointer; white-space: nowrap;
+  color: var(--text-secondary); font: inherit; white-space: nowrap;
 }
 .save-chip:hover { border-color: var(--border-strong); }
 .save-chip .label { font-size: var(--fs-10); color: var(--text-tertiary); letter-spacing: .08em; }
@@ -272,12 +270,12 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .conditions-grid { display: flex; flex-wrap: wrap; gap: 5px; }
 .condition-tag {
   padding: 5px 11px; background: var(--bg-secondary); border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm); font-size: var(--fs-12); color: var(--text-secondary); cursor: pointer;
+  border-radius: var(--radius-sm); font-size: var(--fs-12); color: var(--text-secondary);
 }
 .condition-tag.active { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); font-weight: 500; }
 
 .skills-grid { display: grid; grid-template-columns: 1fr; gap: 2px; }
-.skill-row { display: flex; align-items: center; gap: var(--space-10); padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md); cursor: pointer; }
+.skill-row { display: flex; align-items: center; gap: var(--space-10); padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md); }
 .skill-row:hover { background: var(--bg-hover); }
 .skill-row.proficient { background: var(--accent-soft); }
 .skill-dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--border-strong); flex: none; }
@@ -291,7 +289,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .enc-group { display: flex; flex-direction: column; gap: var(--space-6); }
 .enc-group > h2 {
   font-family: var(--font-display); font-size: var(--fs-17); font-weight: 600;
-  display: flex; align-items: center; gap: var(--space-sm); cursor: pointer; margin-bottom: var(--space-6);
+  display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-6);
 }
 .init-row {
   display: flex; align-items: center; gap: var(--space-14);
@@ -368,7 +366,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
 .side-menu-overlay.open .side-menu { transform: translateX(0); }
 .side-menu-header { padding: var(--space-18) var(--space-20); border-bottom: 1px solid var(--border-subtle); }
 .side-menu-header .brand { font-family: var(--font-display); font-size: var(--fs-19); font-weight: 700; letter-spacing: .02em; }
-.side-menu-item { display: flex; align-items: center; gap: 11px; padding: 12px; margin: 0 var(--space-sm); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--fs-14); font-weight: 500; cursor: pointer; }
+.side-menu-item { display: flex; align-items: center; gap: 11px; padding: 12px; margin: 0 var(--space-sm); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--fs-14); font-weight: 500; }
 .side-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
 .side-menu-item.is-active { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }
 .side-menu-item.is-active svg { color: var(--accent-primary); }
@@ -460,7 +458,7 @@ a:hover { color: var(--accent-primary-hover); text-decoration: underline; }
     /* Pinned like the sidebar, so the rest buttons at its foot stay in view. */
     position: sticky; top: 0; align-self: flex-start; height: 100vh; height: 100dvh; overflow-y: auto; }
   .sheet-nav .tabs { display: flex; flex-direction: column; gap: 2px; }
-  .sheet-nav .tabs > * { display: flex; align-items: center; gap: 9px; padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--fs-13); cursor: pointer; }
+  .sheet-nav .tabs > * { display: flex; align-items: center; gap: 9px; padding: var(--space-sm) var(--space-10); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--fs-13); }
   .sheet-nav .tabs > .is-active { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }
   .sheet-nav .tabs > .is-active svg { color: var(--accent-primary); }
 }

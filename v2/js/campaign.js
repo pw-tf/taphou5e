@@ -505,7 +505,7 @@
                 const beats = d.beats.filter(b => b.chapter_id === s.id);
                 return `
                     <div class="campaign-card" data-holdable data-kind="chapter"
-                         data-id="${escapeHtml(s.id)}" style="cursor:default">
+                         data-id="${escapeHtml(s.id)}">
                         <div class="head">
                             <h3>${escapeHtml(s.title)}</h3>
                             <span class="status-pill is-${escapeHtml(s.status)}">${escapeHtml(s.status)}</span>
@@ -518,7 +518,7 @@
                                 const bChecks = d.checks.filter(k => k.chapter_beat_id === b.id);
                                 return `
                                     <div class="list-row" data-holdable data-kind="beat" data-id="${escapeHtml(b.id)}"
-                                         style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
+                                         style="flex-direction:column;align-items:stretch;gap:var(--space-6)">
                                         <div style="display:flex;align-items:center;gap:var(--space-sm)">
                                             <div class="who">
                                                 <div class="name">${escapeHtml(b.title)}</div>
@@ -673,7 +673,7 @@
         return `
             <div class="${depth ? 'tree-child' : ''}">
                 <div class="list-row" data-holdable data-kind="area" data-id="${escapeHtml(area.id)}"
-                     style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
+                     style="flex-direction:column;align-items:stretch;gap:var(--space-6)">
                     <div style="display:flex;align-items:center;gap:var(--space-sm)">
                         <div class="who">
                             <div class="name">${escapeHtml(area.name)}</div>
@@ -759,7 +759,7 @@
             </div>
             <div class="stack">${d.npcs.map(n => `
                 <div class="list-row" data-holdable data-kind="npc" data-id="${escapeHtml(n.id)}"
-                     style="flex-direction:column;align-items:stretch;gap:var(--space-6);cursor:default">
+                     style="flex-direction:column;align-items:stretch;gap:var(--space-6)">
                     <div style="display:flex;align-items:center;gap:var(--space-sm)">
                         <div class="avatar">${escapeHtml((n.name || '?').charAt(0).toUpperCase())}</div>
                         <div class="who">
@@ -823,7 +823,7 @@
         return `
             ${sectionHead('Roster', isDM ? 'addMonster()' : null)}
             <div class="stack">${d.monsters.map(m => `
-            <div class="list-row" data-holdable data-kind="monster" data-id="${escapeHtml(m.id)}" style="cursor:default">
+            <div class="list-row" data-holdable data-kind="monster" data-id="${escapeHtml(m.id)}">
                 <div class="who">
                     <div class="name">${escapeHtml(m.name)}</div>
                     <div class="meta">${escapeHtml(m.source === 'homebrew' ? 'Homebrew' : 'SRD')}${

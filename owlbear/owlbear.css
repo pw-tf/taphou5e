@@ -57,10 +57,9 @@ body.obr-panel { min-height: 100vh; overflow-y: auto; }
 .lk-row {
   display: flex; align-items: center; gap: var(--space-sm); width: 100%;
   padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid transparent;
-  background: var(--bg-secondary); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer;
+  background: var(--bg-secondary); color: var(--text-primary); font: inherit; text-align: left;
 }
 .lk-row:hover { border-color: var(--border-strong); }
-.lk-row.is-static { cursor: default; }
 .lk-row.is-static:hover { border-color: transparent; }
 .lk-row.is-linked .lk-meta { color: var(--accent-primary); }
 .lk-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: var(--fs-13); }
@@ -72,5 +71,4 @@ body.obr-panel { min-height: 100vh; overflow-y: auto; }
 
 /* ---------- Revealing enemies ---------- */
 .pn-reveal { border-top-color: var(--accent-primary); }
-.pn-reveal-row { cursor: pointer; }
 .pn-reveal-row input { flex: none; margin: 0; accent-color: var(--accent-primary); }
