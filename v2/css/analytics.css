@@ -86,7 +86,10 @@
 /* ---------- Panels ---------- */
 .an-grid {
   display: grid; grid-template-columns: 1fr; gap: var(--space-12);
-  align-items: start;   /* a short panel beside a tall one keeps its own height */
+  /* Panels in a row share its height, so every gap between boxes is the same.
+     Left at their own heights, a short panel beside a tall one opened a wide
+     gap under it and the rows looked staggered. */
+  align-items: stretch;
 }
 @media (min-width: 900px) { .an-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .an-grid > .wide { grid-column: 1 / -1; }
