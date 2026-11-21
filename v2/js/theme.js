@@ -40,6 +40,7 @@
       nodes[i].setAttribute('aria-checked', on ? 'true' : 'false');
     }
     fillButtons(mode);
+    fillSettings();
     markMotion(mode);
   }
 
@@ -64,15 +65,60 @@
   var NAMES = {};
   for (var t = 0; t < THEMES.length; t++) NAMES[THEMES[t].mode] = THEMES[t].name;
 
-  // The same two drawings every v2 icon carries (core.js icon()): a line
-  // palette for Ember, an 8x8 one the Pixel and EGA themes swap in.
-  var PALETTE = '<svg class="ico ico-palette" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g">'
+  // The same two drawings every v2 icon carries (core.js icon()): a line one
+  // for Ember (.ico-g), an 8x8 one the Pixel and EGA themes swap in (.ico-px).
+  // An animated 8x8 drawing is a strip of frames 10 cells apart behind an 8x8
+  // window, slid by v2.css on hover (see core.js PIXEL_FRAMES).
+  function pxStrip(rest, more, n, ms) {
+    return '<svg class="ico-px" viewBox="0 0 8 8" width="24" height="24" fill="currentColor" stroke="none" fill-rule="evenodd">'
+      + '<g class="px-run" style="--n:' + n + ';--d:' + (n * ms) + 'ms"><path d="' + rest + more + '"/></g></svg>';
+  }
+  var LINE_OPEN = ' width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="ico-g">';
+  // Palette: Ember rocks it from its base; Pixel and EGA blink its three dabs in turn.
+  var PALETTE = '<svg class="ico ico-palette"' + LINE_OPEN
     + '<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13'
     + 'a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/>'
     + '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/></g>'
-    + '<g class="ico-px" transform="scale(3)" fill="currentColor" stroke="none" fill-rule="evenodd">'
-    + '<path d="M2 0h4v1h1v1h1v3H6v1H5v2H2V7H1V6H0V2h1V1h1zM2 2h1v1H2zM5 2h1v1H5zM2 4h1v1H2z"/></g></svg>';
+    + pxStrip('M2 0h4v1H2zM1 1h1v1H1zM6 1h1v1H6zM0 2h1v1H0zM2 2h1v1H2zM5 2h1v1H5zM7 2h1v1H7zM0 3h1v1H0zM7 3h1v1H7zM0 4h1v1H0zM2 4h1v1H2zM5 4h2v1H5zM0 5h1v1H0zM5 5h1v1H5zM1 6h1v1H1zM4 6h1v1H4zM2 7h2v1H2z',
+      'M12 0h4v1H12zM11 1h1v1H11zM16 1h1v1H16zM10 2h1v1H10zM15 2h1v1H15zM17 2h1v1H17zM10 3h1v1H10zM17 3h1v1H17zM10 4h1v1H10zM12 4h1v1H12zM15 4h2v1H15zM10 5h1v1H10zM15 5h1v1H15zM11 6h1v1H11zM14 6h1v1H14zM12 7h2v1H12zM22 0h4v1H22zM21 1h1v1H21zM26 1h1v1H26zM20 2h1v1H20zM22 2h1v1H22zM27 2h1v1H27zM20 3h1v1H20zM27 3h1v1H27zM20 4h1v1H20zM22 4h1v1H22zM25 4h2v1H25zM20 5h1v1H20zM25 5h1v1H25zM21 6h1v1H21zM24 6h1v1H24zM22 7h2v1H22zM32 0h4v1H32zM31 1h1v1H31zM36 1h1v1H36zM30 2h1v1H30zM32 2h1v1H32zM35 2h1v1H35zM37 2h1v1H37zM30 3h1v1H30zM37 3h1v1H37zM30 4h1v1H30zM35 4h2v1H35zM30 5h1v1H30zM35 5h1v1H35zM31 6h1v1H31zM34 6h1v1H34zM32 7h2v1H32z', 4, 120) + '</svg>';
+  // Settings cog: Ember turns it one lobe (60deg); Pixel and EGA step its teeth round.
+  var COG = '<svg class="ico ico-settings"' + LINE_OPEN
+    + '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>'
+    + '<circle cx="12" cy="12" r="3"/></g>'
+    + pxStrip('M3 0h2v1H3zM1 1h1v1H1zM3 1h2v1H3zM6 1h1v1H6zM2 2h4v1H2zM0 3h3v1H0zM5 3h3v1H5zM0 4h3v1H0zM5 4h3v1H5zM2 5h4v1H2zM1 6h1v1H1zM3 6h2v1H3zM6 6h1v1H6zM3 7h2v1H3z',
+      'M12 0h1v1H12zM15 0h1v1H15zM13 1h2v1H13zM10 2h1v1H10zM12 2h4v1H12zM17 2h1v1H17zM11 3h2v1H11zM15 3h2v1H15zM11 4h2v1H11zM15 4h2v1H15zM10 5h1v1H10zM12 5h4v1H12zM17 5h1v1H17zM13 6h2v1H13zM12 7h1v1H12zM15 7h1v1H15zM23 0h2v1H23zM21 1h1v1H21zM23 1h2v1H23zM26 1h1v1H26zM22 2h4v1H22zM20 3h3v1H20zM25 3h3v1H25zM20 4h3v1H20zM25 4h3v1H25zM22 5h4v1H22zM21 6h1v1H21zM23 6h2v1H23zM26 6h1v1H26zM23 7h2v1H23zM32 0h1v1H32zM35 0h1v1H35zM33 1h2v1H33zM30 2h1v1H30zM32 2h4v1H32zM37 2h1v1H37zM31 3h2v1H31zM35 3h2v1H35zM31 4h2v1H31zM35 4h2v1H35zM30 5h1v1H30zM32 5h4v1H32zM37 5h1v1H37zM33 6h2v1H33zM32 7h1v1H32zM35 7h1v1H35zM43 0h2v1H43zM41 1h1v1H41zM43 1h2v1H43zM46 1h1v1H46zM42 2h4v1H42zM40 3h3v1H40zM45 3h3v1H45zM40 4h3v1H40zM45 4h3v1H45zM42 5h4v1H42zM41 6h1v1H41zM43 6h2v1H43zM46 6h1v1H46zM43 7h2v1H43zM52 0h1v1H52zM55 0h1v1H55zM53 1h2v1H53zM50 2h1v1H50zM52 2h4v1H52zM57 2h1v1H57zM51 3h2v1H51zM55 3h2v1H55zM51 4h2v1H51zM55 4h2v1H55zM50 5h1v1H50zM52 5h4v1H52zM57 5h1v1H57zM53 6h2v1H53zM52 7h1v1H52zM55 7h1v1H55z', 6, 80) + '</svg>';
+
+  /* ----- Settings fold-out ------------------------------------------------
+     <button data-settings-toggle aria-controls="<id>"> opens and shuts the
+     element it controls in place (Theme, Support, Switch to classic). Filled
+     and wired here because login and analytics have no shell of their own.
+     Open or shut, it stays that way across pages for the tab. */
+  var FOLD_KEY = 'taphou5e-settings';
+  function foldOpen() { try { return sessionStorage.getItem(FOLD_KEY) === 'open'; } catch (e) { return false; } }
+  function setFold(btn, open) {
+    var menu = document.getElementById(btn.getAttribute('aria-controls'));
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (menu) menu.hidden = !open;
+  }
+  function fillSettings() {
+    var nodes = document.querySelectorAll('[data-settings-toggle]');
+    for (var i = 0; i < nodes.length; i++) {
+      var b = nodes[i];
+      if (!b.querySelector('.ico-settings')) {
+        b.innerHTML = COG + '<span class="nav-label">Settings</span><span class="fold-caret" aria-hidden="true"></span>';
+        b.setAttribute('data-label', 'Settings');
+      }
+      setFold(b, foldOpen());
+    }
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-settings-toggle]');
+    if (!b) return;
+    var open = b.getAttribute('aria-expanded') !== 'true';
+    try { sessionStorage.setItem(FOLD_KEY, open ? 'open' : 'shut'); } catch (err) {}
+    setFold(b, open);
+  });
 
   function fillButtons(mode) {
     var label = 'Theme: ' + (NAMES[mode] || NAMES[DEFAULT]);

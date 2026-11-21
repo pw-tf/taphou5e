@@ -1176,6 +1176,24 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
 button.side-menu-item { background: none; border: 0; font-family: inherit; text-align: left; }
 .side-menu nav > button.side-menu-item { width: calc(100% - 2 * var(--space-sm)); }
 
+/* ---------- Settings fold-out ----------
+   One Settings row (the cog) in the sidebar foot, the phone drawer and on
+   login; it opens in place to show Theme, Support and Switch to classic,
+   indented beneath it. theme.js fills it and toggles it. */
+.settings-btn { cursor: pointer; }
+button.settings-btn.side-menu-item { background: none; border: 0; font-family: inherit; text-align: left; color: var(--text-secondary); }
+.fold-caret { flex: none; margin-left: auto; width: 8px; height: 5px; background: currentColor;
+  clip-path: polygon(0 0, 100% 0, 50% 100%); transition: transform var(--transition-fast); }
+[data-settings-toggle][aria-expanded="true"] .fold-caret { transform: rotate(180deg); }
+.settings-fold { display: flex; flex-direction: column; gap: 2px; padding-left: var(--space-12); }
+.settings-fold[hidden] { display: none; }
+.sidebar.is-collapsed .fold-caret { display: none; }
+.sidebar.is-collapsed .settings-fold { padding-left: 0; }
+.sidebar.is-collapsed .settings-btn { justify-content: center; }
+.login-settings { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); }
+.login-settings .settings-fold { align-items: center; padding-left: 0; }
+.btn.settings-btn { gap: var(--space-sm); }
+
 /* ---------- Theme button and popup ----------
    One button ("Theme: EGA") wherever the theme can be changed; theme.js
    fills it and opens the popup. In the collapsed sidebar it is just its
@@ -1337,6 +1355,8 @@ svg.ico > svg.ico-px { width: 24px !important; height: 24px !important; overflow
 .ico-star .ico-g                  { transform-box: view-box; transform-origin: 12px 12.52px; }
 .ico-bag .ico-g                   { transform-origin: 50% 0%; }
 .ico-swap .ico-g                  { transform-box: view-box; transform-origin: 12px 12px; }
+.ico-palette .ico-g               { transform-box: view-box; transform-origin: 12px 22px; }
+.ico-settings .ico-g              { transform-box: view-box; transform-origin: 12px 12px; }
 .ico-menu .ico-g > *              { transform-origin: 0% 50%; }
 .ico-party .ico-g > *             { transform-origin: 50% 100%; }
 
@@ -1379,6 +1399,9 @@ svg.ico > svg.ico-px { width: 24px !important; height: 24px !important; overflow
     .ico-coffee .ico-g > :nth-child(5)    { animation-delay: .4s; }
     .ico-logout .ico-g > :nth-child(n+2)  { animation: ico-exit .7s cubic-bezier(.5, 0, .3, 1); }
     .ico-swap .ico-g                      { animation: ico-flip .6s cubic-bezier(.65, 0, .35, 1); }
+    /* Settings: the cog turns one lobe; Theme: the palette rocks on its base */
+    .ico-settings .ico-g                  { animation: ico-turn .6s cubic-bezier(.65, 0, .35, 1); }
+    .ico-palette .ico-g                   { animation: ico-rock .7s ease-in-out; }
     .ico-menu .ico-g > *                  { animation: ico-shuffle .6s ease-in-out both; }
     .ico-menu .ico-g > :nth-child(2)      { animation-delay: 80ms; }
     .ico-menu .ico-g > :nth-child(3)      { animation-delay: 160ms; }
@@ -1410,6 +1433,8 @@ svg.ico > svg.ico-px { width: 24px !important; height: 24px !important; overflow
 @keyframes ico-steam    { 0%, 100% { transform: none; opacity: 1; } 50% { transform: translateY(-2.5px); opacity: 0; } 51% { transform: translateY(1.5px); opacity: 0; } }
 @keyframes ico-exit     { 0%, 100% { transform: none; } 40%, 55% { transform: translateX(4px); } }
 @keyframes ico-flip     { 0% { transform: none; } 100% { transform: rotate(180deg); } }
+@keyframes ico-turn     { 0% { transform: none; } 100% { transform: rotate(60deg); } }
+@keyframes ico-rock     { 0%, 100% { transform: none; } 25% { transform: rotate(-10deg); } 60% { transform: rotate(7deg); } 85% { transform: rotate(-2deg); } }
 @keyframes ico-shuffle  { 0%, 100% { transform: none; } 40% { transform: scaleX(.55); } }
 @keyframes ico-nudge    { 0%, 50%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(-2px); } }
 @keyframes ico-scuttle  { 0%, 100% { transform: none; } 12.5% { transform: translateX(-1.5px) rotate(-6deg); } 37.5% { transform: translateX(1.5px) rotate(6deg); } 62.5% { transform: translateX(-1px) rotate(-4deg); } 87.5% { transform: translateX(1px) rotate(3deg); } }

@@ -157,7 +157,7 @@
   .levelup-banner .title, .save-chip, .chip-row .chip, .wizard-steps li, .form-group label, .hp-btn,
   .trait-name, .charge, .prep-toggle, .slot-chip, .score-readout, .stepper, .review-score,
   .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .chip, .world-name, .nav-count,
-  #modal-close, .pane-close, .srd-close, #embed-close, .theme-tile-name, .theme-btn) {
+  #modal-close, .pane-close, .srd-close, #embed-close, .theme-tile-name, .theme-btn, .settings-btn) {
   font-family: var(--font-mono);
 }
 [data-theme="ega"] .eyebrow { color: var(--text-secondary); }
@@ -326,3 +326,7 @@
 
 /* ---------- Login ---------- */
 [data-theme="ega"] .login-header h1 { color: var(--accent-primary); }
+
+/* Settings fold-out caret: a stepped triangle, 2px cells, flipped in one step. */
+[data-theme="ega"] .fold-caret { width: 12px; height: 6px; transition: none;
+  clip-path: polygon(0 0, 12px 0, 12px 2px, 10px 2px, 10px 4px, 8px 4px, 8px 6px, 4px 6px, 4px 4px, 2px 4px, 2px 2px, 0 2px); }

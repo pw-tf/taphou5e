@@ -144,7 +144,7 @@
   .explainer-title, .fab-item, .choose-row .name, .pick-row .name, .subclass-row .name, .method-tile .title,
   .levelup-banner .title, .ability-box .label, .save-chip, .chip-row .chip, .wizard-steps li, .form-group label,
   .hp-btn, .trait-name, .status-pill, .role-pill, .nav-soon, .hidden-pill, .charge, .prep-toggle, .slot-chip,
-  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .theme-tile-name, .theme-btn, .turn-badge) {
+  .score-readout, .stepper, .review-score, .review-grid .v, .review-grid .k, .lk-row, .tk-toggle, .theme-tile-name, .theme-btn, .settings-btn, .turn-badge) {
   font-family: var(--font-display);
 }
 [data-theme^="pixel"] :is(.switch-line a, .login-footer a, .hint a, .prose a) { text-decoration: underline; }
@@ -262,3 +262,7 @@
 
 /* ---------- Analytics ---------- */
 [data-theme^="pixel"] .an-bar-track { border: 2px solid var(--px-ink); background: var(--px-paper); height: 14px; }
+
+/* Settings fold-out caret: a stepped triangle, 2px cells, flipped in one step. */
+[data-theme^="pixel"] .fold-caret { width: 12px; height: 6px; transition: none;
+  clip-path: polygon(0 0, 12px 0, 12px 2px, 10px 2px, 10px 4px, 8px 4px, 8px 6px, 4px 6px, 4px 4px, 2px 4px, 2px 2px, 0 2px); }

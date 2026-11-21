@@ -1077,8 +1077,16 @@ MENU_SHAPE_JS = """() => {
 }"""
 
 
+async def open_settings(page, scope=""):
+    """Theme, Support and Switch to classic sit under Settings; open it if shut."""
+    toggle = page.locator((scope + " [data-settings-toggle]").strip()).first
+    if await toggle.get_attribute("aria-expanded") != "true":
+        await toggle.click()
+
+
 async def pick_theme(page, mode, scope=""):
-    """Choose a theme the way a person does: the Theme button, a tile, Escape."""
+    """Choose a theme the way a person does: Settings, the Theme button, a tile, Escape."""
+    await open_settings(page, scope)
     await page.click((scope + " [data-theme-button]").strip())
     await page.click(f'[data-theme-picker] [data-theme-option="{mode}"]')
     await page.keyboard.press("Escape")
@@ -1620,6 +1628,7 @@ async def main():
             await cp.wait_for_selector(".party-roster .character-card", timeout=10000)
             await cp.hover(".party-roster .character-card >> nth=0")
             assert await cp.evaluate(hover_js) == "pointer", (path, await cp.evaluate(hover_js))
+        await open_settings(cp, ".sidebar")
         await cp.click("#sb-theme")
         assert await cp.evaluate(CURSOR_AUDIT_JS) == [], ("theme popup", await cp.evaluate(CURSOR_AUDIT_JS))
         await cctx.close()
@@ -1692,6 +1701,7 @@ async def main():
         await npg.goto(f"{BASE}/v2/index.html", wait_until="domcontentloaded")
         await npg.wait_for_selector(".party-roster", timeout=10000)
         await npg.evaluate("setTheme('dark')")
+        await open_settings(npg, ".sidebar")
         btn = npg.locator(".sidebar-foot [data-theme-button]")
         assert (await btn.inner_text()).strip() == "Theme: Dark"
         assert await npg.locator(".sidebar-foot .theme-btn svg.ico-palette .ico-px").count() == 1
@@ -1770,6 +1780,7 @@ async def main():
         await npg.wait_for_timeout(2500)
         assert await npg.screenshot(clip=clip) != seen, "after a page load the animated ground is not visible"
         ok("Animate background: still visibly moving after a page load, with the still tile out of its way")
+        await open_settings(npg, ".sidebar")
         await npg.click("#sb-theme")
         await sw.click()
         assert await sw.get_attribute("aria-checked") == "false"
@@ -1789,6 +1800,27 @@ async def main():
         await npg.click("#sb-collapse")
         await npg.evaluate("setTheme('system')")
         ok("one Theme button opens six previewed tiles; picking applies live and the popup stays; close, Escape or backdrop shut it")
+
+        # Settings: one cog row that opens in place to Theme, Support and
+        # Switch to classic, and stays as left across a page load.
+        await npg.evaluate("sessionStorage.removeItem('taphou5e-settings')")
+        await npg.goto(f"{BASE}/v2/index.html", wait_until="domcontentloaded")
+        await npg.wait_for_selector(".party-roster", timeout=10000)
+        toggle = npg.locator("#sb-settings")
+        assert (await toggle.inner_text()).strip() == "Settings"
+        assert await npg.locator("#sb-settings svg.ico-settings .ico-px .px-run").count() == 1
+        assert await toggle.get_attribute("aria-expanded") == "false"
+        assert not await npg.locator("#sb-theme").is_visible() and not await npg.locator("#sb-support").is_visible()
+        await toggle.click()
+        assert await toggle.get_attribute("aria-expanded") == "true"
+        for sel in ("#sb-theme", "#sb-support", "#sb-classic"):
+            assert await npg.locator(sel).is_visible(), sel
+        await npg.reload(wait_until="domcontentloaded")
+        await npg.wait_for_selector(".party-roster", timeout=10000)
+        assert await npg.locator("#sb-theme").is_visible(), "the fold stays open across a page load"
+        await npg.click("#sb-settings")
+        assert not await npg.locator("#sb-theme").is_visible()
+        ok("Settings is one cog row that opens in place to Theme, Support and Switch to classic, and stays as left")
 
         # The floating + turns to x without its box growing, square or round.
         await npg.set_viewport_size({"width": 390, "height": 844})
@@ -2602,7 +2634,9 @@ async def main():
 
         # ---------- 29a. The sidebar stays in view on a long page ----------
         # A big encounter: stand-in height under the rows, removed on the next draw.
-        await page.set_viewport_size({"width": 1280, "height": 480})
+        # 380px: with Theme, Support and classic folded under Settings, the
+        # footer is short enough that the links only need to scroll this low.
+        await page.set_viewport_size({"width": 1280, "height": 380})
         await page.wait_for_timeout(200)
         await page.evaluate("document.querySelector('#main-content').insertAdjacentHTML('beforeend', '<div id=\"tall\" style=\"height:2400px\"></div>')")
         await page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
@@ -2614,7 +2648,7 @@ async def main():
         }""")
         assert pinned == [0, True, True, True], pinned
         nav = await page.evaluate("(() => { const n = document.querySelector('.sidebar-nav'); return [n.scrollHeight > n.clientHeight, getComputedStyle(n).overflowY]; })()")
-        assert nav == [True, "auto"], nav     # 480px is too short for it all: the links scroll, the footer does not
+        assert nav == [True, "auto"], nav     # 380px is too short for it all: the links scroll, the footer does not
         await page.evaluate("document.querySelector('#tall').remove(); window.scrollTo(0, 0)")
         ok("on a long page the sidebar stays pinned to the window, its footer in view even when the links must scroll")
 
@@ -4739,6 +4773,7 @@ async def main():
         # Logout and the switch back lived only in the mobile drawer, which is
         # hidden above the breakpoint -- a desktop had no way out.
         assert await page.locator("#sb-logout").is_visible()
+        await open_settings(page, ".sidebar")
         assert await page.locator("#sb-classic").is_visible()
         ok("the desktop sidebar carries logout and the switch to classic")
 
@@ -5260,6 +5295,7 @@ async def main():
         assert await page10.locator(".sidebar-foot #sb-support").count() == 1
         ok("the desktop sidebar carries a Support item")
 
+        await open_settings(page10, ".sidebar")
         await page10.click("#sb-support")
         await page10.wait_for_selector(".card-menu", timeout=5000)
         coffee = page10.locator('.card-menu a[href*="buymeacoffee"]')
@@ -5329,6 +5365,7 @@ async def main():
         await page10.wait_for_selector(".party-roster", timeout=10000)
         await page10.click("#menu-btn")
         await page10.wait_for_timeout(350)
+        await open_settings(page10, ".side-menu")
         assert await page10.locator("#sm-support").is_visible()
         await page10.click("#sm-support")
         await page10.wait_for_selector(".card-menu", timeout=5000)

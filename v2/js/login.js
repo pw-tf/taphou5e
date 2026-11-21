@@ -218,6 +218,13 @@
         });
     });
 
+    // Support, under Settings: the same panel as inside the app.
+    const support = $('#login-support');
+    if (support) {
+        support.innerHTML = `${icon('heart', 16)}Support`;
+        support.addEventListener('click', openSupport);
+    }
+
     // Opting out of v2 should stick, otherwise the router sends them back here.
     $('#use-classic').addEventListener('click', () => {
         try { localStorage.setItem(UI_KEY, 'classic'); } catch (err) { /* ignore */ }

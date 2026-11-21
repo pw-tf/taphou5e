@@ -98,9 +98,15 @@
       <p class="switch-line">Already have a game world? <a href="#" data-mode="join">Join existing</a></p>
     </form>
 
-    <button type="button" class="btn btn-quiet theme-btn" style="align-self:center" data-theme-button></button>
-
-    <p class="switch-line"><a href="../index.html" id="use-classic">Use the classic version</a></p>
+    <!-- Settings opens in place (theme.js): Theme, Support, classic. -->
+    <div class="login-settings">
+      <button type="button" class="btn btn-quiet settings-btn" data-settings-toggle aria-controls="login-settings-menu" aria-expanded="false"></button>
+      <div class="settings-fold" id="login-settings-menu" hidden>
+        <button type="button" class="btn btn-quiet theme-btn" data-theme-button></button>
+        <button type="button" class="btn btn-quiet" id="login-support">Support</button>
+        <p class="switch-line"><a href="../index.html" id="use-classic">Use the classic version</a></p>
+      </div>
+    </div>
   </main>
 
   <footer class="login-footer">
