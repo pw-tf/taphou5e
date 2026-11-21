@@ -1874,6 +1874,37 @@ async def main():
         assert await page.locator(".sidebar.is-collapsed").count() == 0
         ok("expanding it again is remembered the same way")
 
+        # In EGA (and Pixel) the chevrons are an animated 8x8 drawing nested in
+        # the icon as a second <svg>. The collapse flip once caught both, so
+        # the flips cancelled: collapsed, the chevrons still pointed in, and
+        # the inner drawing slid off-centre.
+        prior_theme = await page.evaluate("localStorage.getItem('taphou5e-theme')")
+        await page.evaluate("localStorage.setItem('taphou5e-theme', 'ega')")
+        await page.reload(wait_until="domcontentloaded")
+        await page.wait_for_selector("#sb-collapse .ico-px", timeout=10000)
+        await page.click("#sb-collapse")
+        await page.mouse.move(900, 400)
+        await page.wait_for_timeout(450)
+        # Transforms, not boxes: the nested drawing's bounding box covers its
+        # whole strip of animation frames, not the 8x8 window that shows.
+        flip = await page.evaluate("""() => {
+            const outer = document.querySelector('#sb-collapse > svg.ico');
+            const px = outer.querySelector('svg.ico-px');
+            return { outer: getComputedStyle(outer).transform, px: getComputedStyle(px).transform,
+                     shown: getComputedStyle(px).display !== 'none' };
+        }""")
+        assert flip["shown"], flip
+        assert flip["outer"] == "matrix(-1, 0, 0, 1, 0, 0)" and flip["px"] == "none", flip
+        ok("in EGA the collapsed sidebar's chevrons turn outward once, not flipped back by their pixel drawing")
+        await page.click("#sb-collapse")
+        await page.wait_for_timeout(350)
+        if prior_theme is None:
+            await page.evaluate("localStorage.removeItem('taphou5e-theme')")
+        else:
+            await page.evaluate("t => localStorage.setItem('taphou5e-theme', t)", prior_theme)
+        await page.reload(wait_until="domcontentloaded")
+        await page.wait_for_selector(".party-roster", timeout=10000)
+
         # ---------- 5. Mobile ----------
         await page.set_viewport_size({"width": 390, "height": 844})
         await page.wait_for_timeout(300)

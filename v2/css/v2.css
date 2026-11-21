@@ -466,11 +466,13 @@ textarea:focus-visible,
   color: var(--text-tertiary);
 }
 .init-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
-.init-toggle svg { transition: transform var(--transition-fast); }
+/* Outer icon only, as with #sb-collapse: an animated Pixel/EGA drawing nests
+   a second <svg> that must turn with its parent, not on its own. */
+.init-toggle > svg.ico { transition: transform var(--transition-fast); }
 .init-toggle[aria-expanded="true"] { color: var(--accent-primary); }
-.init-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.init-toggle[aria-expanded="true"] > svg.ico { transform: rotate(180deg); }
 .init-row.is-open .init-name { color: var(--accent-primary); }
-@media (prefers-reduced-motion: reduce) { .init-toggle svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .init-toggle > svg.ico { transition: none; } }
 /* Who the row is: the class or creature-type icon, in the avatar box the
    character cards use. The 'i' beside the name opens the stat block (or a
    party member's sheet); the details arrow sits with Down and Remove. */
@@ -1251,8 +1253,12 @@ button.theme-btn.side-menu-item { background: none; border: 0; font-family: inhe
 .sidebar.is-collapsed .sidebar-nav a { justify-content: center; padding-left: 0; padding-right: 0; }
 .sidebar.is-collapsed .sidebar-foot { padding-left: var(--space-sm); padding-right: var(--space-sm); }
 .sidebar.is-collapsed .sidebar-foot .side-menu-item { margin: 0; }
-#sb-collapse svg { transition: transform var(--transition-normal); }
-.sidebar.is-collapsed #sb-collapse svg { transform: scaleX(-1); }
+/* The outer icon only. In Pixel and EGA the chevrons are an animated 8x8
+   drawing nested inside it as a second <svg>; a bare `svg` selector flipped
+   that one too, so the two flips cancelled and the inner one slid sideways --
+   collapsed, the chevrons still pointed in and sat off-centre. */
+#sb-collapse > svg.ico { transition: transform var(--transition-normal); }
+.sidebar.is-collapsed #sb-collapse > svg.ico { transform: scaleX(-1); }
 
 /* ---------- Check outcomes ----------
    What happens on a pass or a fail was collected by the form and stored, and
