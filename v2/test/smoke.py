@@ -1082,6 +1082,8 @@ async def open_settings(page, scope=""):
     toggle = page.locator((scope + " [data-settings-toggle]").strip()).first
     if await toggle.get_attribute("aria-expanded") != "true":
         await toggle.click()
+        menu = await toggle.get_attribute("aria-controls")
+        await page.wait_for_function(f"getComputedStyle(document.getElementById('{menu}').firstElementChild).opacity === '1'")
 
 
 async def pick_theme(page, mode, scope=""):
@@ -1395,7 +1397,7 @@ async def main():
         await page.screenshot(path="/tmp/shot-03-hub-light.png", full_page=True)
         ok(f"light theme applies (body background {bg})")
 
-        active = await page.locator('.sidebar-foot [data-theme-name]').inner_text()
+        active = await page.locator('.sidebar-foot [data-theme-name]').text_content()
         assert active.strip() == "Light", active
         ok("the Theme button names the current theme after the shell rebuild")
 
@@ -1410,7 +1412,7 @@ async def main():
         watch(fresh, "fresh")
         await fresh.goto(f"{BASE}/v2/login.html", wait_until="domcontentloaded")
         assert await fresh.evaluate("document.documentElement.getAttribute('data-theme')") == "dark"
-        assert (await fresh.locator('[data-theme-name]').first.inner_text()).strip() == "Dark"
+        assert (await fresh.locator('[data-theme-name]').first.text_content()).strip() == "Dark"
         assert await fresh.evaluate("localStorage.getItem('taphou5e-theme')") is None, "the default is not saved"
         assert await fresh.evaluate("document.documentElement.style.getPropertyValue('--px-dither')") == ""
         ok("a device with no saved theme opens in Dark, without saving it or drawing a dither tile")
@@ -1425,7 +1427,7 @@ async def main():
         await pick_theme(px, "pixel")
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "pixel"
         assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "pixel"
-        assert (await px.locator('[data-theme-name]').first.inner_text()).strip() == "Pixel"
+        assert (await px.locator('[data-theme-name]').first.text_content()).strip() == "Pixel"
         tile = await px.evaluate("document.documentElement.style.getPropertyValue('--px-dither')")
         assert tile.startswith('url("data:image/png'), tile[:40]
         assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-pixel')")
@@ -1504,7 +1506,7 @@ async def main():
         await pick_theme(px, "ega", ".sidebar-foot")
         assert await px.evaluate("document.documentElement.getAttribute('data-theme')") == "ega"
         assert await px.evaluate("localStorage.getItem('taphou5e-theme')") == "ega"
-        assert (await px.locator('.sidebar-foot [data-theme-name]').inner_text()).strip() == "EGA"
+        assert (await px.locator('.sidebar-foot [data-theme-name]').text_content()).strip() == "EGA"
         assert await px.evaluate("!!localStorage.getItem('taphou5e-dither-1-ega')")
         await px.wait_for_timeout(400)      # let Ember's colour transitions finish
         ega = await px.evaluate("""() => {
@@ -1541,7 +1543,7 @@ async def main():
         await px.reload(wait_until="domcontentloaded")
         await px.wait_for_selector(".party-roster", timeout=10000)
         assert await px.evaluate("document.documentElement.hasAttribute('data-theme')") is False
-        assert (await px.locator('.sidebar-foot [data-theme-name]').inner_text()).strip() == "System"
+        assert (await px.locator('.sidebar-foot [data-theme-name]').text_content()).strip() == "System"
         shown = await px.evaluate("""() => [...document.querySelectorAll('svg.ico')].map(s =>
             [getComputedStyle(s.querySelector('.ico-g')).display, getComputedStyle(s.querySelector('.ico-px')).display])""")
         assert shown and all(line != "none" and pixel == "none" for line, pixel in shown), shown
@@ -1813,14 +1815,24 @@ async def main():
         assert not await npg.locator("#sb-theme").is_visible() and not await npg.locator("#sb-support").is_visible()
         await toggle.click()
         assert await toggle.get_attribute("aria-expanded") == "true"
+        # It slides open: partway through, the row is shorter than its items.
+        await npg.wait_for_timeout(60)
+        mid = await npg.evaluate("[document.getElementById('sb-settings-menu').getBoundingClientRect().height, document.querySelector('#sb-settings-menu .settings-fold-inner').scrollHeight]")
+        assert 0 <= mid[0] < mid[1], mid
+        await npg.wait_for_timeout(400)
         for sel in ("#sb-theme", "#sb-support", "#sb-classic"):
             assert await npg.locator(sel).is_visible(), sel
+        # Expanded, the foot lines up with the nav: same icon edge, rows left-aligned.
+        edges = await npg.evaluate("""() => ['.sidebar-nav a[data-nav="characters"]', '#sb-collapse', '#sb-settings', '#sb-theme', '#sb-support', '#sb-logout']
+            .map(sel => Math.round(document.querySelector(sel + ' svg.ico').getBoundingClientRect().left))""")
+        assert len(set(edges)) == 1, edges
         await npg.reload(wait_until="domcontentloaded")
         await npg.wait_for_selector(".party-roster", timeout=10000)
         assert await npg.locator("#sb-theme").is_visible(), "the fold stays open across a page load"
         await npg.click("#sb-settings")
-        assert not await npg.locator("#sb-theme").is_visible()
-        ok("Settings is one cog row that opens in place to Theme, Support and Switch to classic, and stays as left")
+        await npg.locator("#sb-theme").wait_for(state="hidden", timeout=2000)
+        assert await npg.get_attribute("#sb-settings-menu", "inert") == ""
+        ok("Settings is one cog row that slides open to Theme, Support and Switch to classic, lined up with the nav, and stays as left")
 
         # The floating + turns to x without its box growing, square or round.
         await npg.set_viewport_size({"width": 390, "height": 844})

@@ -96,10 +96,19 @@
      Open or shut, it stays that way across pages for the tab. */
   var FOLD_KEY = 'taphou5e-settings';
   function foldOpen() { try { return sessionStorage.getItem(FOLD_KEY) === 'open'; } catch (e) { return false; } }
-  function setFold(btn, open) {
+  // Opening and shutting slide (v2.css .settings-fold); `instant` skips the
+  // slide, for the state a page is drawn in. Shut, the items are inert, so
+  // Tab and screen readers skip them while they are folded away.
+  function setFold(btn, open, instant) {
     var menu = document.getElementById(btn.getAttribute('aria-controls'));
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (menu) menu.hidden = !open;
+    if (!menu) return;
+    if (instant) {
+      menu.classList.add('is-instant');
+      requestAnimationFrame(function () { requestAnimationFrame(function () { menu.classList.remove('is-instant'); }); });
+    }
+    menu.classList.toggle('is-open', open);
+    if (open) menu.removeAttribute('inert'); else menu.setAttribute('inert', '');
   }
   function fillSettings() {
     var nodes = document.querySelectorAll('[data-settings-toggle]');
@@ -109,7 +118,7 @@
         b.innerHTML = COG + '<span class="nav-label">Settings</span><span class="fold-caret" aria-hidden="true"></span>';
         b.setAttribute('data-label', 'Settings');
       }
-      setFold(b, foldOpen());
+      setFold(b, foldOpen(), true);
     }
   }
   document.addEventListener('click', function (e) {

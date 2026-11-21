@@ -1169,6 +1169,11 @@ a.card-menu-item, a.card-menu-item:hover { color: var(--text-primary); text-deco
   padding: 9px 10px; border-radius: var(--radius-md);
   font-size: var(--fs-12); color: var(--text-secondary);
 }
+/* Expanded, the foot's rows line up with the nav links above them: full
+   width, left-aligned, icons on the same edge (8px column + 12px row) and
+   the same 10px gap to the label. Ember's row layout centred them. */
+.sidebar:not(.is-collapsed) .sidebar-foot { align-items: stretch; padding-left: var(--space-sm); padding-right: var(--space-sm); }
+.sidebar:not(.is-collapsed) .sidebar-foot .side-menu-item { margin: 0; padding-left: var(--space-12); padding-right: var(--space-12); gap: var(--space-10); justify-content: flex-start; }
 .sidebar-foot .side-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sidebar-foot .side-menu-item-danger { color: var(--danger); }
 /* Rows that run an action (Support, Logout...) are buttons, not links
@@ -1185,13 +1190,35 @@ button.settings-btn.side-menu-item { background: none; border: 0; font-family: i
 .fold-caret { flex: none; margin-left: auto; width: 8px; height: 5px; background: currentColor;
   clip-path: polygon(0 0, 100% 0, 50% 100%); transition: transform var(--transition-fast); }
 [data-settings-toggle][aria-expanded="true"] .fold-caret { transform: rotate(180deg); }
-.settings-fold { display: flex; flex-direction: column; gap: 2px; padding-left: var(--space-12); }
-.settings-fold[hidden] { display: none; }
+/* It slides: the row grows from nothing to its items' height (a grid track
+   going 0fr -> 1fr animates where `height: auto` cannot) while the items
+   rise into place and fade in; shutting runs it backwards. Shut, it is also
+   `visibility: hidden` once the slide ends, so nothing folded is clickable. */
+.settings-fold {
+  display: grid; grid-template-rows: 0fr; visibility: hidden;
+  transition: grid-template-rows .26s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .26s;
+}
+.settings-fold.is-open {
+  grid-template-rows: 1fr; visibility: visible;
+  transition: grid-template-rows .26s cubic-bezier(.2, .8, .2, 1), visibility 0s;
+}
+.settings-fold-inner {
+  min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .2s ease, transform .26s cubic-bezier(.2, .8, .2, 1);
+}
+.settings-fold.is-open .settings-fold-inner { opacity: 1; transform: none; }
+.settings-fold.is-instant, .settings-fold.is-instant .settings-fold-inner { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-fold, .settings-fold.is-open, .settings-fold-inner { transition: none; }
+}
+/* In the phone drawer the folded items sit indented under Settings. */
+.side-menu .settings-fold-inner { padding-left: var(--space-12); }
 .sidebar.is-collapsed .fold-caret { display: none; }
-.sidebar.is-collapsed .settings-fold { padding-left: 0; }
 .sidebar.is-collapsed .settings-btn { justify-content: center; }
 .login-settings { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); }
-.login-settings .settings-fold { align-items: center; padding-left: 0; }
+/* Room inside the clipped slide for the login buttons' hard shadows and focus rings. */
+.login-settings .settings-fold-inner { align-items: center; padding: 4px 8px 8px; }
 .btn.settings-btn { gap: var(--space-sm); }
 
 /* ---------- Theme button and popup ----------

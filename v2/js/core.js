@@ -838,10 +838,12 @@ function renderSidebar(activeId, counts) {
                 <!-- Settings opens in place (theme.js) to show Theme, Support
                      and Switch to classic beneath it. -->
                 <button class="side-menu-item settings-btn" id="sb-settings" type="button" data-settings-toggle aria-controls="sb-settings-menu" aria-expanded="false" data-label="Settings"></button>
-                <div class="settings-fold" id="sb-settings-menu" hidden>
-                    <button class="side-menu-item theme-btn" id="sb-theme" type="button" data-theme-button data-label="Theme"></button>
-                    <button type="button" class="side-menu-item" id="sb-support" data-label="Support">${icon('heart', 16)}<span class="nav-label">Support</span></button>
-                    <button type="button" class="side-menu-item" id="sb-classic" data-label="Switch to classic">${icon('swap', 16)}<span class="nav-label">Switch to classic</span></button>
+                <div class="settings-fold" id="sb-settings-menu" inert>
+                    <div class="settings-fold-inner">
+                        <button class="side-menu-item theme-btn" id="sb-theme" type="button" data-theme-button data-label="Theme"></button>
+                        <button type="button" class="side-menu-item" id="sb-support" data-label="Support">${icon('heart', 16)}<span class="nav-label">Support</span></button>
+                        <button type="button" class="side-menu-item" id="sb-classic" data-label="Switch to classic">${icon('swap', 16)}<span class="nav-label">Switch to classic</span></button>
+                    </div>
                 </div>
                 <button type="button" class="side-menu-item side-menu-item-danger" id="sb-logout" data-label="Logout">${icon('logout', 16)}<span class="nav-label">Logout</span></button>
             </div>
@@ -883,10 +885,12 @@ function renderSideMenu(activeId) {
                     ${items}
                     <div class="side-menu-divider"></div>
                     <button class="side-menu-item settings-btn" id="sm-settings" type="button" data-settings-toggle aria-controls="sm-settings-menu" aria-expanded="false"></button>
-                    <div class="settings-fold" id="sm-settings-menu" hidden>
-                        <button class="side-menu-item theme-btn" id="sm-theme" type="button" data-theme-button></button>
-                        <button type="button" class="side-menu-item" id="sm-support">${icon('heart', 18)}Support</button>
-                        <button type="button" class="side-menu-item" id="sm-classic">${icon('swap', 18)}Switch to classic</button>
+                    <div class="settings-fold" id="sm-settings-menu" inert>
+                        <div class="settings-fold-inner">
+                            <button class="side-menu-item theme-btn" id="sm-theme" type="button" data-theme-button></button>
+                            <button type="button" class="side-menu-item" id="sm-support">${icon('heart', 18)}Support</button>
+                            <button type="button" class="side-menu-item" id="sm-classic">${icon('swap', 18)}Switch to classic</button>
+                        </div>
                     </div>
                     <button type="button" class="side-menu-item side-menu-item-danger" id="sm-logout">${icon('logout', 18)}Logout</button>
                 </nav>

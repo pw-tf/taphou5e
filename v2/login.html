@@ -101,10 +101,12 @@
     <!-- Settings opens in place (theme.js): Theme, Support, classic. -->
     <div class="login-settings">
       <button type="button" class="btn btn-quiet settings-btn" data-settings-toggle aria-controls="login-settings-menu" aria-expanded="false"></button>
-      <div class="settings-fold" id="login-settings-menu" hidden>
-        <button type="button" class="btn btn-quiet theme-btn" data-theme-button></button>
-        <button type="button" class="btn btn-quiet" id="login-support">Support</button>
-        <p class="switch-line"><a href="../index.html" id="use-classic">Use the classic version</a></p>
+      <div class="settings-fold" id="login-settings-menu" inert>
+        <div class="settings-fold-inner">
+          <button type="button" class="btn btn-quiet theme-btn" data-theme-button></button>
+          <button type="button" class="btn btn-quiet" id="login-support">Support</button>
+          <p class="switch-line"><a href="../index.html" id="use-classic">Use the classic version</a></p>
+        </div>
       </div>
     </div>
   </main>
